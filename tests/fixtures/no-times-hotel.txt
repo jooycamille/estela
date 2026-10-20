@@ -1,0 +1,8 @@
+Subject: Reservation confirmed - Harbour View Hotel
+Thank you for choosing us.
+Hotel: Harbour View Hotel
+Address: 7 Hickson Road, The Rocks NSW 2000, Australia
+Confirmation number: HV-88213
+Check-in: Thursday, 22 October 2026
+Check-out: Saturday, 24 October 2026
+Total charged: A$ 1,098.00

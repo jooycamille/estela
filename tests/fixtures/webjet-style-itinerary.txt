@@ -1,0 +1,87 @@
+Subject: Webjet Booking 10000001 from Melbourne to Mexico City on 09 December 26
+Thank you for booking with Webjet
+Itinerary & tax invoice
+Attached
+REFERENCE DETAILS
+Webjet reference: 10000001
+American Airlines: ABCDEF
+Copa Airlines: GHIJKL
+
+=== Attachment: Webjet_Tax_Invoice_and_Booking_Itinerary_10000001.pdf ===
+Webjet Itinerary
+Webjet reference: 10000001
+Booking date: Mon 24 August 2026
+Flights
+Melbourne to Mexico City
+Flight 1 Departing Arriving
+American Airlines
+AA7343
+Economy
+Operated by:
+Qantas Airways
+Airline Reference:
+ABCDEF
+(Used for online check-in)
+Melbourne (Tullamarine), Australia(MEL)
+Wed 9 December 2026
+11:00 AM / 11:00
+Sydney (Kingsford Smith), Australia(SYD)
+Wed 9 December 2026
+12:25 PM / 12:25
+Duration: 1h 25m
+American Airlines
+AA7261
+Economy
+Airline Reference:
+ABCDEF
+(Used for online check-in)
+Sydney (Kingsford Smith), Australia(SYD)
+Wed 9 December 2026
+2:05 PM / 14:05
+Dallas (Dallas Fort Worth Intl), United States
+of America(DFW)
+Wed 9 December 2026
+12:30 PM / 12:30
+Duration: 15h 25m
+Transit period: 1h 40m
+Mexico City to Medellin
+Flight 2 Departing Arriving
+Copa Airlines
+CM536
+Economy
+Airline Reference:
+GHIJKL
+(Used for online check-in)
+Mexico City (Licenciado Benito Juarez Intl),
+Mexico(MEX)
+Fri 18 December 2026
+3:25 AM / 03:25
+Panama City, Panama(PTY)
+Fri 18 December 2026
+8:07 AM / 08:07
+Duration: 3h 42m
+Dallas to Dallas
+Flight 3 Departing Arriving
+American Airlines
+AA7386
+Economy
+Airline Reference:
+ABCDEF
+(Used for online check-in)
+Dallas (Dallas Fort Worth Intl), United States
+of America(DFW)
+Sun 10 January 2027
+6:25 PM / 18:25
+Melbourne (Tullamarine), Australia(MEL)
+Tue 12 January 2027
+5:00 AM / 05:00
+Duration: 17h 35m
+Flight 1 Passenger Baggage Services
+Dallas Mexico City 1 bag 32kg checked baggage
+Seat 32F (Requested)
+Tax Invoice
+Price Breakdown
+1,200.00$
+Paid $ 1,234.56
+All prices are in Australian Dollars.
+Total Booking Price $ 1,234.56
