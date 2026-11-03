@@ -727,6 +727,7 @@ const EntryInput = z.object({
   title: z.string().trim().min(1).max(160),
   kind: z.enum(["place", "thing", "activity"]),
   section: z.enum(["eat", "see"]).optional(),
+  price: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable().optional(),
   notes: z.string().trim().max(2000).optional().transform((s) => s || undefined),
   address: z.string().trim().max(300).optional().transform((s) => s || undefined),
   area: z.string().trim().max(120).optional(),
@@ -780,7 +781,7 @@ app.post("/api/lists/:id/entries", async (req, res) => {
   const trip = list && getTrip(list.tripId);
   if (!list || !trip) return res.status(404).json({ error: "List not found" });
   const input = EntryInput.parse(req.body);
-  let entry: ListEntry = { ...input, day: input.day ?? undefined, id: newId(), done: input.done ?? false, addedAt: now() };
+  let entry: ListEntry = { ...input, day: input.day ?? undefined, price: input.price ?? undefined, id: newId(), done: input.done ?? false, addedAt: now() };
   // Find it on the map (for grouping nearby places) unless it was picked there already.
   entry = await locateEntry(entry, list, trip, tripItems(trip.id)).catch(() => entry);
   // Keep the idea's links ("Where to try it", tours, map); make them for things you typed yourself.
@@ -797,7 +798,7 @@ app.patch("/api/lists/:id/entries/:entryId", async (req, res) => {
   if (!list || !trip || !entry) return res.status(404).json({ error: "Not found" });
   const input = EntryInput.partial().parse(req.body);
   const moved = input.title !== undefined && input.title !== entry.title && input.lat === undefined;
-  Object.assign(entry, { ...input, day: input.day === undefined ? entry.day : input.day ?? undefined });
+  Object.assign(entry, { ...input, day: input.day === undefined ? entry.day : input.day ?? undefined, price: input.price === undefined ? entry.price : input.price ?? undefined });
   // Renamed or changed to a place without picking it on the map: look it up again.
   if (moved || (input.kind === "place" && entry.lat === undefined)) {
     Object.assign(entry, { lat: undefined, lon: undefined, area: undefined });

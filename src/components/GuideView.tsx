@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { STYLE_LABELS } from "../../shared/lists.ts";
-import type { AreaGroup, EssentialKind, Essentials, ListEntry, ListSuggestion, Trip, TripList } from "../../shared/types.ts";
+import type { AreaGroup, EssentialKind, Essentials, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
 import { api, type ListSuggestions } from "../api.ts";
 import { AddEntry, AreaCard, EntryRow, IdeaCard, tripDays, type AddOption } from "./ListView.tsx";
+import { PRICE_LABEL } from "./Price.tsx";
 
 // A destination guide Joy makes for each city you stay in: what to eat, do and see (matched to your travel styles),
 // your saved picks, and the pharmacies, clinics, police and ATMs near where you're staying.
@@ -42,6 +43,7 @@ export default function GuideView({
   const [error, setError] = useState<string>();
   const [expanded, setExpanded] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [adding, setAdding] = useState(false);
+  const [priceFilter, setPriceFilter] = useState<PriceLevel | "any">("any");
 
   const signature = list.entries.map((e) => `${e.id}${e.done}${e.day}${e.lat}`).join("|") + (list.dismissed ?? []).length;
   const refresh = useCallback(() => {
@@ -60,7 +62,7 @@ export default function GuideView({
     }
   };
   const add = (s: ListSuggestion, section: (typeof SECTIONS)[number]) =>
-    act(() => api.addEntry(list.id, { title: s.title, ...section.add, notes: s.detail, links: s.links }));
+    act(() => api.addEntry(list.id, { title: s.title, ...section.add, notes: s.detail, links: s.links, price: s.price }));
 
   const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key) })).filter((s) => s.entries.length);
   const myAreas = areas.filter((g) => g.entries.some((e) => e.listId === list.id));
@@ -69,6 +71,7 @@ export default function GuideView({
     ...s.add,
     label: `${s.icon} ${s.one}`,
     placeholder: s.key === "food" ? "e.g. Tacos al pastor" : s.key === "activities" ? "e.g. Salsa class" : undefined,
+    priced: s.key === "restaurants",
   }));
 
   return (
@@ -121,6 +124,7 @@ export default function GuideView({
                     onDay={(day) => act(() => api.updateEntry(list.id, e.id, { day }))}
                     onDelete={() => act(() => api.deleteEntry(list.id, e.id))}
                     onAddToItinerary={() => onAddToItinerary(e)}
+                    onPrice={s.key === "restaurants" ? (price) => act(() => api.updateEntry(list.id, e.id, { price })) : undefined}
                   />
                 ))}
               </ul>
@@ -146,13 +150,31 @@ export default function GuideView({
       {!ideas && <p className="muted">Joy is putting your guide together…</p>}
       {ideas?.guide &&
         SECTIONS.map((s) => {
-          const all = ideas.guide![s.key];
+          // Restaurants can be narrowed by price ($ to $$$).
+          const all = ideas.guide![s.key].filter((i) => s.key !== "restaurants" || priceFilter === "any" || i.price === priceFilter);
           const shown = expanded[s.key] ? all : all.slice(0, 6);
           return (
             <section key={s.key} id={`${list.id}-${s.key}`} className="card list-ideas guide-section">
               <h3>{s.icon} {s.title}</h3>
               {s.key === "restaurants" && (
-                <p className="muted tiny">Long-running local favourites. Opening hours change, so check before you go.</p>
+                <>
+                  <div className="price-filter" role="radiogroup" aria-label="Price">
+                    {(["any", 1, 2, 3] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        role="radio"
+                        aria-checked={priceFilter === p}
+                        className={priceFilter === p ? "on" : ""}
+                        title={p === "any" ? "All prices" : PRICE_LABEL[p]}
+                        onClick={() => setPriceFilter(p)}
+                      >
+                        {p === "any" ? "Any price" : "$".repeat(p)}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="muted tiny">Long-running local favourites. $ cheap eats · $$ mid-range · $$$ splurge (for this city). Opening hours change, so check before you go.</p>
+                </>
               )}
               {all.length === 0 ? (
                 <p className="muted small">Nothing more to suggest here. Try the searches at the bottom.</p>

@@ -309,6 +309,7 @@ export interface ListEntry {
   title: string;
   kind: "place" | "thing" | "activity";
   section?: "eat" | "see"; // in destination guides: a restaurant, or a place to visit
+  price?: PriceLevel; // restaurants: $ cheap eats · $$ mid-range · $$$ splurge
   notes?: string;
   address?: string;
   area?: string; // neighbourhood, from the map (for grouping nearby places)
@@ -333,10 +334,14 @@ export interface TripList {
   createdAt: string;
 }
 
+/** How pricey a restaurant is, for that city: 1 = $ cheap eats, 2 = $$ mid-range, 3 = $$$ splurge. */
+export type PriceLevel = 1 | 2 | 3;
+
 export interface ListSuggestion {
   title: string;
   kind: "place" | "thing" | "activity";
   style?: TravelStyle; // for "things to do for your style"
+  price?: PriceLevel;
   detail?: string;
   city?: string;
   links?: Link[];

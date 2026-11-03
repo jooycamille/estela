@@ -571,3 +571,16 @@ button.link.add-own { display: block; margin-top: 8px; }
   .status { gap: 6px; }
   .status .pill:not(.account-pill):not([href]) { display: none; }
 }
+
+/* Restaurant prices ($ to $$$) */
+.price-tag { margin-left: 6px; font-size: 0.8rem; font-weight: 700; color: var(--ok); letter-spacing: 0.5px; }
+.price-tag .price-rest { color: var(--border); }
+.price-picker { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--border); }
+.price-picker button { background: transparent; color: var(--muted); border: none; border-radius: 6px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700; }
+.price-picker button:hover:not(:disabled) { background: none; color: var(--text); }
+.price-picker button.on { background: var(--card); color: var(--ok); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.price-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
+.price-filter { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--border); margin: 2px 0 6px; }
+.price-filter button { background: transparent; color: var(--muted); border: none; border-radius: 8px; padding: 4px 12px; font-size: 0.8rem; font-weight: 600; }
+.price-filter button:hover:not(:disabled) { background: none; color: var(--text); }
+.price-filter button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }

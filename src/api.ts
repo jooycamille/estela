@@ -1,4 +1,4 @@
-import type { TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import type { PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
 /** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
 export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
@@ -83,7 +83,7 @@ export type ListSuggestions = {
   guide?: { restaurants: ListSuggestion[]; food: ListSuggestion[]; activities: ListSuggestion[]; sights: ListSuggestion[] };
 };
 export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }>;
-export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day">> & { day?: string | null };
+export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price">> & { day?: string | null; price?: PriceLevel | null };
 
 export const api = {
   lists: (tripId: string) => request<TripList[]>(`/trips/${tripId}/lists`),

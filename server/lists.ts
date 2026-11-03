@@ -160,7 +160,7 @@ function ruleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: Li
           : theme === "food" || theme === "drinks"
             ? [{ label: "Where to try it", url: mapsSearch(`${idea.title} near ${where}`) }]
             : [];
-      out.push({ title: idea.title, kind: idea.kind, detail: idea.detail, city: idea.city, tag: idea.tag, links, source: "rules", seasonal: !!idea.months });
+      out.push({ title: idea.title, kind: idea.kind, price: idea.price, detail: idea.detail, city: idea.city, tag: idea.tag, links, source: "rules", seasonal: !!idea.months });
     }
   }
   // Things that only fit your dates first, then places and things taken in turn (so neither crowds the other out).
@@ -454,7 +454,7 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     .map((r, i) => ({ r, i, score: styleScore(trip, [], r.styles) - (r.styles?.includes("luxury") && trip.styles.includes("budget") ? 2 : 0) }))
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map(({ r }): ListSuggestion => ({
-      title: r.title, kind: "place", detail: r.detail, city, tag: r.tag, source: "rules",
+      title: r.title, kind: "place", price: r.price, detail: r.detail, city, tag: r.tag, source: "rules",
       links: [{ label: "Map", url: mapsSearch(`${r.title}, ${city}`) }],
     }));
   const foodIdeas = ruleIdeas(list, trip, items, "food");

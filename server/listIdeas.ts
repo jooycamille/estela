@@ -1,5 +1,5 @@
 import type { ListTheme } from "../shared/lists.ts";
-import type { TravelStyle } from "../shared/types.ts";
+import type { PriceLevel, TravelStyle } from "../shared/types.ts";
 
 // Built-in ideas for lists, used when Claude isn't connected (and alongside it). Dishes, drinks and well-known sights
 // only: long-established, widely documented places, so they're unlikely to have closed. Restaurants change too often
@@ -13,6 +13,7 @@ export interface Idea {
   city?: string; // only for this city; otherwise anywhere in the country
   tag?: string;
   months?: number[]; // only suggested when the trip includes these months (1–12)
+  price?: PriceLevel; // places to eat
 }
 
 const F: ListTheme[] = ["food"];
@@ -41,9 +42,9 @@ export const IDEAS: Record<string, Idea[]> = {
     { title: "Café de olla", kind: "thing", themes: D, detail: "Coffee brewed in a clay pot with piloncillo sugar and cinnamon." },
     { title: "Horchata & aguas frescas", kind: "thing", themes: D, detail: "Rice-and-cinnamon horchata, jamaica (hibiscus) and tamarind drinks from taquerías and market stalls." },
     { title: "Pulque", kind: "thing", themes: D, detail: "Fermented agave sap, a pre-Hispanic drink. Try it at a traditional pulquería, plain or curado (fruit-flavoured)." },
-    { title: "Mercado de San Juan", kind: "place", themes: M, city: "Mexico City", detail: "The chefs' market, with exotic produce, cheeses and seafood. Good for a tasting lunch." },
-    { title: "Mercado de Coyoacán", kind: "place", themes: M, city: "Mexico City", detail: "Market famous for its tostadas stalls. Pair it with the Frida Kahlo Museum nearby." },
-    { title: "Mercado de la Merced", kind: "place", themes: M, city: "Mexico City", detail: "Mexico City's biggest traditional market. Sprawling and busy, so go with a guide or keep valuables close." },
+    { title: "Mercado de San Juan", kind: "place", price: 2, themes: M, city: "Mexico City", detail: "The chefs' market, with exotic produce, cheeses and seafood. Good for a tasting lunch." },
+    { title: "Mercado de Coyoacán", kind: "place", price: 1, themes: M, city: "Mexico City", detail: "Market famous for its tostadas stalls. Pair it with the Frida Kahlo Museum nearby." },
+    { title: "Mercado de la Merced", kind: "place", price: 1, themes: M, city: "Mexico City", detail: "Mexico City's biggest traditional market. Sprawling and busy, so go with a guide or keep valuables close." },
     { title: "Zócalo & Metropolitan Cathedral", kind: "place", themes: S, city: "Mexico City", detail: "The vast main square and Latin America's largest cathedral, at the heart of the Centro Histórico." },
     { title: "Templo Mayor", kind: "place", themes: S, city: "Mexico City", detail: "Ruins of the main Aztec temple of Tenochtitlan, right beside the Zócalo, with an excellent museum. Closed on Mondays." },
     { title: "Palacio de Bellas Artes", kind: "place", themes: S, city: "Mexico City", detail: "Art nouveau palace with murals by Rivera and Siqueiros; the Ballet Folklórico performs here." },
@@ -71,7 +72,7 @@ export const IDEAS: Record<string, Idea[]> = {
     { title: "Raspao", kind: "thing", themes: F, detail: "Shaved ice with syrup and condensed milk, from street carts." },
     { title: "Geisha coffee", kind: "thing", themes: D, detail: "Panama's prized coffee variety from Boquete. Try a pour-over at a specialty café in Casco Viejo." },
     { title: "Seco Herrerano", kind: "thing", themes: D, detail: "The national cane spirit, usually with milk (seco con leche) or in a cocktail." },
-    { title: "Mercado de Mariscos", kind: "place", themes: [...F, "shopping"], city: "Panama City", detail: "Fish market by the Cinta Costera. The upstairs restaurants and ceviche stalls outside are the draw." },
+    { title: "Mercado de Mariscos", kind: "place", price: 1, themes: [...F, "shopping"], city: "Panama City", detail: "Fish market by the Cinta Costera. The upstairs restaurants and ceviche stalls outside are the draw." },
     { title: "Casco Viejo", kind: "place", themes: S, city: "Panama City", detail: "The UNESCO-listed old quarter, with plazas, churches, rooftop bars and restored colonial streets." },
     { title: "Panama Canal: Miraflores Locks", kind: "place", themes: S, city: "Panama City", detail: "Watch ships rise and fall in the locks. Ship transits are usually mornings and mid-afternoon; check the schedule." },
     { title: "Biomuseo", kind: "place", themes: S, city: "Panama City", detail: "Frank Gehry's colourful museum on the Amador Causeway, about Panama's biodiversity." },
@@ -104,7 +105,7 @@ export const IDEAS: Record<string, Idea[]> = {
     { title: "Jardín Botánico & Parque Explora", kind: "place", themes: [...N, "sights"], city: "Medellín", detail: "Free botanical garden next to an interactive science museum and aquarium. Great with kids." },
     { title: "Alumbrados navideños", kind: "place", themes: [...S, "nightlife"], city: "Medellín", tag: "Christmas", months: [12, 1], detail: "Medellín's famous Christmas lights along the river (Parque Norte and around), all December to early January. Go after dark." },
     { title: "Guatapé & El Peñol", kind: "place", themes: N, city: "Medellín", tag: "Day trip", detail: "Climb about 740 steps up El Peñol rock for lake views, then wander colourful Guatapé town. About 2 hours away." },
-    { title: "Mercado del Río", kind: "place", themes: F, city: "Medellín", detail: "A food hall with dozens of stalls. Easy for a group with different tastes." },
+    { title: "Mercado del Río", kind: "place", price: 2, themes: F, city: "Medellín", detail: "A food hall with dozens of stalls. Easy for a group with different tastes." },
     { title: "Provenza & Parque Lleras", kind: "place", themes: ["nightlife", "food"], city: "Medellín", detail: "El Poblado's restaurant and bar streets. Lively at night." },
     { title: "Laureles & La 70", kind: "place", themes: ["nightlife", "food"], city: "Medellín", detail: "A more local neighbourhood for food and bars." },
     { title: "Novena de aguinaldos", kind: "thing", themes: S, tag: "Christmas", months: [12], detail: "Nine nights of family prayers, carols and buñuelos from 16 to 24 December. Join one with the family." },
@@ -210,33 +211,34 @@ export const GENERIC_STYLE_IDEAS: StyleIdea[] = [
 export interface RestaurantIdea {
   title: string;
   detail: string;
+  price: PriceLevel; // for that city: 1 $ cheap eats · 2 $$ mid-range · 3 $$$ splurge
   styles?: TravelStyle[];
   tag?: string;
 }
 
 export const RESTAURANTS: Record<string, RestaurantIdea[]> = {
   "mexico city": [
-    { title: "Contramar", detail: "Roma's famous seafood lunch spot. Order the tuna tostadas and the pescado a la talla (half red, half green). Lunch only; book ahead.", styles: ["food"], tag: "Book ahead" },
-    { title: "El Cardenal", detail: "A Centro institution for classic Mexican breakfasts: hot chocolate, conchas with cream, and seasonal dishes.", styles: ["food", "culture"] },
-    { title: "Café de Tacuba", detail: "Historic restaurant (since 1912) in a tiled colonial dining room, serving traditional Mexican dishes. As much about the setting as the food.", styles: ["culture"] },
-    { title: "Churrería El Moro", detail: "Churros and hot chocolate since 1935. The original is on Eje Central, with branches around the city.", styles: ["food", "budget"] },
-    { title: "Taquería Los Cocuyos", detail: "A tiny late-night Centro taco stand famous for suadero and campechanos. Eat standing up.", styles: ["food", "budget", "nightlife"] },
-    { title: "El Huequito", detail: "Tacos al pastor since 1959. The original is a hole-in-the-wall on Ayuntamiento in the Centro.", styles: ["food", "budget"] },
-    { title: "Pujol", detail: "Enrique Olvera's world-famous restaurant in Polanco: the mole madre and tasting menus. Book weeks ahead.", styles: ["luxury", "food"], tag: "Splurge · book weeks ahead" },
-    { title: "Rosetta", detail: "Elena Reygadas's restaurant in a Roma mansion. Her bakery, Panadería Rosetta, is famous for its guava roll.", styles: ["food", "luxury"], tag: "Book ahead" },
-    { title: "Los Danzantes Coyoacán", detail: "Oaxacan-inspired food and their own mezcal, on Coyoacán's main plaza. Pairs well with the Frida Kahlo Museum.", styles: ["food", "culture"] },
+    { title: "Contramar", price: 3, detail: "Roma's famous seafood lunch spot. Order the tuna tostadas and the pescado a la talla (half red, half green). Lunch only; book ahead.", styles: ["food"], tag: "Book ahead" },
+    { title: "El Cardenal", price: 2, detail: "A Centro institution for classic Mexican breakfasts: hot chocolate, conchas with cream, and seasonal dishes.", styles: ["food", "culture"] },
+    { title: "Café de Tacuba", price: 2, detail: "Historic restaurant (since 1912) in a tiled colonial dining room, serving traditional Mexican dishes. As much about the setting as the food.", styles: ["culture"] },
+    { title: "Churrería El Moro", price: 1, detail: "Churros and hot chocolate since 1935. The original is on Eje Central, with branches around the city.", styles: ["food", "budget"] },
+    { title: "Taquería Los Cocuyos", price: 1, detail: "A tiny late-night Centro taco stand famous for suadero and campechanos. Eat standing up.", styles: ["food", "budget", "nightlife"] },
+    { title: "El Huequito", price: 1, detail: "Tacos al pastor since 1959. The original is a hole-in-the-wall on Ayuntamiento in the Centro.", styles: ["food", "budget"] },
+    { title: "Pujol", price: 3, detail: "Enrique Olvera's world-famous restaurant in Polanco: the mole madre and tasting menus. Book weeks ahead.", styles: ["luxury", "food"], tag: "Splurge · book weeks ahead" },
+    { title: "Rosetta", price: 3, detail: "Elena Reygadas's restaurant in a Roma mansion. Her bakery, Panadería Rosetta, is famous for its guava roll.", styles: ["food", "luxury"], tag: "Book ahead" },
+    { title: "Los Danzantes Coyoacán", price: 2, detail: "Oaxacan-inspired food and their own mezcal, on Coyoacán's main plaza. Pairs well with the Frida Kahlo Museum.", styles: ["food", "culture"] },
   ],
   "panama city": [
-    { title: "Maito", detail: "Chef Mario Castrellón's celebrated restaurant in Coco del Mar: Panamanian ingredients with Caribbean and Asian influences.", styles: ["luxury", "food"], tag: "Book ahead" },
-    { title: "Donde José", detail: "An intimate tasting-menu counter in Casco Viejo built around Panamanian produce. Few seats, so book early.", styles: ["luxury", "food", "culture"], tag: "Splurge · book ahead" },
-    { title: "Diablicos", detail: "Traditional Panamanian food in Casco Viejo: sancocho, ropa vieja, patacones and carimañolas, often with folk dancing.", styles: ["culture", "food"] },
-    { title: "Café Unido", detail: "Panama's specialty coffee roaster, serving Geisha coffee, with cafés in Casco Viejo and around the city.", styles: ["food", "relaxation"] },
+    { title: "Maito", price: 3, detail: "Chef Mario Castrellón's celebrated restaurant in Coco del Mar: Panamanian ingredients with Caribbean and Asian influences.", styles: ["luxury", "food"], tag: "Book ahead" },
+    { title: "Donde José", price: 3, detail: "An intimate tasting-menu counter in Casco Viejo built around Panamanian produce. Few seats, so book early.", styles: ["luxury", "food", "culture"], tag: "Splurge · book ahead" },
+    { title: "Diablicos", price: 2, detail: "Traditional Panamanian food in Casco Viejo: sancocho, ropa vieja, patacones and carimañolas, often with folk dancing.", styles: ["culture", "food"] },
+    { title: "Café Unido", price: 1, detail: "Panama's specialty coffee roaster, serving Geisha coffee, with cafés in Casco Viejo and around the city.", styles: ["food", "relaxation"] },
   ],
   "medellín": [
-    { title: "Hatoviejo", detail: "Classic paisa food in big portions: bandeja paisa, sancocho, arepas, chicharrón. Several locations, including El Poblado.", styles: ["food", "culture"] },
-    { title: "Mondongo's", detail: "Famous for its mondongo (tripe soup), plus other Antioquian classics. A Medellín favourite for family lunches.", styles: ["food", "budget"] },
-    { title: "El Cielo", detail: "Chef Juan Manuel Barrientos's multi-sensory tasting menu, one of Colombia's best-known restaurants.", styles: ["luxury", "food"], tag: "Splurge · book ahead" },
-    { title: "Carmen", detail: "Modern Colombian cooking in El Poblado; a long-time favourite for a special dinner.", styles: ["luxury", "food"], tag: "Book ahead" },
-    { title: "Pergamino Café", detail: "Medellín's best-known specialty café, in El Poblado. Good for coffee, pastries and buying beans to take home.", styles: ["food", "relaxation"] },
+    { title: "Hatoviejo", price: 2, detail: "Classic paisa food in big portions: bandeja paisa, sancocho, arepas, chicharrón. Several locations, including El Poblado.", styles: ["food", "culture"] },
+    { title: "Mondongo's", price: 2, detail: "Famous for its mondongo (tripe soup), plus other Antioquian classics. A Medellín favourite for family lunches.", styles: ["food", "budget"] },
+    { title: "El Cielo", price: 3, detail: "Chef Juan Manuel Barrientos's multi-sensory tasting menu, one of Colombia's best-known restaurants.", styles: ["luxury", "food"], tag: "Splurge · book ahead" },
+    { title: "Carmen", price: 3, detail: "Modern Colombian cooking in El Poblado; a long-time favourite for a special dinner.", styles: ["luxury", "food"], tag: "Book ahead" },
+    { title: "Pergamino Café", price: 1, detail: "Medellín's best-known specialty café, in El Poblado. Good for coffee, pastries and buying beans to take home.", styles: ["food", "relaxation"] },
   ],
 };

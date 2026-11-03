@@ -127,7 +127,7 @@ The data comes from OpenStreetMap's [Nominatim](https://nominatim.org/) (© Open
 
 Joy makes a guide for every city you stay in, worked out from your flights (or your chosen destinations if there are no flights yet). The guides sit in the **Show** switch, e.g. 🇲🇽 Mexico City, 🇵🇦 Panama City and 🇨🇴 Medellín. Each one has:
 
-- **🍽️ Restaurants:** long-running local favourites for the city (fine dining goes first for luxury trips and drops down for budget ones), plus food markets and food halls. There's also a "Restaurants near your stay" map search.
+- **🍽️ Restaurants:** long-running local favourites for the city (fine dining goes first for luxury trips and drops down for budget ones), plus food markets and food halls. Each has a price level for that city, **$** cheap eats, **$$** mid-range or **$$$** splurge, and you can filter by price. Restaurants you save keep their level, and you can set or change it ($ / $$ / $$$) on any restaurant in Your picks or in an "Eats" list, including ones you add yourself. There's also a "Restaurants near your stay" map search.
 - **🌮 Food to try:** local dishes and drinks, with seasonal ones (Christmas, Reyes) first when your dates fit.
 - **🎯 Things to do for your style:** activities matched to the trip's travel styles.
 - **📍 Must-visit places:** sights, neighbourhoods and day trips, with those matching your styles first.

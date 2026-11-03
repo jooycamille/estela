@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { activitiesMerged, listTheme, STYLE_LABELS, THEME_LABELS } from "../../shared/lists.ts";
-import type { AreaGroup, ListEntry, ListSuggestion, Trip, TripList } from "../../shared/types.ts";
-import { api, type ListSuggestions } from "../api.ts";
+import type { AreaGroup, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
+import { api, type EntryInput, type ListSuggestions } from "../api.ts";
 import { formatDay } from "../format.ts";
 import LodgingField from "./LodgingField.tsx";
+import { PricePicker, PriceTag } from "./Price.tsx";
 import { flag } from "./PlaceSelect.tsx";
 
 export const tripDays = (trip: Trip) => {
@@ -108,6 +109,7 @@ export default function ListView({
                   onDay={(day) => act(() => api.updateEntry(list.id, e.id, { day }))}
                   onDelete={() => act(() => api.deleteEntry(list.id, e.id))}
                   onAddToItinerary={() => onAddToItinerary(e)}
+                  onPrice={kind === "place" && (theme === "food" || theme === "drinks") ? (price) => act(() => api.updateEntry(list.id, e.id, { price })) : undefined}
                 />
               ))}
             </ul>
@@ -119,7 +121,7 @@ export default function ListView({
         list={list}
         tripId={trip.id}
         options={[
-          { key: "place", kind: "place", label: `📍 ${labels.placeOne}` },
+          { key: "place", kind: "place", label: `📍 ${labels.placeOne}`, priced: theme === "food" || theme === "drinks" },
           { key: "thing", kind: "thing", label: `✨ ${labels.thingOne}`, placeholder: labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night" },
           ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: "🎯 Thing to do", placeholder: "e.g. Salsa class" }]),
         ]}
@@ -159,7 +161,7 @@ export default function ListView({
               key={s.title}
               idea={s}
               labels={labels}
-              onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: s.kind, notes: s.detail, links: s.links }))}
+              onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: s.kind, notes: s.detail, links: s.links, price: s.price }))}
               onDismiss={() => act(() => api.dismissSuggestion(list.id, s.title))}
             />
           ))}
@@ -212,6 +214,7 @@ export function EntryRow({
   onDay,
   onDelete,
   onAddToItinerary,
+  onPrice,
 }: {
   entry: ListEntry;
   days: string[];
@@ -220,6 +223,7 @@ export function EntryRow({
   onDay: (day: string | null) => void;
   onDelete: () => void;
   onAddToItinerary: () => void;
+  onPrice?: (level: PriceLevel | null) => void; // restaurants: rate $ to $$$
 }) {
   return (
     <li className={`entry ${entry.done ? "done" : ""}`}>
@@ -227,6 +231,7 @@ export function EntryRow({
       <div className="entry-body">
         <div className="entry-title">
           <b>{entry.title}</b>
+          {onPrice && <PriceTag level={entry.price} />}
           {entry.area && <span className="muted tiny"> · {entry.area}</span>}
         </div>
         {entry.notes && <div className="small muted entry-notes">{entry.notes}</div>}
@@ -241,6 +246,7 @@ export function EntryRow({
             {days.map((d) => <option key={d} value={d}>📅 {formatDay(d)}</option>)}
           </select>
           <button type="button" className="link" onClick={onAddToItinerary}>+ Itinerary</button>
+          {onPrice && <PricePicker value={entry.price} onChange={onPrice} />}
           {entry.links?.map((l) => (
             <a key={l.url} className="small" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
           ))}
@@ -259,7 +265,7 @@ export function EntryRow({
   );
 }
 
-export type AddOption = { key: string; kind: ListEntry["kind"]; section?: ListEntry["section"]; label: string; placeholder?: string };
+export type AddOption = { key: string; kind: ListEntry["kind"]; section?: ListEntry["section"]; label: string; placeholder?: string; priced?: boolean };
 
 export function AddEntry({
   list,
@@ -270,7 +276,7 @@ export function AddEntry({
   list: TripList;
   tripId: string;
   options: AddOption[];
-  onAdd: (body: Partial<ListEntry>) => Promise<void>;
+  onAdd: (body: EntryInput) => Promise<void>;
 }) {
   const [optionKey, setOptionKey] = useState(options[0].key);
   const option = options.find((o) => o.key === optionKey) ?? options[0];
@@ -278,6 +284,7 @@ export function AddEntry({
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [picked, setPicked] = useState<Pick<ListEntry, "address" | "area" | "lat" | "lon">>({});
+  const [price, setPrice] = useState<PriceLevel | null>(null);
   const [busy, setBusy] = useState(false);
   const near = list.place?.lat !== undefined && list.place.lon !== undefined ? { lat: list.place.lat, lon: list.place.lon } : undefined;
 
@@ -285,7 +292,8 @@ export function AddEntry({
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await onAdd({ title: title.trim(), kind, section: option.section, notes: notes.trim() || undefined, ...(kind === "place" ? picked : {}) });
+      await onAdd({ title: title.trim(), kind, section: option.section, notes: notes.trim() || undefined, ...(kind === "place" ? picked : {}), ...(option.priced && price ? { price } : {}) });
+      setPrice(null);
       setTitle("");
       setNotes("");
       setPicked({});
@@ -338,6 +346,12 @@ export function AddEntry({
         </label>
       </div>
       {kind === "place" && picked.address && <p className="muted tiny">📍 {picked.address}</p>}
+      {option.priced && (
+        <p className="small price-row">
+          <span className="muted">Price:</span> <PricePicker value={price ?? undefined} onChange={setPrice} />
+          <span className="muted tiny">$ cheap eats · $$ mid-range · $$$ splurge</span>
+        </p>
+      )}
       <div className="actions">
         <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Save"}</button>
       </div>
@@ -397,7 +411,7 @@ export function IdeaCard({
         </span>
         {idea.tag && <span className="idea-tag">{idea.tag}</span>}
       </div>
-      <b>{idea.title}</b>
+      <b>{idea.title} <PriceTag level={idea.price} /></b>
       {idea.city && <span className="muted tiny"> · {idea.city}</span>}
       {idea.detail && <p className="small">{idea.detail}</p>}
       <div className="idea-actions">
