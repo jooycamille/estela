@@ -171,6 +171,27 @@ Tour and activity confirmations (GetYourGuide, Viator, Klook, operators) become 
 
 Ticket and itinerary attachments (PDFs, ticket images) from forwarded or uploaded emails are stored under `data/attachments/` and shown on each booking. You can attach your own files with **+ Attach file**. Only PDFs and images open in the browser; other files download.
 
+## Reminders (notifications)
+
+Turn on **🔔 Reminders** at the top of a trip's **Prepare** tab, once per device. Joy then sends a notification when it's time:
+
+- **Check-MIG (Colombia):** when the 72-hour window opens, and a last call before it closes (1 hour before the flight), both for flying in and for leaving.
+- **Other online border forms:** Singapore's arrival card, Thailand's digital arrival card, the Philippines' eTravel, New Zealand's traveller declaration.
+- **Online check-in:** when it usually opens (24 hours before each journey).
+
+**Timing:**
+- **Time zones:** times are worked out in the departure airport's own time zone (from its coordinates, so daylight saving is included).
+- **No night-time pings:** something that opens at night is reminded at 8 am, and a last call that would fall at night comes at 8 pm the evening before.
+- **Your checklist shows them:** each item displays its 🔔 times, and the card lists the next few.
+- **Ticked items are skipped.** Ticks are shared by everyone on the trip, so if anyone ticks an item, nobody on the trip gets its reminder.
+- **Everyone on the trip with reminders turned on gets them.** Tapping one opens that trip's checklist.
+
+**How it works:**
+- **Standard web push:** the server sends through the browser's own push service, with keys generated on first use (in `data/push-keys.json`).
+- **On iPhone:** this works in the **Home Screen app** (iOS 16.4+). Open Hey Joy from the Home Screen and turn reminders on there.
+- **The server sends them:** it has to be running when a reminder is due. Missed reminders still go out within 6 hours if the Mac was asleep.
+- **The code:** `server/push.ts` (sending and the once-a-minute check) and `server/time.ts` (airport time zones).
+
 ## On your phone (while travelling)
 
 Hey Joy runs on your Mac. Your phone reaches it from anywhere through **Tailscale**, a free private network between your own devices. Nothing is opened to the internet, and your data stays on your Mac.
@@ -201,6 +222,29 @@ Hey Joy runs on your Mac. Your phone reaches it from anywhere through **Tailscal
 
 The offline copy is handled by `public/sw.js` (a service worker) and `saveTripOffline` in `src/api.ts`; the home-screen icon and name come from `public/manifest.webmanifest`.
 
+## Accounts: sign up, sign in, travelling together
+
+Everyone has their own account (name, email, password) and sees **only their own trips and the trips they've been invited to**.
+
+- **Sign up / sign in** from the start screen. **Forgot password?** emails a reset link (valid 1 hour, works once). Without an email service set up, the "email" is printed in the server's Terminal instead. On your account page (**👤 your name**) you can change your name, email and password (changing the password signs out your other devices), see and sign out your devices, and show a QR code to sign in another device. That last one is handy for the iPhone Home Screen app, which keeps its own sign-in, separate from Safari.
+- **Owning Hey Joy:** the trips already in it, and the app's settings (flight-data API keys), belong to whoever claims it. That's the account created **on the Mac running Hey Joy** (at `http://localhost:3001`), or, on a server, the account that opens the one-time **owner link** printed in the server log at start-up (valid 24 hours). Anyone else who signs up gets a new, empty account.
+- **Travelling together:** open a trip, tap **👥 Travellers**, add a name, and choose **edit** or **view only**. Send them the invite link or QR code (valid 7 days, works once). They create a free account (or sign in), and the trip appears in their Hey Joy. People who already share a trip with you can be added directly from "Someone you've travelled with". Owners can change roles or remove people; anyone can leave a trip.
+
+**Security:**
+- **Stored secrets:** passwords are stored as scrypt hashes, and session cookies and one-time links only as SHA-256 hashes.
+- **Cookies:** HTTP-only and SameSite, and marked Secure over HTTPS.
+- **Brute-force limits:** sign-in is limited per email and per address, and sign-ups and reset emails are rate-limited.
+- **Generic answers:** wrong-password messages don't reveal whether an email has an account.
+- **Same-site only:** requests from other websites are refused.
+- **Every API request is checked:** each one goes through `guard` in `server/auth.ts`. It requires sign-in and checks the person's role on the trip it's about; trips they're not on answer "not found".
+- **Tests:** `tests/auth.test.ts` and `tests/signup.test.ts`.
+
+**Deploying:**
+- **Settings:** set `PUBLIC_URL`, and `RESEND_API_KEY` with `MAIL_FROM` for reset emails (see `.env.example`).
+- **HTTPS:** run it behind HTTPS (your host's proxy).
+- **Your data:** keep `data/` on persistent storage. It holds `db.json` with accounts and trips, plus uploaded tickets.
+- **Claiming it:** at first start, open the owner link from the log to claim it.
+
 ## Tests
 
 ```bash
@@ -224,6 +268,10 @@ server/lists.ts        destination guides and your own lists: suggestions, map l
 server/essentials.ts   pharmacies, hospitals/clinics, police and ATMs near each stay (OpenStreetMap)
 server/pluscode.ts     decodes Google Plus Codes in addresses
 server/arrivalForms.ts immigration and customs forms for each border crossed
+server/auth.ts         accounts (sign up/in, passwords, one-time links), sessions, and who can see or change which trip
+server/mailer.ts       sends password-reset emails (Resend), or prints them when no email service is set
+server/push.ts         reminder notifications (web push) and the once-a-minute reminder check
+server/time.ts         airport time zones, and converting local flight times to exact moments
 server/listIdeas.ts    built-in list ideas (dishes, drinks, well-known sights) by country
 server/prep.ts         before-you-go checklist and packing list
 server/emailParser.ts  Claude extraction + heuristic fallback

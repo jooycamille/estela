@@ -4,14 +4,18 @@ import { fileURLToPath } from "node:url";
 import "./env.ts";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type Trip } from "../shared/types.ts";
+import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type TravellerView, type Trip, type User } from "../shared/types.ts";
 import { aiEnabled } from "./ai.ts";
 import { getAirport, searchAirports } from "./airports.ts";
 import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
 import { buildPrep } from "./prep.ts";
+import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signOut, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
+import { emailConfigured, sendEmail } from "./mailer.ts";
+import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
+import type { UserRecord } from "./db.ts";
 import { essentialsFor } from "./essentials.ts";
-import { areaGroups, dayPlans, ensureGuides, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
+import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
@@ -31,6 +35,8 @@ import { claudeSuggestions, ruleSuggestions } from "./suggestions.ts";
 const app = express();
 // No CORS: the UI reaches the API through the Vite proxy (same origin), and other websites must not read or change data.
 app.use(express.json({ limit: "40mb" })); // room for base64 PDF attachments
+// Sign-in and trip access for every API request (see server/auth.ts).
+app.use(guard);
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 
@@ -110,16 +116,222 @@ app.get("/api/health", (_req, res) => {
   res.json({ ai: aiEnabled(), flightProvider: getProvider().name, flightServices: flightServices().map((c) => c.provider) });
 });
 
-app.get("/api/trips", (_req, res) => {
+// ---------- Accounts (see server/auth.ts) ----------
+
+const Token = z.string().min(20).max(100);
+const Email = z.string().trim().max(200).email("Enter a valid email address");
+const Name = z.string().trim().min(1, "Enter your name").max(40);
+const userView = (u: UserRecord) => ({ id: u.id, name: u.name, email: u.email ?? null, isAdmin: u.isAdmin, hasPassword: !!u.passwordHash });
+const fail = (res: Response, r: { error: string; status: number }) => void res.status(r.status).json({ error: r.error });
+
+app.get("/api/auth/me", (req, res) => {
+  const user = userOf(req);
+  // claimHere: nobody owns Hey Joy yet and this is the Mac it runs on, so signing up here claims it (and its trips).
+  res.json({ user: user ? userView(user) : null, claimHere: !user && needsOwner() && onThisMac(req), emailReset: emailConfigured() });
+});
+
+app.post("/api/auth/signup", async (req, res) => {
+  if (tooMany(`signup:${clientAddress(req)}`, 10, 60)) return void res.status(429).json({ error: "Too many sign-ups from here. Try again later." });
+  const input = z.object({ name: Name, email: Email, password: z.string().max(200) }).parse(req.body);
+  const r = await signUp(req, res, input);
+  if ("error" in r) return fail(res, r);
+  res.status(201).json({ user: userView(r.user) });
+});
+
+app.post("/api/auth/signin", async (req, res) => {
+  const input = z.object({ email: Email, password: z.string().min(1, "Enter your password").max(200) }).parse(req.body);
+  const r = await signIn(req, res, input);
+  if ("error" in r) return fail(res, r);
+  res.json({ user: userView(r.user) });
+});
+
+// Forgot password: emails a reset link (valid 1 hour). Always answers the same, so it can't reveal who has an account.
+app.post("/api/auth/forgot", async (req, res) => {
+  const { email } = z.object({ email: Email }).parse(req.body);
+  const user = findByEmail(email);
+  if (user && !tooMany(`forgot:${user.id}`, 3, 60) && !tooMany(`forgot-ip:${clientAddress(req)}`, 10, 60)) {
+    const url = `${await publicUrl(req)}/#/reset/${createLink("reset", user.id, 60)}`;
+    await sendEmail(
+      user.email!,
+      "Reset your Hey Joy password",
+      `Hi ${user.name},\n\nTo choose a new password for Hey Joy, open this link (it works once, for 1 hour):\n${url}\n\nIf you didn't ask for this, you can ignore this email; your password stays the same.\n\n— Joy`,
+    ).catch((err) => console.warn("Couldn't send reset email:", (err as Error).message));
+  }
+  res.json({ ok: true });
+});
+
+app.post("/api/auth/reset", async (req, res) => {
+  const { token, password } = z.object({ token: Token, password: z.string().max(200) }).parse(req.body);
+  const r = await resetPassword(req, res, token, password);
+  if ("error" in r) return fail(res, r);
+  res.json({ user: userView(r.user) });
+});
+
+// "Sign in another device" and the owner link from the server log.
+app.post("/api/auth/redeem", (req, res) => {
+  const r = redeemLink(req, res, z.object({ token: Token }).parse(req.body).token);
+  if (!r) return void res.status(400).json({ error: "This link has expired or was already used. Ask for a new one." });
+  res.json({ user: userView(r.user) });
+});
+
+// An invite: who it's from and which trip (shown before you sign up or in), then joining it.
+app.get("/api/auth/invite/:token", (req, res) => {
+  const preview = invitePreview(Token.parse(req.params.token));
+  if (!preview) return void res.status(404).json({ error: "This invite has expired or was already used. Ask for a new one." });
+  res.json(preview);
+});
+
+app.post("/api/auth/accept-invite", (req, res) => {
+  const r = acceptInvite(userFrom(res), z.object({ token: Token }).parse(req.body).token);
+  if ("error" in r) return void res.status(400).json(r);
+  res.json(r);
+});
+
+app.patch("/api/auth/me", (req, res) => {
+  const input = z.object({ name: Name.optional(), email: Email.optional() }).parse(req.body);
+  const user = userFrom(res);
+  if (input.email) {
+    const email = normaliseEmail(input.email);
+    const taken = findByEmail(email);
+    if (taken && taken.id !== user.id) return void res.status(409).json({ error: "Another account uses that email" });
+    user.email = email;
+  }
+  if (input.name) user.name = input.name;
+  save();
+  res.json({ user: userView(user) });
+});
+
+app.post("/api/auth/password", async (req, res) => {
+  const { current, password } = z.object({ current: z.string().max(200).optional(), password: z.string().max(200) }).parse(req.body);
+  const problem = await changePassword(req, userFrom(res), current, password);
+  if (problem) return void res.status(400).json({ error: problem });
+  res.json({ ok: true });
+});
+
+app.post("/api/auth/signout", (req, res) => {
+  signOut(req, res);
+  res.status(204).end();
+});
+
+// Your signed-in devices, and a one-time link to sign in another (valid 15 minutes).
+app.get("/api/auth/devices", (req, res) => {
+  const me = userFrom(res);
+  const current = currentSessionId(req);
   res.json(
-    [...db.trips]
-      .sort((a, b) => a.startDate.localeCompare(b.startDate))
-      .map((t) => ({ ...t, itemCount: db.items.filter((i) => i.tripId === t.id).length })),
+    db.sessions
+      .filter((s) => s.userId === me.id)
+      .map((s) => ({ id: s.id.slice(0, 12), device: s.device, lastSeenAt: s.lastSeenAt, current: s.id === current })),
+  );
+});
+
+app.delete("/api/auth/devices/:id", (req, res) => {
+  const me = userFrom(res);
+  db.sessions = db.sessions.filter((s) => !(s.userId === me.id && s.id.startsWith(req.params.id) && req.params.id.length === 12));
+  save();
+  res.status(204).end();
+});
+
+app.post("/api/auth/device-link", async (req, res) => {
+  const token = createLink("device", userFrom(res).id, 15);
+  res.json({ url: `${await publicUrl(req)}/#/signin/${token}`, expiresInMinutes: 15 });
+});
+
+// ---------- Travellers on a trip ----------
+
+const travellers = (trip: Trip, me: User): TravellerView[] =>
+  [{ userId: trip.ownerId!, role: "owner" as const }, ...(trip.members ?? [])].flatMap((m) => {
+    const u = db.users.find((x) => x.id === m.userId);
+    if (!u) return [];
+    const lastSeenAt = db.sessions.filter((s) => s.userId === u.id).map((s) => s.lastSeenAt).sort().at(-1);
+    return [{ userId: u.id, name: u.name, role: m.role, signedIn: !(u as UserRecord).placeholder, lastSeenAt, you: u.id === me.id }];
+  });
+
+app.get("/api/trips/:id/members", (req, res) => {
+  const trip = getTrip(req.params.id)!;
+  const me = userFrom(res);
+  // People you've travelled with before, to add without a new link.
+  const contacts = res.locals.role === "owner" ? contactsOf(me).filter((u) => !travellers(trip, me).some((t) => t.userId === u.id)) : [];
+  res.json({ travellers: travellers(trip, me), contacts: contacts.map((u) => ({ id: u.id, name: u.name })) });
+});
+
+app.post("/api/trips/:id/members", async (req, res) => {
+  const trip = getTrip(req.params.id)!;
+  const me = userFrom(res);
+  const input = z
+    .object({ name: z.string().trim().min(1).max(40).optional(), userId: z.string().optional(), role: z.enum(["editor", "viewer"]) })
+    .refine((b) => b.name || b.userId, "Enter their name")
+    .parse(req.body);
+  let user: User | undefined;
+  if (input.userId) {
+    // Only people you already share a trip with (so ids can't be guessed to reach strangers' accounts).
+    user = contactsOf(me).find((u) => u.id === input.userId);
+    if (!user) return void res.status(404).json({ error: "Person not found" });
+  } else {
+    // Stands in for them until they open the invite and create (or sign in to) their account.
+    user = { id: newId(), name: input.name!, isAdmin: false, placeholder: true, createdAt: now() } as UserRecord;
+    db.users.push(user as UserRecord);
+  }
+  if (user.id === trip.ownerId || trip.members?.some((m) => m.userId === user!.id)) return void res.status(409).json({ error: `${user.name} is already on this trip` });
+  trip.members = [...(trip.members ?? []), { userId: user.id, role: input.role, addedAt: now() }];
+  save();
+  // New people get an invite link to join; people who already have an account just see the trip appear.
+  const url = (user as UserRecord).placeholder ? `${await publicUrl(req)}/#/invite/${createLink("invite", user.id, 7 * 24 * 60, trip.id)}` : null;
+  res.status(201).json({ travellers: travellers(trip, me), invite: url ? { name: user.name, url, expiresInDays: 7 } : null });
+});
+
+app.patch("/api/trips/:id/members/:userId", (req, res) => {
+  const trip = getTrip(req.params.id)!;
+  const { role } = z.object({ role: z.enum(["editor", "viewer"]) }).parse(req.body);
+  const member = trip.members?.find((m) => m.userId === req.params.userId);
+  if (!member) return void res.status(404).json({ error: "Not on this trip" });
+  member.role = role;
+  save();
+  res.json({ travellers: travellers(trip, userFrom(res)) });
+});
+
+// The owner removes someone, or someone leaves.
+app.delete("/api/trips/:id/members/:userId", (req, res) => {
+  const trip = getTrip(req.params.id)!;
+  const me = userFrom(res);
+  const who = req.params.userId === "me" ? me.id : req.params.userId; // "me": leaving
+  if (res.locals.role !== "owner" && who !== me.id) return void res.status(403).json({ error: "Only the trip's owner can do that" });
+  if (who === trip.ownerId) return void res.status(400).json({ error: "The owner can't leave their own trip (delete it instead)" });
+  trip.members = (trip.members ?? []).filter((m) => m.userId !== who);
+  db.invites = db.invites.filter((i) => !(i.userId === who && i.tripId === trip.id));
+  save();
+  res.status(204).end();
+});
+
+// A fresh link for someone on the trip (lost the first one, or a new phone). Replaces any unused one.
+app.post("/api/trips/:id/members/:userId/link", async (req, res) => {
+  const trip = getTrip(req.params.id)!;
+  const member = trip.members?.find((m) => m.userId === req.params.userId);
+  const user = member && db.users.find((u) => u.id === member.userId);
+  if (!user) return void res.status(404).json({ error: "Not on this trip" });
+  if (!(user as UserRecord).placeholder) return void res.status(400).json({ error: `${user.name} has already joined` });
+  res.json({ name: user.name, url: `${await publicUrl(req)}/#/invite/${createLink("invite", user.id, 7 * 24 * 60, trip.id)}`, expiresInDays: 7 });
+});
+
+// Only the trips you own or were added to.
+app.get("/api/trips", (_req, res) => {
+  const user = userFrom(res);
+  res.json(
+    db.trips
+      .map((t) => ({ t, role: tripRole(user, t) }))
+      .filter(({ role }) => role)
+      .sort((a, b) => a.t.startDate.localeCompare(b.t.startDate))
+      .map(({ t, role }) => ({
+        ...t,
+        role,
+        ownerName: db.users.find((u) => u.id === t.ownerId)?.name,
+        travellers: 1 + (t.members?.length ?? 0),
+        itemCount: db.items.filter((i) => i.tripId === t.id).length,
+      })),
   );
 });
 
 app.post("/api/trips", (req, res) => {
-  const trip: Trip = { ...tripInput(req.body), id: newId(), createdAt: now() };
+  const trip: Trip = { ...tripInput(req.body), id: newId(), ownerId: userFrom(res).id, members: [], createdAt: now() };
   db.trips.push(trip);
   save();
   res.status(201).json(trip);
@@ -128,7 +340,7 @@ app.post("/api/trips", (req, res) => {
 app.get("/api/trips/:id", (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return void res.status(404).json({ error: "Trip not found" });
-  res.json({ trip, items: tripItems(trip.id) });
+  res.json({ trip, items: tripItems(trip.id), role: res.locals.role });
 });
 
 app.put("/api/trips/:id", (req, res) => {
@@ -191,7 +403,7 @@ app.delete("/api/items/:id", (req, res) => {
 
 app.get("/api/attachments/:id", (req, res) => {
   const a = getAttachment(req.params.id);
-  if (!a) return void res.status(404).json({ error: "File not found" });
+  if (!a || !canSeeAttachment(userFrom(res), a.id)) return void res.status(404).json({ error: "File not found" });
   // Only PDFs and raster images open in the browser; anything else (e.g. HTML/SVG, which could run scripts) downloads.
   const viewable = /^(?:application\/pdf|image\/(?:png|jpe?g|gif|webp))$/i.test(a.contentType);
   res.setHeader("Content-Type", viewable ? a.contentType : "application/octet-stream");
@@ -206,7 +418,7 @@ app.post("/api/items/:id/attachments", (req, res) => {
   const { filename, contentType, data } = AttachmentInput.parse(req.body);
   const bytes = new Uint8Array(Buffer.from(data, "base64"));
   if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return void res.status(413).json({ error: "Files must be 15 MB or smaller" });
-  const stored = storeAttachment({ filename, contentType, data: bytes });
+  const stored = storeAttachment({ filename, contentType, data: bytes }, undefined, userFrom(res).id);
   item.attachments = [...(item.attachments ?? []), stored];
   save();
   res.status(201).json(item);
@@ -240,7 +452,7 @@ app.post("/api/parse-email", async (req, res) => {
   const result = await parseEmail(text, tripId ? getTrip(tripId) : undefined);
   // Keep uploaded tickets/itineraries with the bookings found in them (nothing to keep them with otherwise).
   if (result.items.length) {
-    const stored = relevantAttachments(files).map((f) => storeAttachment(f));
+    const stored = relevantAttachments(files).map((f) => storeAttachment(f, undefined, userFrom(res).id));
     for (const item of result.items) item.attachments = [...(item.attachments ?? []), ...stored];
   }
   res.json(result);
@@ -369,7 +581,9 @@ app.get("/api/trips/:id/prep", async (req, res) => {
     ),
   );
   const ok = weather.filter((w) => w !== null);
-  const home = settings.homeCountry;
+  // Your own home country (the admin's was an app-wide setting before sign-in existed).
+  const user = userFrom(res);
+  const home = user.homeCountry ?? (user.isAdmin ? settings.homeCountry : undefined);
   const { todo, packing } = buildPrep(trip, items, places, ok, home ?? places.homeCountry, countryName);
   res.json({
     stops: places.stops.map((s, i) => ({ ...s, weather: weather[i] })),
@@ -381,6 +595,40 @@ app.get("/api/trips/:id/prep", async (req, res) => {
     custom: trip.prep?.custom ?? [],
     checked: trip.prep?.checked ?? [],
   });
+});
+
+/** The checklist without weather (enough for reminders), for the trip owner's home country. */
+async function checklistFor(trip: Trip) {
+  const items = tripItems(trip.id);
+  const owner = db.users.find((u) => u.id === trip.ownerId);
+  const home = owner?.homeCountry ?? (owner?.isAdmin ? settings.homeCountry : undefined);
+  const places = tripPlaces(trip, items);
+  return buildPrep(trip, items, places, [], home ?? places.homeCountry, countryName).todo;
+}
+
+// ---------- Reminders (push notifications) ----------
+
+app.get("/api/push/key", (_req, res) => {
+  res.json({ publicKey: pushPublicKey() });
+});
+
+app.post("/api/push/subscribe", (req, res) => {
+  const sub = z
+    .object({ endpoint: z.string().url().max(1000), keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }) })
+    .parse(req.body.subscription);
+  const ua = req.get("user-agent") ?? "";
+  subscribe(userFrom(res).id, sub, /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : "Device");
+  res.status(201).json({ ok: true });
+});
+
+app.post("/api/push/unsubscribe", (req, res) => {
+  unsubscribe(userFrom(res).id, z.object({ endpoint: z.string().max(1000) }).parse(req.body).endpoint);
+  res.status(204).end();
+});
+
+app.post("/api/push/test", async (_req, res) => {
+  const sent = await notifyUser(userFrom(res).id, { title: "Hey Joy", body: "🔔 Reminders are on. Joy will nudge you when it's time for Check-MIG, check-in and more.", url: "/#/" });
+  res.json({ sent });
 });
 
 app.put("/api/trips/:id/prep/check", (req, res) => {
@@ -415,8 +663,8 @@ app.delete("/api/trips/:id/prep/custom/:itemId", (req, res) => {
 
 app.put("/api/settings/home-country", (req, res) => {
   const { country } = z.object({ country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/) }).parse(req.body);
-  settings.homeCountry = country;
-  saveSettings();
+  userFrom(res).homeCountry = country;
+  save();
   res.json({ homeCountry: country });
 });
 
@@ -485,6 +733,7 @@ const EntryInput = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lon: z.number().min(-180).max(180).optional(),
   link: httpUrl.optional().or(z.literal("").transform(() => undefined)),
+  links: z.array(z.object({ label: z.string().trim().min(1).max(60), url: httpUrl })).max(4).optional(),
   done: z.boolean().optional(),
   day: date.nullable().optional(),
 });
@@ -495,7 +744,8 @@ app.get("/api/trips/:id/lists", (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return res.status(404).json({ error: "Trip not found" });
   // A guide for each city you're staying in, made (and tidied) automatically.
-  if (ensureGuides(trip, tripItems(trip.id))) save();
+  const items = tripItems(trip.id);
+  if ([ensureGuides(trip, items), fillEntryLinks(trip, items)].some(Boolean)) save();
   res.json(db.lists.filter((l) => l.tripId === req.params.id));
 });
 
@@ -533,6 +783,8 @@ app.post("/api/lists/:id/entries", async (req, res) => {
   let entry: ListEntry = { ...input, day: input.day ?? undefined, id: newId(), done: input.done ?? false, addedAt: now() };
   // Find it on the map (for grouping nearby places) unless it was picked there already.
   entry = await locateEntry(entry, list, trip, tripItems(trip.id)).catch(() => entry);
+  // Keep the idea's links ("Where to try it", tours, map); make them for things you typed yourself.
+  if (!entry.links?.length) entry.links = entryLinks(entry, list, trip, tripItems(trip.id));
   list.entries.push(entry);
   save();
   res.status(201).json(entry);
@@ -626,17 +878,19 @@ app.post("/api/trips/:id/plan-day", (req, res) => {
 
 // Exchange rates (cached) plus the currency the user wants totals shown in.
 app.get("/api/fx", async (_req, res) => {
+  const user = userFrom(res);
+  const displayCurrency = user.displayCurrency ?? (user.isAdmin ? settings.displayCurrency : undefined) ?? null;
   try {
-    res.json({ ...(await getRates()), displayCurrency: settings.displayCurrency ?? null });
+    res.json({ ...(await getRates()), displayCurrency });
   } catch {
-    res.status(502).json({ error: "Exchange rates are unavailable right now", displayCurrency: settings.displayCurrency ?? null });
+    res.status(502).json({ error: "Exchange rates are unavailable right now", displayCurrency });
   }
 });
 
 app.put("/api/settings/display-currency", (req, res) => {
   const { currency } = z.object({ currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/) }).parse(req.body);
-  settings.displayCurrency = currency;
-  saveSettings();
+  userFrom(res).displayCurrency = currency;
+  save();
   res.json({ displayCurrency: currency });
 });
 
@@ -777,8 +1031,9 @@ app.post("/api/items/:id/simulate-change", async (req, res) => {
 });
 
 app.get("/api/alerts", (_req, res) => {
+  const user = userFrom(res);
   const alerts = db.items.flatMap((i) =>
-    i.kind === "flight" && i.changes.some((c) => !c.acknowledged)
+    i.kind === "flight" && i.changes.some((c) => !c.acknowledged) && tripRole(user, getTrip(i.tripId))
       ? [{ tripId: i.tripId, itemId: i.id, flightNumber: i.flightNumber, changes: i.changes.filter((c) => !c.acknowledged) }]
       : [],
   );
@@ -833,6 +1088,33 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "Something went wrong" });
 });
 
+/**
+ * The address people open on their phones: PUBLIC_URL if set, else this Mac's Tailscale HTTPS name (as used by
+ * `tailscale serve`), else localhost.
+ */
+let publicUrlCache: string | undefined;
+async function publicUrl(req?: Request) {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, "");
+  // Opened through Tailscale or a host: links use that same address.
+  const host = req?.get("x-forwarded-host") ?? req?.get("host");
+  if (host && !/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) return `${req!.get("x-forwarded-proto") ?? req!.protocol}://${host}`;
+  if (publicUrlCache) return publicUrlCache;
+  const { execFile } = await import("node:child_process");
+  for (const bin of ["tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"]) {
+    const name = await new Promise<string | undefined>((resolve) =>
+      execFile(bin, ["status", "--json"], { timeout: 4000 }, (err, out) => {
+        try {
+          resolve(err ? undefined : (JSON.parse(out).Self?.DNSName as string | undefined)?.replace(/\.$/, ""));
+        } catch {
+          resolve(undefined);
+        }
+      }),
+    );
+    if (name) return (publicUrlCache = `https://${name}`);
+  }
+  return `http://localhost:${port}`;
+}
+
 const port = Number(process.env.API_PORT ?? 3001);
 // Only this Mac can connect (not others on the same café or hotel Wi-Fi). Your phone reaches it through Tailscale,
 // which forwards to this address. Set HOST=0.0.0.0 only if you understand that anyone on your network could then
@@ -845,10 +1127,18 @@ app.listen(port, host, (err?: Error) => {
     console.error(`API port ${port} is already in use — is Hey Joy already running? Exiting so data isn't overwritten.`);
     process.exit(1);
   }
+  // You sign in on this Mac with a fresh one-time link (valid 1 hour); other devices are signed in from the app.
+  const admin = setUpPeople();
+  if (needsOwner()) {
+    // Claiming Hey Joy (and the trips already in it): sign up on this Mac, or (e.g. once deployed) open this link.
+    console.log(`\n  Welcome! Create your account at http://localhost:${port} on this Mac to set up Hey Joy.`);
+    publicUrl().then((url) => console.log(`  Not on this Mac (e.g. deployed)? This one-time owner link works for 24 hours:\n  ${url}/#/signin/${createLink("owner", admin.id, 24 * 60)}\n`));
+  }
   console.log(`Hey Joy on http://${host === "127.0.0.1" ? "localhost" : host}:${port} (Claude: ${aiEnabled() ? "on" : "off — using rule-based fallbacks"})`);
   const dropped = dropEmptyAttachments();
   if (dropped) console.log(`Removed ${dropped} empty attachment file(s); re-import their emails to attach them again.`);
   pruneAttachments();
   startFlightPoller();
+  startReminderLoop(checklistFor);
   startInboxPoller();
 });

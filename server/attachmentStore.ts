@@ -10,7 +10,7 @@ export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 const publicView = ({ id, filename, contentType, size }: AttachmentRecord): StoredAttachment => ({ id, filename, contentType, size });
 
 /** Save a file and return its reference. Re-importing the same email reuses the file instead of copying it again. */
-export function storeAttachment(file: Attachment, emailId?: string): StoredAttachment {
+export function storeAttachment(file: Attachment, emailId?: string, uploadedBy?: string): StoredAttachment {
   const existing = emailId && db.attachments.find((a) => a.emailId === emailId && a.filename === file.filename && a.size === file.data.byteLength);
   if (existing) return publicView(existing);
   if (file.data.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(`${file.filename} is larger than 15 MB`);
@@ -19,7 +19,7 @@ export function storeAttachment(file: Attachment, emailId?: string): StoredAttac
   mkdirSync(join(DIR, id), { recursive: true });
   const path = join(DIR, id, safeName);
   writeFileSync(path, file.data);
-  const record: AttachmentRecord = { id, filename: file.filename, contentType: file.contentType || "application/octet-stream", size: file.data.byteLength, path, emailId, createdAt: now() };
+  const record: AttachmentRecord = { id, filename: file.filename, contentType: file.contentType || "application/octet-stream", size: file.data.byteLength, path, emailId, uploadedBy, createdAt: now() };
   db.attachments.push(record);
   save();
   return publicView(record);

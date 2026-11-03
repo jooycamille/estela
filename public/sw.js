@@ -2,7 +2,7 @@
 // checklist, essentials and tickets without a connection. Data is always fetched fresh when your Mac is reachable;
 // the saved copy is only used when it isn't. Changes (adding, ticking…) need a connection.
 
-const VERSION = "heyjoy-v1";
+const VERSION = "heyjoy-v2";
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data`;
 const SAVED_AT = "X-Joy-Saved-At"; // marks a response that came from the saved copy
@@ -88,4 +88,37 @@ self.addEventListener("fetch", (event) => {
   // Build files are fingerprinted, so a saved copy is always right.
   if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/")) return event.respondWith(cacheFirst(request, SHELL));
   event.respondWith(networkFirst(request, SHELL, 3000));
+});
+
+// ---------- Reminders (push notifications) ----------
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Hey Joy", body: "", url: "/" };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    if (event.data) data.body = event.data.text();
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag,
+      data: { url: data.url },
+    }),
+  );
+});
+
+// Tapping a reminder opens the trip's checklist (in the open app if there is one).
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      if (open) return open.navigate(url).then((w) => (w ?? open).focus());
+      return self.clients.openWindow(url);
+    }),
+  );
 });

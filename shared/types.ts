@@ -55,6 +55,7 @@ export interface PrepItem {
   detail?: string;
   due?: string; // YYYY-MM-DDTHH:mm, local
   when?: "online" | "plane" | "arrival" | "check"; // border forms: where you fill it in
+  reminders?: { at: string; label: string }[]; // push notifications: UTC moments, skipped once the item is ticked
   links?: Link[];
   source?: string; // e.g. the activity this came from
   custom?: boolean; // added by the traveller
@@ -73,7 +74,42 @@ export interface Trip {
   styles: TravelStyle[];
   notes?: string;
   prep?: { checked: string[]; custom: PrepItem[] };
+  ownerId?: string; // who made the trip (and can share or delete it)
+  members?: TripMember[]; // people it's shared with
   createdAt: string;
+}
+
+// ---------- People and sharing ----------
+
+/** What someone you've added can do: change the trip, or only look. The owner can do everything. */
+export type TripRole = "owner" | "editor" | "viewer";
+
+export interface TripMember {
+  userId: string;
+  role: "editor" | "viewer";
+  addedAt: string;
+}
+
+/** A person who can sign in. The first one is you (the admin, who manages the app's settings). */
+export interface User {
+  id: string;
+  name: string;
+  email?: string; // sign-in email (lowercase); none yet for someone invited who hasn't joined
+  isAdmin: boolean;
+  claimedAt?: string; // the admin: when they signed up (until then, the first visitor can set Hey Joy up)
+  homeCountry?: string;
+  displayCurrency?: string;
+  createdAt: string;
+}
+
+/** A traveller on a trip, as shown in the Travellers panel. */
+export interface TravellerView {
+  userId: string;
+  name: string;
+  role: TripRole;
+  signedIn: boolean; // has used their link on at least one device
+  lastSeenAt?: string;
+  you: boolean;
 }
 
 export type ItemSource = "manual" | "email";
@@ -278,7 +314,8 @@ export interface ListEntry {
   area?: string; // neighbourhood, from the map (for grouping nearby places)
   lat?: number;
   lon?: number;
-  link?: string;
+  link?: string; // your own link (a booking, a recommendation)
+  links?: Link[]; // where to try it, map, tour searches — from Joy
   done: boolean; // been there / tried it
   day?: string; // YYYY-MM-DD it's planned for
   addedAt: string;

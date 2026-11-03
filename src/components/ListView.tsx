@@ -77,7 +77,7 @@ export default function ListView({
             {list.entries.length ? `${done} of ${list.entries.length} ${labels.done}` : "Nothing on it yet"}
           </p>
         </div>
-        <div className="list-head-actions">
+        <div className="list-head-actions edit-only">
           <button className="link" onClick={onEdit}>Edit</button>
           <button
             className="link danger"
@@ -159,7 +159,7 @@ export default function ListView({
               key={s.title}
               idea={s}
               labels={labels}
-              onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: s.kind, notes: s.detail }))}
+              onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: s.kind, notes: s.detail, links: s.links }))}
               onDismiss={() => act(() => api.dismissSuggestion(list.id, s.title))}
             />
           ))}
@@ -178,7 +178,7 @@ export default function ListView({
                   key={s.title}
                   idea={s}
                   labels={labels}
-                  onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: "activity", notes: s.detail }))}
+                  onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: "activity", notes: s.detail, links: s.links }))}
                   onDismiss={() => act(() => api.dismissSuggestion(list.id, s.title))}
                 />
               ))}
@@ -223,14 +223,14 @@ export function EntryRow({
 }) {
   return (
     <li className={`entry ${entry.done ? "done" : ""}`}>
-      <input type="checkbox" checked={entry.done} onChange={(e) => onToggle(e.target.checked)} aria-label={`Mark ${entry.title} as ${doneLabel}`} />
+      <input className="edit-lock" type="checkbox" checked={entry.done} onChange={(e) => onToggle(e.target.checked)} aria-label={`Mark ${entry.title} as ${doneLabel}`} />
       <div className="entry-body">
         <div className="entry-title">
           <b>{entry.title}</b>
           {entry.area && <span className="muted tiny"> · {entry.area}</span>}
         </div>
         {entry.notes && <div className="small muted entry-notes">{entry.notes}</div>}
-        <div className="entry-actions">
+        <div className="entry-actions edit-only">
           <select
             className={`day-select ${entry.day ? "set" : ""}`}
             value={entry.day ?? ""}
@@ -241,15 +241,16 @@ export function EntryRow({
             {days.map((d) => <option key={d} value={d}>📅 {formatDay(d)}</option>)}
           </select>
           <button type="button" className="link" onClick={onAddToItinerary}>+ Itinerary</button>
-          {(entry.link || entry.lat !== undefined) && (
-            <a
-              className="small"
-              href={entry.link ?? `https://www.google.com/maps/search/?api=1&query=${entry.lat},${entry.lon}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {entry.link ? "Link ↗" : "Map ↗"}
+          {entry.links?.map((l) => (
+            <a key={l.url} className="small" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
+          ))}
+          {entry.lat !== undefined && !entry.links?.some((l) => l.label === "Map") && (
+            <a className="small" href={`https://www.google.com/maps/search/?api=1&query=${entry.lat},${entry.lon}`} target="_blank" rel="noopener noreferrer">
+              Map ↗
             </a>
+          )}
+          {entry.link && (
+            <a className="small" href={entry.link} target="_blank" rel="noopener noreferrer">Link ↗</a>
           )}
           <button type="button" className="link danger" onClick={onDelete} aria-label={`Remove ${entry.title}`}>Remove</button>
         </div>
@@ -295,7 +296,7 @@ export function AddEntry({
 
   return (
     <form
-      className="card add-entry"
+      className="card add-entry edit-only"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -362,7 +363,7 @@ export function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; li
           </li>
         ))}
       </ol>
-      <div className="area-days">
+      <div className="area-days edit-only">
         <span className="muted small">Good days:</span>
         {group.suggestedDays.map((d) => (
           <button key={d} type="button" className="day-chip" onClick={() => onPlan(d)}>{formatDay(d)}</button>
@@ -402,7 +403,7 @@ export function IdeaCard({
       <div className="idea-actions">
         <button
           type="button"
-          className="secondary small-btn"
+          className="secondary small-btn edit-only"
           disabled={busy}
           onClick={() => {
             setBusy(true);
@@ -414,7 +415,7 @@ export function IdeaCard({
         {idea.links?.map((l) => (
           <a key={l.url} className="small" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
         ))}
-        <button type="button" className="link muted-link" onClick={onDismiss} aria-label={`Not interested in ${idea.title}`}>Not for me</button>
+        <button type="button" className="link muted-link edit-only" onClick={onDismiss} aria-label={`Not interested in ${idea.title}`}>Not for me</button>
       </div>
     </li>
   );

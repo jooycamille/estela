@@ -1,5 +1,6 @@
 import type { ActivityItem, FlightItem, ItineraryItem, Link, PrepItem, Trip } from "../shared/types.ts";
-import { borderForms } from "./arrivalForms.ts";
+import { borderForms, laterIfNight } from "./arrivalForms.ts";
+import { airportTimeZone, wallTimeToUtc } from "./time.ts";
 import type { StopWeather } from "./weather.ts";
 import type { tripPlaces } from "./tripPlaces.ts";
 
@@ -54,6 +55,13 @@ const addMonths = (date: string, months: number) => {
   d.setUTCMonth(d.getUTCMonth() + months);
   return d.toISOString().slice(0, 10);
 };
+
+/** Reminder times (departure airport's local time) as real moments, for push notifications. */
+function reminders(fromAirport: string, list?: { wall: string; label: string }[]) {
+  const tz = airportTimeZone(fromAirport);
+  if (!list?.length || !tz) return undefined;
+  return list.map((r) => ({ at: wallTimeToUtc(r.wall, tz), label: r.label }));
+}
 
 export function buildPrep(
   trip: Trip,
@@ -127,7 +135,7 @@ export function buildPrep(
   const transitAt = (f: FlightItem) => places.transits.some((t) => t.iata === f.to && t.date === (f.arrivalTime ?? f.departureTime).slice(0, 10));
   for (const b of borderForms(flights, home, countryName, transitAt)) {
     todoItem(
-      { group: "Border forms", text: b.text, detail: b.detail, due: b.due ?? b.flight.departureTime.slice(0, 16), when: b.when, links: b.links },
+      { group: "Border forms", text: b.text, detail: b.detail, due: b.due ?? b.flight.departureTime.slice(0, 16), when: b.when, links: b.links, reminders: reminders(b.flight.from, b.remind) },
       `${b.direction}-${b.country}-${b.flight.flightNumber}-${b.flight.departureTime.slice(0, 10)}`,
     );
   }
@@ -186,6 +194,7 @@ export function buildPrep(
         text: `Check in online: ${fs[0].from} → ${fs.at(-1)!.to} on ${fmt(firstFlight.departureTime, false)}`,
         detail: `${fs.map((f) => `${f.flightNumber} ${f.from}→${f.to}`).join(", ")}${airlines.length ? ` (${list(airlines as string[])})` : ""}. Online check-in usually opens 24–48 hours before departure${ref ? ` — booking ref ${ref}` : ""}.`,
         due: minusHours(firstFlight.departureTime, 24),
+        reminders: reminders(firstFlight.from, [{ wall: laterIfNight(minusHours(firstFlight.departureTime, 24)), label: `Online check-in usually opens now: ${fs[0].from} → ${fs.at(-1)!.to}` }]),
         links: firstFlight.links?.filter((l) => /check|manage|ticket/i.test(l.label)),
       },
       `check-in-${ref ?? firstFlight.flightNumber}-${firstFlight.departureTime.slice(0, 10)}`,

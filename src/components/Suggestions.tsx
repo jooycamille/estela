@@ -7,7 +7,7 @@ const ICON: Record<Suggestion["category"], string> = {
   logistics: "🧭", productivity: "💼", food: "🍜", sightseeing: "🏛", wellness: "🧘", packing: "🧳", safety: "🛟", experience: "✨",
 };
 
-export default function Suggestions({ tripId, version }: { tripId: string; version: number }) {
+export default function Suggestions({ tripId, version, onCount }: { tripId: string; version: number; onCount?: (n: number) => void }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [aiAvailable, setAiAvailable] = useState(false);
   const [usedAi, setUsedAi] = useState(false);
@@ -19,6 +19,7 @@ export default function Suggestions({ tripId, version }: { tripId: string; versi
     if (usedAi) return;
     api.suggestions(tripId, false).then((r) => { setSuggestions(r.suggestions); setAiAvailable(r.ai); });
   }, [tripId, version, usedAi]);
+  useEffect(() => onCount?.(suggestions.length), [suggestions, onCount]);
 
   const askClaude = async () => {
     setLoading(true);
@@ -34,18 +35,17 @@ export default function Suggestions({ tripId, version }: { tripId: string; versi
   };
 
   return (
-    <div className="card suggestions">
-      <h3>Joy’s suggestions</h3>
+    <div className="suggestions">
       <p className="muted small">Ideas and heads-ups based on your trip type, who's going, your travel style, and gaps in your plans.</p>
       {aiAvailable && (
-        <button className="secondary full" onClick={askClaude} disabled={loading}>
+        <button className="secondary" onClick={askClaude} disabled={loading}>
           {loading ? "Joy is thinking…" : usedAi ? "↻ Ask Joy again" : "✨ Ask Joy for more ideas"}
         </button>
       )}
       {error && <p className="warning small">{error}</p>}
       <ul>
         {suggestions.map((s, i) => (
-          <li key={i} className={`suggestion ${s.category}`}>
+          <li key={i} className={`card suggestion ${s.category}`}>
             <div className="s-head">
               <span>{ICON[s.category]}</span>
               <strong>{s.title}</strong>

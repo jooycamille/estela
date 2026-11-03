@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
-import { api, type ConnectionState } from "./api.ts";
+import { useCallback, useEffect, useState } from "react";
+import { api, type ConnectionState, type Me } from "./api.ts";
+import AccountView from "./components/AccountView.tsx";
+import SignIn, { JoinTrip } from "./components/SignIn.tsx";
 import TripDetail from "./components/TripDetail.tsx";
 import TripList from "./components/TripList.tsx";
 import FlightDataSettings from "./components/FlightDataSettings.tsx";
@@ -13,7 +15,18 @@ function useRoute() {
     addEventListener("hashchange", onChange);
     return () => removeEventListener("hashchange", onChange);
   }, []);
-  return { tripId: hash.match(/^#\/trip\/(.+)$/)?.[1], settings: hash === "#/settings" };
+  return {
+    tripId: hash.match(/^#\/trip\/([^/]+)/)?.[1],
+    tripView: hash.match(/^#\/trip\/[^/]+\/prepare$/) ? ("prepare" as const) : undefined, // from a reminder
+    settings: hash === "#/settings",
+    account: hash === "#/account",
+    // One-time links: sign in another device / owner link, reset a password, join a trip.
+    links: {
+      link: hash.match(/^#\/signin\/([\w-]+)$/)?.[1],
+      reset: hash.match(/^#\/reset\/([\w-]+)$/)?.[1],
+      invite: hash.match(/^#\/invite\/([\w-]+)$/)?.[1],
+    },
+  };
 }
 
 /** Live or saved copy: from each API response (see api.ts), plus the browser's own online/offline signal. */
@@ -40,15 +53,55 @@ const PROVIDER_SITES: Record<string, string> = {
 };
 
 export default function App() {
-  const { tripId, settings } = useRoute();
+  const { tripId, tripView, settings, account, links } = useRoute();
+  // Who's signed in: undefined while checking, null when signed out.
+  const [me, setMe] = useState<Me | null>();
+  const [auth, setAuth] = useState({ claimHere: false, emailReset: false });
+  useEffect(() => {
+    api
+      .me()
+      .then((r) => {
+        setMe(r.user);
+        setAuth({ claimHere: r.claimHere, emailReset: r.emailReset });
+      })
+      .catch(() => setMe((m) => m ?? null));
+    const out = () => setMe(null);
+    addEventListener("joy-signed-out", out);
+    return () => removeEventListener("joy-signed-out", out);
+  }, []);
+  const signedIn = useCallback((user: Me, trip?: string) => {
+    setMe(user);
+    location.replace(trip ? `#/trip/${trip}` : "#/"); // drop the used link from the address bar and history
+  }, []);
   const [status, setStatus] = useState<{ ai: boolean; flightProvider: string }>();
   const loadStatus = () => api.health().then(setStatus).catch(() => {});
   const connection = useConnection();
 
   // Refresh the header status on every navigation (e.g. after connecting flight data in settings).
   useEffect(() => {
-    loadStatus();
-  }, [tripId, settings]);
+    if (me) loadStatus();
+  }, [tripId, settings, me]);
+
+  if (me === undefined) return <div className="app" />;
+  // Signed in and opening an invite: join its trip. Signed out (or using a sign-in or reset link): the sign-in screen.
+  if (me && links.invite) {
+    return (
+      <div className="app">
+        <main>
+          <JoinTrip token={links.invite} onJoined={(trip) => signedIn(me, trip)} />
+        </main>
+      </div>
+    );
+  }
+  if (me === null || links.link || links.reset) {
+    return (
+      <div className="app">
+        <main>
+          <SignIn links={links} claimHere={auth.claimHere} emailReset={auth.emailReset} onSignedIn={signedIn} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -60,9 +113,12 @@ export default function App() {
         {status && (
           <div className="status">
             <span className={`pill ${status.ai ? "ok" : ""}`}>AI {status.ai ? "on" : "off"}</span>
-            <a href="#/settings" className={`pill ${status.flightProvider !== "mock" ? "ok" : "attention"}`} title="Flight data settings">
-              Flight data: {status.flightProvider === "mock" ? "demo — connect" : PROVIDER_NAMES[status.flightProvider] ?? status.flightProvider}
-            </a>
+            {me.isAdmin ? (
+              <a href="#/settings" className={`pill ${status.flightProvider !== "mock" ? "ok" : "attention"}`} title="Flight data settings">
+                Flight data: {status.flightProvider === "mock" ? "demo — connect" : PROVIDER_NAMES[status.flightProvider] ?? status.flightProvider}
+              </a>
+            ) : null}
+            <a href="#/account" className="pill account-pill" title="You, your devices, sign out">👤 {me.name}</a>
           </div>
         )}
       </header>
@@ -74,10 +130,12 @@ export default function App() {
         </div>
       )}
       <main>
-        {settings ? (
+        {account ? (
+          <AccountView me={me} onChanged={setMe} onSignedOut={() => setMe(null)} />
+        ) : settings && me.isAdmin ? (
           <FlightDataSettings onChanged={loadStatus} />
         ) : tripId ? (
-          <TripDetail key={tripId} tripId={tripId} mockFlights={status?.flightProvider === "mock"} />
+          <TripDetail key={tripId} tripId={tripId} initialView={tripView} mockFlights={status?.flightProvider === "mock"} />
         ) : (
           <TripList />
         )}

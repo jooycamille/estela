@@ -60,7 +60,7 @@ export default function GuideView({
     }
   };
   const add = (s: ListSuggestion, section: (typeof SECTIONS)[number]) =>
-    act(() => api.addEntry(list.id, { title: s.title, ...section.add, notes: s.detail }));
+    act(() => api.addEntry(list.id, { title: s.title, ...section.add, notes: s.detail, links: s.links }));
 
   const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key) })).filter((s) => s.entries.length);
   const myAreas = areas.filter((g) => g.entries.some((e) => e.listId === list.id));
@@ -103,7 +103,7 @@ export default function GuideView({
       <section className="card">
         <h3>⭐ Your picks</h3>
         {picks.length === 0 && <p className="muted small">Tap <b>+ Add</b> on anything below to save it here, then tick it off as you go.</p>}
-        <button type="button" className="link add-own" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+        <button type="button" className="link add-own edit-only" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
           {adding ? "Close" : "+ Add your own"}
         </button>
         <div className="list-columns">

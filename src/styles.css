@@ -89,10 +89,11 @@ button.full { width: 100%; margin-bottom: 12px; }
 .grow { flex: 1; }
 
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
-.head-actions { display: flex; gap: 8px; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.head-actions button { white-space: nowrap; }
 .back { color: var(--muted); font-size: 0.9rem; display: inline-block; margin-bottom: 8px; }
 
-.trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 16px; }
 .trip-card { transition: border-color 0.15s; }
 .trip-card { transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; }
 .trip-card:hover { border-color: var(--accent); box-shadow: 0 6px 20px rgba(212, 42, 104, 0.12); transform: translateY(-1px); }
@@ -114,7 +115,7 @@ textarea { resize: vertical; }
 .file-btn { flex-direction: row; margin: 0; color: var(--accent); cursor: pointer; }
 .file-btn input { display: none; }
 
-.detail { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+.detail { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
 .detail-side { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow: auto; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 
@@ -147,8 +148,8 @@ textarea { resize: vertical; }
 .kind.stay { background: var(--stay-bg); color: var(--stay-text); }
 .kind.activity { background: var(--activity-bg); color: var(--activity-text); }
 
-.suggestions ul { list-style: none; padding: 0; margin: 0; }
-.suggestion { padding: 10px 0; border-top: 1px solid var(--border); }
+.suggestions ul { list-style: none; padding: 0; margin: 12px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.suggestion { margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .suggestion p { margin: 4px 0 0; font-size: 0.9rem; }
 .s-head { display: flex; gap: 8px; align-items: center; }
 
@@ -467,4 +468,106 @@ button.link.add-own { display: block; margin-top: 8px; }
 @supports (padding: env(safe-area-inset-top)) {
   .topbar { padding-top: max(12px, env(safe-area-inset-top)); }
   .app { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Trips page: upcoming and past */
+.trip-section { margin-bottom: 28px; }
+.trip-section h2 { font-size: 1.05rem; margin: 0 0 12px; }
+.trip-when { font-size: 0.8rem; font-weight: 700; color: var(--accent); }
+.trip-card.now { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.trip-card.past { opacity: 0.75; }
+.trip-card.past:hover { opacity: 1; }
+.trip-when.past { color: var(--muted); font-weight: 500; }
+
+/* Landscape trip cards: flags on the left, details on the right */
+.trip-card { display: flex; gap: 0; padding: 0; overflow: hidden; min-height: 130px; color: inherit; text-decoration: none; }
+.trip-flags { flex: 0 0 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 12px 8px; font-size: 1.7rem; line-height: 1.2; background: var(--brand-gradient); }
+.trip-flags.many { font-size: 1.3rem; }
+.trip-flags span { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15)); }
+.trip-body { flex: 1; min-width: 0; padding: 14px 16px; }
+.trip-card.past .trip-flags { background: var(--border); }
+@media (max-width: 520px) {
+  .trip-flags { flex-basis: 64px; font-size: 1.35rem; }
+  .trip-body { padding: 12px; }
+}
+
+/* Swipe a trip card left (phones) for Edit / Delete */
+.swipe-row { position: relative; display: flex; border-radius: var(--radius); overflow: hidden; }
+/* Only while swiping or open — never peeking out from behind a card. */
+.swipe-row:not(.open) .swipe-actions { visibility: hidden; }
+/* Computers (mouse or trackpad): no swiping, so no swipe buttons; Edit and Delete are inside each trip. */
+@media (hover: hover) and (pointer: fine) { .swipe-row .swipe-actions { display: none; } }
+.swipe-row .card { margin-bottom: 0; }
+.swipe-actions { position: absolute; inset: 0 0 0 auto; display: flex; }
+.swipe-actions button { width: 80px; border-radius: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 1.2rem; padding: 0; }
+.swipe-actions button span { font-size: 0.78rem; }
+.swipe-edit { background: var(--stay); color: #fff; }
+.swipe-edit:hover:not(:disabled) { background: var(--stay); filter: brightness(1.1); }
+.swipe-delete { background: var(--danger); color: #fff; }
+.swipe-delete:hover:not(:disabled) { background: var(--danger); filter: brightness(1.1); }
+.swipe-front { flex: 1; min-width: 0; display: flex; position: relative; z-index: 1; transition: transform 0.2s ease; touch-action: pan-y; background: var(--bg); border-radius: var(--radius); }
+.swipe-front.dragging { transition: none; }
+.swipe-front .trip-card { flex: 1; min-width: 0; }
+
+/* Sharing: travellers, sign-in, account */
+.view-only .edit-only { display: none !important; }
+.view-only .edit-lock { pointer-events: none; opacity: 0.7; }
+.view-only-note { background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; margin: 0 0 12px; }
+.head-actions button.on { background: var(--accent-soft); border-color: var(--accent-soft); }
+.travellers-head { display: flex; justify-content: space-between; align-items: baseline; }
+.travellers-head h3 { margin: 0; }
+.traveller-list { list-style: none; margin: 8px 0 12px; padding: 0; }
+.traveller-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+.traveller-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.traveller-actions { display: flex; align-items: center; gap: 12px; }
+.traveller-actions select { width: auto; padding: 3px 8px; font-size: 0.85rem; }
+.pending { font-size: 0.72rem; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 8px; }
+.add-traveller { border-top: 1px solid var(--border); padding-top: 10px; }
+.add-traveller h4 { margin: 0 0 6px; }
+.qr-link { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 10px 0; }
+.qr-link img { border-radius: 8px; background: #fff; padding: 6px; }
+.qr-link-body { flex: 1; min-width: 220px; }
+.qr-link-body p { margin: 4px 0 8px; }
+.qr-link-body input { font-size: 0.8rem; }
+.actions.left { justify-content: flex-start; }
+.signin { max-width: 520px; margin: 8vh auto 0; text-align: center; }
+.signin h1 { margin: 16px 0 8px; }
+.signin-ways { text-align: left; line-height: 1.5; padding-left: 18px; }
+.signin-ways li { margin: 8px 0; }
+.account { max-width: 680px; }
+.devices { list-style: none; padding: 0; margin: 0 0 12px; }
+.devices li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.account-pill { color: var(--text); }
+.shared-by { margin-left: 8px; font-weight: 500; font-size: 0.75rem; color: var(--stay-text); background: var(--stay-bg); border-radius: 999px; padding: 1px 8px; }
+.signin-paste { max-width: 440px; margin: 16px auto 4px; }
+
+/* Accounts */
+.auth-form { display: flex; flex-direction: column; gap: 10px; max-width: 380px; margin: 12px auto; text-align: left; }
+.auth-form.wide { margin: 0; max-width: 460px; }
+.auth-form button[type="submit"] { align-self: stretch; }
+.auth-form.wide button[type="submit"] { align-self: flex-start; }
+.auth-form button.link { align-self: center; }
+.auth-tabs { margin: 12px auto 0; }
+.invite-banner { background: var(--accent-soft); border-radius: 12px; padding: 12px 16px; margin: 16px 0 4px; }
+.claim-note { background: var(--ok-bg); color: var(--ok); border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; }
+.notice { background: var(--ok-bg); color: var(--ok); border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; }
+.signin-foot { margin-top: 20px; }
+
+/* Reminders */
+.reminders-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.reminders-head h3 { margin: 0 0 6px; }
+.reminders-on { font-size: 0.75rem; font-weight: 600; color: var(--ok); background: var(--ok-bg); border-radius: 999px; padding: 2px 10px; }
+.upcoming-reminders { list-style: none; margin: 10px 0 4px; padding: 0; font-size: 0.85rem; }
+.upcoming-reminders li { padding: 4px 0; border-top: 1px solid var(--border); }
+.due.reminder { background: var(--accent-soft); color: var(--accent); margin-left: 6px; }
+
+/* Three trip tabs: keep them on one line on phones */
+.views { overflow-x: auto; scrollbar-width: none; }
+.view-tab { white-space: nowrap; }
+@media (max-width: 520px) { .views { gap: 14px; } .view-tab { font-size: 0.92rem; } }
+/* Phone header: keep the badges on one line (the AI badge is just informational) */
+.status .pill { white-space: nowrap; }
+@media (max-width: 520px) {
+  .status { gap: 6px; }
+  .status .pill:not(.account-pill):not([href]) { display: none; }
 }

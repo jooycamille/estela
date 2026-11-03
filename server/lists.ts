@@ -485,3 +485,29 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     ai: aiEnabled(),
   };
 }
+
+// ---------- Links on saved entries ----------
+
+/** "Where to try it" for food, tour searches for things to do, and a map search for places not yet on the map. */
+export function entryLinks(entry: ListEntry, list: TripList, trip: Trip, items: ItineraryItem[]): Link[] | undefined {
+  const where = list.place?.type === "city" ? list.place.name : listCities(list, trip, items)[0]?.city ?? (list.place ? countryName(list.place.countryCode) : "");
+  if (entry.kind === "thing") return [{ label: "Where to try it", url: mapsSearch(`${entry.title} near ${where}`) }];
+  if (entry.kind === "activity") return activityLinks(`${where} ${entry.title}`).slice(0, 2);
+  if (entry.lat === undefined) return [{ label: "Map", url: mapsSearch(`${entry.title}, ${where}`) }];
+  return undefined; // places on the map get a Map link from their coordinates
+}
+
+/** Gives links to saved entries that don't have any (e.g. added before links were kept). Returns whether anything changed. */
+export function fillEntryLinks(trip: Trip, items: ItineraryItem[]): boolean {
+  let changed = false;
+  for (const list of db.lists.filter((l) => l.tripId === trip.id))
+    for (const e of list.entries)
+      if (!e.links?.length) {
+        const links = entryLinks(e, list, trip, items);
+        if (links) {
+          e.links = links;
+          changed = true;
+        }
+      }
+  return changed;
+}

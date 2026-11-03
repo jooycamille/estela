@@ -22,4 +22,8 @@ test("border forms follow each crossing, including US connections and leaving Co
     ["arrive US XX2 arrival", "arrive MX XX3 plane", "arrive CO XX4 online", "leave CO XX5 online", "arrive AU XX6 plane"],
   );
   assert.equal(forms[2].due, "2027-03-08T08:00"); // Check-MIG done by 1 hour before the flight
+  // Reminded when Check-MIG opens (72 h before) and a last call 6 h before, in the departure airport's local time.
+  // (The last call would be 3 am, so it comes at 8 pm the evening before.)
+  assert.deepEqual(forms[2].remind?.map((r) => r.wall), ["2027-03-05T09:00", "2027-03-07T20:00"]);
+  assert.equal(forms[0].remind, undefined); // nothing to fill in online for the US
 });

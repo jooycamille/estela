@@ -1,4 +1,4 @@
-import type { Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import type { TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
 /** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
 export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
@@ -21,6 +21,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   announce(savedAt ? { offline: true, savedAt } : { offline: false });
   if (res.status === 204) return undefined as T;
   const body = await res.json().catch(() => ({}));
+  // Signed out (or the session was removed): the app shows its sign-in screen.
+  if (res.status === 401 && body.signIn) dispatchEvent(new Event("joy-signed-out"));
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
   return body as T;
 }
@@ -62,7 +64,11 @@ export type PrepData = {
 };
 
 export type TripInput = Omit<Trip, "id" | "createdAt">;
-export type TripSummary = Trip & { itemCount: number };
+export type TripSummary = Trip & { itemCount: number; role: TripRole; ownerName?: string; travellers: number };
+export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean };
+export type Device = { id: string; device: string; lastSeenAt: string; current: boolean };
+export type InviteLink = { name: string; url: string; expiresInDays: number };
+export type Travellers = { travellers: TravellerView[]; contacts: { id: string; name: string }[] };
 export type Alert = { tripId: string; itemId: string; flightNumber: string; changes: FlightChange[] };
 
 export type LodgingResult = { name?: string; address: string; lat: number; lon: number; kind: "property" | "address"; area?: string };
@@ -121,7 +127,32 @@ export const api = {
   deletePrep: (tripId: string, id: string) => request<void>(`/trips/${tripId}/prep/custom/${encodeURIComponent(id)}`, json("DELETE")),
   setHomeCountry: (country: string) => request<{ homeCountry: string }>("/settings/home-country", json("PUT", { country })),
   trips: () => request<TripSummary[]>("/trips"),
-  trip: (id: string) => request<{ trip: Trip; items: ItineraryItem[] }>(`/trips/${id}`),
+  trip: (id: string) => request<{ trip: Trip; items: ItineraryItem[]; role: TripRole }>(`/trips/${id}`),
+  pushKey: () => request<{ publicKey: string }>("/push/key"),
+  pushSubscribe: (subscription: PushSubscriptionJSON) => request<{ ok: true }>("/push/subscribe", json("POST", { subscription })),
+  pushUnsubscribe: (endpoint: string) => request<void>("/push/unsubscribe", json("POST", { endpoint })),
+  pushTest: () => request<{ sent: number }>("/push/test", json("POST")),
+  me: () => request<{ user: Me | null; claimHere: boolean; emailReset: boolean }>("/auth/me"),
+  signUp: (body: { name: string; email: string; password: string }) => request<{ user: Me }>("/auth/signup", json("POST", body)),
+  signIn: (body: { email: string; password: string }) => request<{ user: Me }>("/auth/signin", json("POST", body)),
+  forgot: (email: string) => request<{ ok: true }>("/auth/forgot", json("POST", { email })),
+  reset: (token: string, password: string) => request<{ user: Me }>("/auth/reset", json("POST", { token, password })),
+  redeem: (token: string) => request<{ user: Me }>("/auth/redeem", json("POST", { token })),
+  invite: (token: string) => request<{ tripName: string; invitedBy: string; invitedName?: string }>(`/auth/invite/${token}`),
+  acceptInvite: (token: string) => request<{ tripId: string }>("/auth/accept-invite", json("POST", { token })),
+  updateMe: (body: { name?: string; email?: string }) => request<{ user: Me }>("/auth/me", json("PATCH", body)),
+  changePassword: (current: string | undefined, password: string) => request<{ ok: true }>("/auth/password", json("POST", { current, password })),
+  signOut: () => request<void>("/auth/signout", json("POST")),
+  devices: () => request<Device[]>("/auth/devices"),
+  removeDevice: (id: string) => request<void>(`/auth/devices/${id}`, json("DELETE")),
+  deviceLink: () => request<{ url: string; expiresInMinutes: number }>("/auth/device-link", json("POST")),
+  travellers: (tripId: string) => request<Travellers>(`/trips/${tripId}/members`),
+  addTraveller: (tripId: string, body: { name?: string; userId?: string; role: "editor" | "viewer" }) =>
+    request<{ travellers: TravellerView[]; invite: InviteLink | null }>(`/trips/${tripId}/members`, json("POST", body)),
+  setTravellerRole: (tripId: string, userId: string, role: "editor" | "viewer") =>
+    request<{ travellers: TravellerView[] }>(`/trips/${tripId}/members/${userId}`, json("PATCH", { role })),
+  removeTraveller: (tripId: string, userId: string) => request<void>(`/trips/${tripId}/members/${userId}`, json("DELETE")),
+  travellerLink: (tripId: string, userId: string) => request<InviteLink>(`/trips/${tripId}/members/${userId}/link`, json("POST")),
   createTrip: (t: TripInput) => request<Trip>("/trips", json("POST", t)),
   updateTrip: (id: string, t: TripInput) => request<Trip>(`/trips/${id}`, json("PUT", t)),
   deleteTrip: (id: string) => request<void>(`/trips/${id}`, json("DELETE")),
@@ -172,4 +203,10 @@ export async function saveTripOffline(tripId: string, items: ItineraryItem[], li
     ...lists.filter((l) => l.auto).map((l) => `/api/lists/${l.id}/essentials`),
   ];
   for (const url of urls) await fetch(url).catch(() => undefined);
+}
+
+/** Signing out also removes this device's offline copy of your trips. */
+export async function signOutHere() {
+  await api.signOut().catch(() => undefined);
+  if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
 }

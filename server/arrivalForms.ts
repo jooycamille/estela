@@ -14,6 +14,7 @@ export interface BorderForm {
   due?: string; // YYYY-MM-DDTHH:mm — when to have it done by
   when: "online" | "plane" | "arrival" | "check"; // online beforehand, on the plane, at the airport, or look it up
   links?: Link[];
+  remind?: { wall: string; label: string }[]; // reminders, in the departure airport's local time
 }
 
 type Rule = (f: FlightItem, ctx: { home?: string; returningHome: boolean; transit: boolean }) => Omit<BorderForm, "country" | "direction" | "flight"> | null;
@@ -27,12 +28,30 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const day = (t: string) => `${+t.slice(8, 10)} ${MONTHS[+t.slice(5, 7) - 1]}`;
 const leg = (f: FlightItem) => `${f.flightNumber} ${f.from}→${f.to}, ${day(f.departureTime)}`;
 
+// No reminders in the middle of the night (local time): "it's open" waits until 8 am; a last call comes the evening
+// before at 8 pm instead. Both stay inside the form's window.
+const hourOf = (wall: string) => +wall.slice(11, 13);
+const atHour = (wall: string, dayShift: number, hour: number) => {
+  const d = new Date(`${wall.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dayShift);
+  return `${d.toISOString().slice(0, 10)}T${String(hour).padStart(2, "0")}:00`;
+};
+export const laterIfNight = (wall: string) => (hourOf(wall) >= 22 ? atHour(wall, 1, 8) : hourOf(wall) < 7 ? atHour(wall, 0, 8) : wall.slice(0, 16));
+export const earlierIfNight = (wall: string) => (hourOf(wall) >= 22 ? atHour(wall, 0, 20) : hourOf(wall) < 7 ? atHour(wall, -1, 20) : wall.slice(0, 16));
+
+/** Check-MIG opens 72 hours before the flight and closes 1 hour before: a reminder at each end. */
+const checkMigReminders = (f: FlightItem) => [
+  { wall: laterIfNight(minusHours(f.departureTime, 72)), label: `Check-MIG is open: fill it in for ${f.flightNumber} (${f.from}→${f.to})` },
+  { wall: earlierIfNight(minusHours(f.departureTime, 6)), label: `Last call: Check-MIG for ${f.flightNumber} closes 1 hour before departure` },
+];
+
 const ARRIVE: Record<string, Rule> = {
   CO: (f) => ({
     when: "online",
     text: `Colombia: fill in Check-MIG before ${f.flightNumber}`,
     detail: `Colombia's free online migration form, required for visitors arriving by air. Complete it between 72 and 1 hour before your flight (${leg(f)}), and keep the confirmation email. Customs: you only declare on arrival if you're carrying more than USD 10,000 in cash or goods over the allowance. Only use the official Migración Colombia site; other sites charge for the free form.`,
     due: minusHours(f.departureTime, 1),
+    remind: checkMigReminders(f),
     links: [{ label: "Check-MIG (Migración Colombia)", url: "https://apps.migracioncolombia.gov.co/pre-registro/" }],
   }),
   MX: (f) => ({
@@ -67,6 +86,7 @@ const ARRIVE: Record<string, Rule> = {
     text: `Singapore: SG Arrival Card before ${f.flightNumber}`,
     detail: `Submit the free SG Arrival Card (with health declaration) online within 3 days before you arrive (${leg(f)}). Only use the official ICA site or the MyICA app.`,
     due: minusHours(f.departureTime, 1),
+    remind: [{ wall: laterIfNight(minusHours(f.departureTime, 48)), label: `Time to do your SG Arrival Card for ${f.flightNumber}` }],
     links: [{ label: "SG Arrival Card (ICA)", url: "https://eservices.ica.gov.sg/sgarrivalcard/" }],
   }),
   TH: (f) => ({
@@ -74,6 +94,7 @@ const ARRIVE: Record<string, Rule> = {
     text: `Thailand: Digital Arrival Card before ${f.flightNumber}`,
     detail: `Thailand's TDAC replaced the paper arrival card. Submit it online, free, within 3 days before you arrive (${leg(f)}).`,
     due: minusHours(f.departureTime, 1),
+    remind: [{ wall: laterIfNight(minusHours(f.departureTime, 48)), label: `Time to do your Thailand Digital Arrival Card for ${f.flightNumber}` }],
     links: [{ label: "Thailand Digital Arrival Card", url: "https://tdac.immigration.go.th/" }],
   }),
   PH: (f) => ({
@@ -81,6 +102,7 @@ const ARRIVE: Record<string, Rule> = {
     text: `Philippines: eTravel registration before ${f.flightNumber}`,
     detail: `Register on the free eTravel system within 72 hours before arrival and show the QR code at immigration (${leg(f)}).`,
     due: minusHours(f.departureTime, 1),
+    remind: [{ wall: laterIfNight(minusHours(f.departureTime, 48)), label: `Time to do your eTravel registration for ${f.flightNumber}` }],
     links: [{ label: "eTravel (official)", url: "https://etravel.gov.ph/" }],
   }),
   JP: (f) => ({
@@ -94,6 +116,7 @@ const ARRIVE: Record<string, Rule> = {
     text: `New Zealand: Traveller Declaration for ${f.flightNumber}`,
     detail: `Complete the free New Zealand Traveller Declaration online, from 24 hours before your flight, or the paper version. Declare food and outdoor gear: biosecurity is strict (${leg(f)}).`,
     due: minusHours(f.departureTime, 1),
+    remind: [{ wall: laterIfNight(minusHours(f.departureTime, 24)), label: `Your NZ Traveller Declaration is open for ${f.flightNumber}` }],
     links: [{ label: "NZ Traveller Declaration", url: "https://www.travellerdeclaration.govt.nz/" }],
   }),
   AU: (f) => ({
@@ -112,6 +135,7 @@ const LEAVE: Record<string, Rule> = {
     text: `Colombia: fill in Check-MIG again before leaving (${f.flightNumber})`,
     detail: `Check-MIG is also required when you leave Colombia. Complete it between 72 and 1 hour before your flight out (${leg(f)}). It's free on the official site.`,
     due: minusHours(f.departureTime, 1),
+    remind: checkMigReminders(f),
     links: [{ label: "Check-MIG (Migración Colombia)", url: "https://apps.migracioncolombia.gov.co/pre-registro/" }],
   }),
 };

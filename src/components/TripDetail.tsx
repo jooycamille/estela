@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList } from "../../shared/types.ts";
+import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
 import { api, saveTripOffline, type DayPlans } from "../api.ts";
 import { formatDateRange, formatDay } from "../format.ts";
 import EmailImport from "./EmailImport.tsx";
@@ -10,6 +10,7 @@ import GuideView from "./GuideView.tsx";
 import ListView from "./ListView.tsx";
 import PrepareView from "./PrepareView.tsx";
 import SpendSummary from "./SpendSummary.tsx";
+import TravellersPanel from "./TravellersPanel.tsx";
 import { KIND_ICON } from "../icons.ts";
 import { describePart, partOn, partRange, partySummary } from "../parts.ts";
 import Suggestions from "./Suggestions.tsx";
@@ -26,11 +27,12 @@ type Panel =
   | { type: "edit-trip" }
   | { type: "new-list" }
   | { type: "edit-list"; list: TripList }
+  | { type: "travellers" }
   | null;
 type Category = "all" | Kind | `list:${string}`;
 
-export default function TripDetail({ tripId, mockFlights }: { tripId: string; mockFlights: boolean }) {
-  const [data, setData] = useState<{ trip: Trip; items: ItineraryItem[] }>();
+export default function TripDetail({ tripId, mockFlights, initialView }: { tripId: string; mockFlights: boolean; initialView?: "prepare" }) {
+  const [data, setData] = useState<{ trip: Trip; items: ItineraryItem[]; role: TripRole }>();
   const [error, setError] = useState<string>();
   const [panel, setPanel] = useState<Panel>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,7 +40,8 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
   const [category, setCategory] = useState<Category>("all");
   const [lists, setLists] = useState<TripList[]>([]);
   const [plans, setPlans] = useState<DayPlans>({});
-  const [view, setView] = useState<"itinerary" | "prepare">("itinerary");
+  const [view, setView] = useState<"itinerary" | "prepare" | "ideas">(initialView ?? "itinerary");
+  const [ideaCount, setIdeaCount] = useState(0);
   const [openTodos, setOpenTodos] = useState(0);
 
   const load = useCallback(() => {
@@ -61,6 +64,7 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
   const { trip, items } = data;
+  const canEditTrip = data.role !== "viewer";
 
   if (panel?.type === "edit-trip") {
     return (
@@ -95,7 +99,7 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
   const count = (k: Kind) => items.filter((i) => i.kind === k).length;
 
   return (
-    <div className="detail">
+    <div className={`detail ${canEditTrip ? "" : "view-only"}`}>
       <div className="detail-main">
         <a href="#/" className="back">← All trips</a>
         <div className="page-head">
@@ -109,8 +113,11 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
             <SpendSummary items={items} category={category.startsWith("list:") ? "all" : (category as "all" | Kind)} />
           </div>
           <div className="head-actions">
-            <button className="ghost" onClick={() => setPanel({ type: "edit-trip" })}>Edit</button>
-            <button
+            <button className={`ghost ${panel?.type === "travellers" ? "on" : ""}`} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
+              👥 Travellers{trip.members?.length ? ` · ${trip.members.length + 1}` : ""}
+            </button>
+            {canEditTrip && <button className="ghost" onClick={() => setPanel({ type: "edit-trip" })}>Edit</button>}
+            {data.role === "owner" && <button
               className="ghost danger"
               onClick={async () => {
                 if (!confirm(`Delete "${trip.name}" and everything in it?`)) return;
@@ -119,7 +126,7 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
               }}
             >
               Delete
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -130,13 +137,26 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
           <button role="tab" aria-selected={view === "prepare"} className={`view-tab ${view === "prepare" ? "on" : ""}`} onClick={() => setView("prepare")}>
             ✅ Prepare{openTodos ? <span className="count">{openTodos} to do</span> : null}
           </button>
+          <button role="tab" aria-selected={view === "ideas"} className={`view-tab ${view === "ideas" ? "on" : ""}`} onClick={() => setView("ideas")}>
+            ✨ Suggestions{ideaCount ? <span className="count">{ideaCount}</span> : null}
+          </button>
         </div>
 
-        {view === "prepare" ? (
+        {/* Loaded on every tab (hidden unless chosen) so the tab can show how many ideas there are. */}
+        <div hidden={view !== "ideas"}>
+          <Suggestions tripId={trip.id} version={version} onCount={setIdeaCount} />
+        </div>
+        {view === "ideas" ? null : view === "prepare" ? (
           <PrepareView key={version} tripId={trip.id} onCounts={setOpenTodos} />
         ) : (
         <>
-        <section className="add-panel" aria-label="Add to your trip">
+        {panel?.type === "travellers" && (
+          <TravellersPanel tripId={trip.id} tripName={trip.name} role={data.role} onClose={() => { setPanel(null); load(); }} onLeft={() => (location.hash = "#/")} />
+        )}
+        {!canEditTrip && (
+          <p className="view-only-note">👀 You can view this trip. Ask its owner if you'd like to make changes.</p>
+        )}
+        <section className="add-panel edit-only" aria-label="Add to your trip">
           <h4>Add to your trip</h4>
           <div className="add-tiles">
             {(["flight", "stay", "activity"] as Kind[]).map((k) => {
@@ -241,7 +261,7 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
               ))}
               <button
                 type="button"
-                className="category new-list"
+                className="category new-list edit-only"
                 aria-pressed={panel?.type === "new-list"}
                 onClick={() => {
                   setPanel({ type: "new-list" });
@@ -253,7 +273,7 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
             </div>
             {hasFlights && (
               <button
-                className="check-flights"
+                className="check-flights edit-only"
                 title="Check live status for your flights"
                 disabled={refreshing}
                 onClick={async () => {
@@ -336,9 +356,6 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
         )}
       </div>
 
-      <aside className="detail-side">
-        <Suggestions tripId={trip.id} version={version} />
-      </aside>
     </div>
   );
 }

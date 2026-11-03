@@ -126,7 +126,7 @@ export default function ItemCard({ item, mockFlights, onChange }: { item: Itiner
         <Files item={item} onChange={onChange} />
         {item.kind === "activity" && item.guide && <ActivityGuidePanel guide={item.guide} />}
       </div>
-      <div className="item-actions">
+      <div className="item-actions edit-only">
         <button className="link" onClick={() => setEditing(true)}>Edit</button>
         <button
           className="link danger"
@@ -153,7 +153,7 @@ function Files({ item, onChange }: { item: ItineraryItem; onChange: () => void }
           <a href={attachmentUrl(a.id)} target="_blank" rel="noreferrer">📎 {a.filename}</a>
           <span className="muted"> {formatSize(a.size)}</span>
           <button
-            className="link danger"
+            className="link danger edit-only"
             title="Remove file"
             onClick={() => confirm(`Remove ${a.filename}?`) && api.removeAttachment(item.id, a.id).then(onChange)}
           >
@@ -161,7 +161,7 @@ function Files({ item, onChange }: { item: ItineraryItem; onChange: () => void }
           </button>
         </span>
       ))}
-      <label className="file-btn small">
+      <label className="file-btn small edit-only">
         {busy ? "Uploading…" : "+ Attach file"}
         <input
           type="file"

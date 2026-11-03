@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { InboxEmail, ItineraryItem, StoredAttachment, Trip, TripList } from "../shared/types.ts";
+import type { InboxEmail, ItineraryItem, StoredAttachment, Trip, TripList, User } from "../shared/types.ts";
 
 /** Server-side inbox record, including the credentials the client never sees. */
 export interface InboxRecord {
@@ -20,6 +20,41 @@ export interface InboxRecord {
 export interface AttachmentRecord extends StoredAttachment {
   path: string;
   emailId?: string;
+  uploadedBy?: string; // user id, so a file uploaded before its booking is saved stays private to them
+  createdAt: string;
+}
+
+/** A person as stored: never sent to the browser as is (the password hash stays here). */
+export interface UserRecord extends User {
+  passwordHash?: string; // scrypt; see server/auth.ts
+  placeholder?: boolean; // invited to a trip, hasn't created their account yet
+}
+
+/** A signed-in device. Only a hash of its secret is stored. */
+export interface SessionRecord {
+  id: string; // sha256 of the cookie's secret
+  userId: string;
+  device: string; // e.g. "iPhone · Safari"
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+/** A one-time sign-in link (an invite to a trip, or signing in another device). Only a hash is stored. */
+export interface InviteRecord {
+  id: string; // sha256 of the link's secret
+  purpose: "invite" | "device" | "owner" | "reset"; // join a trip · sign in another device · claim Hey Joy · reset password
+  userId: string; // invite: the invited person's placeholder; otherwise the account it's for
+  tripId?: string; // invite: the trip to join
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** A device that asked for notifications (a browser push subscription). */
+export interface PushRecord {
+  userId: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  device: string;
   createdAt: string;
 }
 
@@ -30,12 +65,17 @@ interface Data {
   inboxes: InboxRecord[];
   attachments: AttachmentRecord[];
   lists: TripList[];
+  users: UserRecord[];
+  sessions: SessionRecord[];
+  invites: InviteRecord[];
+  pushSubs: PushRecord[];
+  remindersSent: string[]; // "tripId|itemId|at", so each reminder goes out once
 }
 
 const DB_PATH = resolve(process.env.DB_PATH ?? "data/db.json");
 
 function load(): Data {
-  const empty: Data = { trips: [], items: [], inboxes: [], attachments: [], lists: [] };
+  const empty: Data = { trips: [], items: [], inboxes: [], attachments: [], lists: [], users: [], sessions: [], invites: [], pushSubs: [], remindersSent: [] };
   try {
     return { ...empty, ...(JSON.parse(readFileSync(DB_PATH, "utf8")) as Partial<Data>) };
   } catch {

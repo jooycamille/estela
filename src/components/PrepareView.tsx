@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PrepItem } from "../../shared/types.ts";
 import { api, type PrepData } from "../api.ts";
 import { formatDay } from "../format.ts";
+import RemindersCard from "./RemindersCard.tsx";
 
 // Every region code the browser can name (for the home-country picker).
 const regionNames = new Intl.DisplayNames(undefined, { type: "region" });
@@ -122,6 +123,8 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
         </section>
       )}
 
+      <RemindersCard items={data.todo} checked={checked} />
+
       <div className="prep-controls">
         <span className="small">To-do <b>{todo.done}/{todo.total}</b> · Packed <b>{packed.done}/{packed.total}</b></span>
         <label className="checkbox small">
@@ -188,10 +191,18 @@ function PrepSection({
                 return (
                   <li key={i.id} className={done ? "done" : ""}>
                     <label className="prep-item">
-                      <input type="checkbox" checked={done} onChange={(e) => onToggle(i.id, e.target.checked)} />
+                      <input className="edit-lock" type="checkbox" checked={done} onChange={(e) => onToggle(i.id, e.target.checked)} />
                       <span>
                         <span className="prep-text">{i.text}</span>
                         {dueLabel(i) && <span className={`due ${overdue ? "overdue" : ""}`}>{dueLabel(i)}</span>}
+                        {!done &&
+                          i.reminders
+                            ?.filter((r) => r.at > new Date().toISOString())
+                            .map((r) => (
+                              <span key={r.at} className="due reminder" title={r.label}>
+                                🔔 {new Date(r.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                              </span>
+                            ))}
                         {i.detail && <span className="muted small prep-detail">{i.detail}</span>}
                         {i.source && <span className="muted tiny prep-detail">For {i.source}</span>}
                       </span>
@@ -201,7 +212,7 @@ function PrepSection({
                         {i.links?.map((l) => (
                           <a key={l.url} className="book-link" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
                         ))}
-                        {i.custom && <button className="link danger" onClick={() => onDelete(i.id)}>Remove</button>}
+                        {i.custom && <button className="link danger edit-only" onClick={() => onDelete(i.id)}>Remove</button>}
                       </div>
                     )}
                   </li>
@@ -212,7 +223,7 @@ function PrepSection({
         );
       })}
       <form
-        className="key-row add-prep"
+        className="key-row add-prep edit-only"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!text.trim()) return;
