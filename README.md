@@ -171,6 +171,36 @@ Tour and activity confirmations (GetYourGuide, Viator, Klook, operators) become 
 
 Ticket and itinerary attachments (PDFs, ticket images) from forwarded or uploaded emails are stored under `data/attachments/` and shown on each booking. You can attach your own files with **+ Attach file**. Only PDFs and images open in the browser; other files download.
 
+## On your phone (while travelling)
+
+Hey Joy runs on your Mac. Your phone reaches it from anywhere through **Tailscale**, a free private network between your own devices. Nothing is opened to the internet, and your data stays on your Mac.
+
+**One-time setup**
+
+1. Install Tailscale on your Mac (from the Mac App Store or tailscale.com/download) and on your phone (App Store or Google Play). Sign in on both with the same account.
+2. On the Mac, start Hey Joy the "travel" way. This builds the app, serves everything on one address, and keeps the Mac awake while it runs (stop `npm run dev` first; only one copy can run):
+
+   ```bash
+   npm start
+   ```
+
+3. In a second Terminal window, share it with your own devices over HTTPS:
+
+   ```bash
+   tailscale serve --bg 3001
+   ```
+
+   The first time, it may ask you to enable HTTPS for your tailnet; follow its link. It prints your address, like `https://your-mac.your-tailnet.ts.net`. (If `tailscale` isn't found, use `/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 3001`.)
+4. On your phone, with Tailscale on, open that address. In Safari tap **Share → Add to Home Screen**; in Chrome on Android, **Install app**.
+
+**While you're away**
+
+- Your Mac must stay on, plugged in and online (at home, or in your bag on hotel Wi-Fi with Tailscale running). `npm start` stops it sleeping while the lid is open; a closed MacBook lid still sleeps unless it's connected to a display.
+- Opening a trip saves a copy on the phone in the background: the itinerary, guides with nearby essentials, lists, checklist, day plans and ticket PDFs. With no signal, the app shows that copy with an "Offline" banner. Changes (adding, ticking off) need a connection.
+- The server only accepts connections from the Mac itself (`127.0.0.1`), so people on the same café or hotel Wi-Fi can't reach it; Tailscale forwards your phone's requests to it. Don't set `HOST=0.0.0.0` unless you understand that anyone on your network could then read and change your trips.
+
+The offline copy is handled by `public/sw.js` (a service worker) and `saveTripOffline` in `src/api.ts`; the home-screen icon and name come from `public/manifest.webmanifest`.
+
 ## Tests
 
 ```bash

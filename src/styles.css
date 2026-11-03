@@ -460,3 +460,11 @@ button.link.more { margin-top: 10px; }
 .essential li { padding: 2px 0; overflow-wrap: anywhere; }
 .open247 { margin-left: 6px; font-size: 0.68rem; font-weight: 700; color: var(--ok); background: var(--ok-bg); border-radius: 999px; padding: 0 6px; }
 button.link.add-own { display: block; margin-top: 8px; }
+
+/* Offline (installed app without a connection) */
+.offline-banner { background: var(--warn-bg); color: var(--warn); font-size: 0.85rem; padding: 8px 16px; text-align: center; }
+/* Installed on a phone: keep clear of the notch and home bar */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar { padding-top: max(12px, env(safe-area-inset-top)); }
+  .app { padding-bottom: env(safe-area-inset-bottom); }
+}

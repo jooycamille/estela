@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList } from "../../shared/types.ts";
-import { api, type DayPlans } from "../api.ts";
+import { api, saveTripOffline, type DayPlans } from "../api.ts";
 import { formatDateRange, formatDay } from "../format.ts";
 import EmailImport from "./EmailImport.tsx";
 import ItemCard from "./ItemCard.tsx";
@@ -52,6 +52,11 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
     const t = setInterval(load, 60_000); // pick up changes found by the server's flight poller
     return () => clearInterval(t);
   }, [load]);
+
+  // Keep a copy of this trip on the device for offline use (in the background, at most every 15 minutes).
+  useEffect(() => {
+    if (data && lists.length) saveTripOffline(tripId, data.items, lists);
+  }, [tripId, data, lists]);
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;

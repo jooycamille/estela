@@ -1,10 +1,24 @@
 import type { Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
+/** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
+export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
+function announce(state: ConnectionState) {
+  dispatchEvent(new CustomEvent<ConnectionState>("joy-connection", { detail: state }));
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+  } catch {
+    announce({ offline: true });
+    throw new Error(init?.method && init.method !== "GET" ? "You're offline. This change needs a connection to your Mac." : "You're offline and this hasn't been saved on this device yet.");
+  }
+  const savedAt = res.headers.get("X-Joy-Saved-At");
+  announce(savedAt ? { offline: true, savedAt } : { offline: false });
   if (res.status === 204) return undefined as T;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -135,3 +149,27 @@ export const api = {
   suggestions: (tripId: string, ai: boolean) =>
     request<{ suggestions: Suggestion[]; ai: boolean; error?: string }>(`/trips/${tripId}/suggestions${ai ? "?ai=1" : ""}`),
 };
+
+// ---------- Saving a trip for offline use ----------
+
+const savedRecently = new Map<string, number>();
+
+/**
+ * Loads everything a trip's screens need, in the background, so the offline worker keeps a copy: itinerary, guides
+ * and their essentials, lists, checklist, day plans and ticket files. At most every 15 minutes per trip.
+ */
+export async function saveTripOffline(tripId: string, items: ItineraryItem[], lists: TripList[]) {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  if (Date.now() - (savedRecently.get(tripId) ?? 0) < 15 * 60_000) return;
+  savedRecently.set(tripId, Date.now());
+  const urls = [
+    "/api/health", "/api/fx", "/api/trips",
+    `/api/trips/${tripId}`, `/api/trips/${tripId}/lists`, `/api/trips/${tripId}/prep`, `/api/trips/${tripId}/day-plans`,
+    `/api/trips/${tripId}/areas`, `/api/trips/${tripId}/suggestions`,
+    ...lists.map((l) => `/api/lists/${l.id}/suggestions`),
+    ...items.flatMap((i) => (i.attachments ?? []).map((a) => `/api/attachments/${a.id}`)),
+    // Last: the first lookup of nearby essentials can take a while.
+    ...lists.filter((l) => l.auto).map((l) => `/api/lists/${l.id}/essentials`),
+  ];
+  for (const url of urls) await fetch(url).catch(() => undefined);
+}

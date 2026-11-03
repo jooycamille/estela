@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import "./env.ts";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
@@ -802,6 +805,26 @@ app.get("/api/trips/:id/suggestions", async (req, res) => {
   }
 });
 
+// ---------- The app itself (after `npm run build`) ----------
+// One address for everything, so Tailscale (or anything else) only has to forward a single port. In development the
+// Vite server serves the app instead and this folder may be stale or missing.
+const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
+if (existsSync(join(DIST, "index.html"))) {
+  app.use(
+    express.static(DIST, {
+      index: false,
+      setHeaders: (res, file) => {
+        // Hashed build files never change; the page and the offline worker must always be fresh.
+        res.setHeader("Cache-Control", /[\\/]assets[\\/]/.test(file) ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    }),
+  );
+  app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(join(DIST, "index.html"));
+  });
+}
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof z.ZodError) {
     return void res.status(400).json({ error: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
@@ -811,14 +834,18 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 const port = Number(process.env.API_PORT ?? 3001);
-app.listen(port, (err?: Error) => {
+// Only this Mac can connect (not others on the same café or hotel Wi-Fi). Your phone reaches it through Tailscale,
+// which forwards to this address. Set HOST=0.0.0.0 only if you understand that anyone on your network could then
+// read and change your trips.
+const host = process.env.HOST ?? "127.0.0.1";
+app.listen(port, host, (err?: Error) => {
   // Express 5 calls this even when listening fails. A second copy must not start the pollers: each copy keeps its
   // own in-memory data and saves it to the same file, so they would overwrite each other's changes.
   if (err) {
     console.error(`API port ${port} is already in use — is Hey Joy already running? Exiting so data isn't overwritten.`);
     process.exit(1);
   }
-  console.log(`Hey Joy API on http://localhost:${port} (Claude: ${aiEnabled() ? "on" : "off — using rule-based fallbacks"})`);
+  console.log(`Hey Joy on http://${host === "127.0.0.1" ? "localhost" : host}:${port} (Claude: ${aiEnabled() ? "on" : "off — using rule-based fallbacks"})`);
   const dropped = dropEmptyAttachments();
   if (dropped) console.log(`Removed ${dropped} empty attachment file(s); re-import their emails to attach them again.`);
   pruneAttachments();
