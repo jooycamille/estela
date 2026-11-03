@@ -1,4 +1,5 @@
 import type { ListTheme } from "../shared/lists.ts";
+import type { TravelStyle } from "../shared/types.ts";
 
 // Built-in ideas for lists, used when Claude isn't connected (and alongside it). Dishes, drinks and well-known sights
 // only: long-established, widely documented places, so they're unlikely to have closed. Restaurants change too often
@@ -124,3 +125,118 @@ export const IDEAS: Record<string, Idea[]> = {
 
 /** Map-search links for "where to eat it" / "where is it". */
 export const mapsSearch = (query: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+
+// ---------- Things to do, by travel style ----------
+// Activities matched to the trip's travel styles. `search` is what to look up on tour sites (GetYourGuide, Viator).
+
+export interface StyleIdea {
+  title: string;
+  styles: TravelStyle[];
+  detail: string;
+  search: string;
+  city?: string;
+  tag?: string;
+  months?: number[];
+}
+
+export const STYLE_IDEAS: Record<string, StyleIdea[]> = {
+  MX: [
+    { title: "Hot-air balloon over Teotihuacan", styles: ["adventure", "luxury"], city: "Mexico City", tag: "Book ahead", search: "Teotihuacan hot air balloon", detail: "Sunrise flight over the pyramids, usually with breakfast after. Hotel pick-up is very early (around 4–5 am)." },
+    { title: "Hike the Nevado de Toluca crater", styles: ["adventure", "nature"], city: "Mexico City", tag: "Day trip", search: "Nevado de Toluca hike", detail: "Walk down to two crater lakes on a volcano over 4,000 m. Go with a guide, take it slowly at that altitude, and bring warm layers." },
+    { title: "Sunday bike ride on Paseo de la Reforma", styles: ["adventure", "relaxation", "budget"], city: "Mexico City", tag: "Sunday mornings", search: "Mexico City bike tour", detail: "Reforma closes to cars on Sunday mornings for cyclists. Free public bikes and guided bike tours are both easy to find." },
+    { title: "Ballet Folklórico at Bellas Artes", styles: ["culture"], city: "Mexico City", tag: "Book ahead", search: "Ballet Folklorico Mexico", detail: "A colourful show of regional dances in the art deco palace. There are usually several shows a week." },
+    { title: "Diego Rivera murals at the Palacio Nacional", styles: ["culture", "budget"], city: "Mexico City", search: "Palacio Nacional murals tour", detail: "Rivera's epic history of Mexico on the main staircase, off the Zócalo. Free, but bring ID and expect a security check." },
+    { title: "Free walking tour of the Centro Histórico", styles: ["culture", "budget"], city: "Mexico City", search: "Mexico City historic center walking tour", detail: "A good first-day overview of the Zócalo, cathedral and Templo Mayor area. Tip the guide at the end." },
+    { title: "Mexican cooking class with a market visit", styles: ["food", "culture"], city: "Mexico City", search: "Mexico City cooking class", detail: "Shop a local market for chillies and herbs, then cook salsas, tortillas and mole." },
+    { title: "Street-food tour by night", styles: ["food", "nightlife"], city: "Mexico City", search: "Mexico City street food tour", detail: "Tacos al pastor, tlacoyos and quesadillas with a guide who knows the best stands, with no guessing about what's safe." },
+    { title: "Mezcal tasting", styles: ["food", "nightlife", "culture"], city: "Mexico City", search: "Mexico City mezcal tasting", detail: "Learn how different agaves and smoking change the flavour, at a mezcalería or on a guided tasting." },
+    { title: "Desierto de los Leones forest walk", styles: ["nature", "relaxation"], city: "Mexico City", search: "Desierto de los Leones", detail: "A pine-forest national park on the city's edge, with an old Carmelite convent. A cool, quiet escape." },
+    { title: "Quiet canal ride in Xochimilco's ecological area", styles: ["nature", "relaxation"], city: "Mexico City", search: "Xochimilco sunrise canoe", detail: "Early-morning kayak or canoe trips through the calmer canals and floating gardens (chinampas), away from the party boats." },
+    { title: "Temazcal ceremony", styles: ["relaxation", "culture"], city: "Mexico City", search: "temazcal Mexico City", detail: "A traditional pre-Hispanic steam bath led by a guide, with herbs. Hot and intense, so check that it suits your health." },
+    { title: "Picnic and rowing boats in Bosque de Chapultepec", styles: ["relaxation", "nature", "budget"], city: "Mexico City", search: "Chapultepec", detail: "The city's huge park: hire a rowing boat on the lake and pack a picnic." },
+    { title: "Mariachis at Plaza Garibaldi", styles: ["nightlife", "culture"], city: "Mexico City", search: "Plaza Garibaldi mariachi tour", detail: "Bands play for hire every night. Agree the price per song first, and go in a group or with a tour." },
+    { title: "Historic cantina crawl", styles: ["nightlife", "food"], city: "Mexico City", search: "Mexico City cantina tour", detail: "Old Centro cantinas, many serving free snacks (botanas) with drinks. Best done with a guide or group." },
+    { title: "Bazar del Sábado in San Ángel", styles: ["shopping", "culture"], city: "Mexico City", tag: "Saturdays", search: "San Angel Bazar del Sabado", detail: "A Saturday art and craft market in a pretty colonial neighbourhood, with painters lining the plaza outside." },
+    { title: "Tasting-menu dinner in Polanco", styles: ["luxury", "food"], city: "Mexico City", tag: "Book ahead", search: "Polanco fine dining", detail: "Mexico City has some of Latin America's best restaurants; book a tasting menu weeks ahead." },
+  ],
+  PA: [
+    { title: "Rainforest canopy tour in Gamboa", styles: ["adventure", "nature"], city: "Panama City", search: "Gamboa rainforest canopy", detail: "Aerial tram or zip-lines through the rainforest by the Canal, about 45 minutes from the city." },
+    { title: "Kayaking on Gatún Lake", styles: ["adventure", "nature"], city: "Panama City", search: "Gatun Lake kayak", detail: "Paddle among jungle islands while giant ships pass along the Canal channel." },
+    { title: "Partial Panama Canal transit by boat", styles: ["culture", "adventure"], city: "Panama City", tag: "Book ahead", search: "Panama Canal partial transit", detail: "Go through the locks yourself on a tour boat. It takes most of a day, and departures are on set days only." },
+    { title: "Visit an Emberá community on the Chagres River", styles: ["culture", "nature"], city: "Panama City", tag: "Day trip", search: "Embera village tour Panama", detail: "Dugout canoe up the river to an Indigenous Emberá village, with music, crafts and lunch. Bring cash for crafts." },
+    { title: "Casco Viejo walking tour", styles: ["culture", "budget"], city: "Panama City", search: "Casco Viejo walking tour", detail: "The colonial quarter's plazas, churches and history, with sea views from the Paseo de las Bóvedas." },
+    { title: "Geisha coffee tasting", styles: ["food"], city: "Panama City", search: "Panama coffee tasting", detail: "Specialty cafés in Casco Viejo do pour-overs and cuppings of Panama's famous Geisha beans." },
+    { title: "Monkey Island boat tour", styles: ["nature", "adventure"], city: "Panama City", search: "Monkey Island Gatun Lake", detail: "Spot capuchins, howler monkeys, sloths and crocodiles from a small boat on Gatún Lake." },
+    { title: "Birdwatching on Pipeline Road", styles: ["nature"], city: "Panama City", tag: "Go early", search: "Pipeline Road birdwatching", detail: "A legendary birding trail in Soberanía National Park, with toucans, trogons and motmots. Go at dawn with a guide." },
+    { title: "Beach day on Taboga Island", styles: ["relaxation", "nature"], city: "Panama City", search: "Taboga Island ferry", detail: "The \"island of flowers\", about an hour by ferry from Amador. Calm water, a small village, and easy for a lazy day." },
+    { title: "Sunset rooftop drinks in Casco Viejo", styles: ["nightlife", "relaxation", "luxury"], city: "Panama City", search: "Casco Viejo rooftop bar", detail: "Rooftop bars look across the bay at the skyline. Go for sunset and stay for the evening." },
+    { title: "Buy molas from Guna artisans", styles: ["shopping", "culture"], city: "Panama City", search: "Guna mola", detail: "Hand-stitched textile panels by Guna women, sold in Casco Viejo (around Plaza de Francia). Prices reflect weeks of work." },
+  ],
+  CO: [
+    { title: "Paragliding over the Aburrá Valley", styles: ["adventure", "nature"], city: "Medellín", tag: "Go in the morning", search: "Medellin paragliding", detail: "Tandem flights from San Félix, about an hour from the city, with views over Medellín. No experience needed." },
+    { title: "River tubing on the Río Melcocho", styles: ["adventure", "nature"], city: "Medellín", tag: "Day trip", search: "Rio Melcocho tubing", detail: "Float down clear jungle river pools near Cocorná, about 2–3 hours away. Bring water shoes and a change of clothes." },
+    { title: "Play tejo", styles: ["adventure", "nightlife", "culture"], city: "Medellín", search: "Medellin tejo", detail: "Colombia's national game: throw a metal puck at clay targets packed with gunpowder that pop on a hit. Usually with beers. Fun in a group." },
+    { title: "Silletero flower farm in Santa Elena", styles: ["culture", "nature"], city: "Medellín", search: "Santa Elena silleteros tour", detail: "Meet the families who carry flower displays on their backs for the Feria de las Flores, and see their farms in the hills." },
+    { title: "Salsa class", styles: ["nightlife", "culture"], city: "Medellín", search: "Medellin salsa class", detail: "Take a beginners' class, then try it out at a salsa bar the same night. Laureles and El Poblado have plenty." },
+    { title: "Free walking tour of downtown Medellín", styles: ["culture", "budget"], city: "Medellín", search: "Medellin walking tour", detail: "The city's history and transformation from local guides, through the busy centre. Tip at the end." },
+    { title: "Coffee farm tour", styles: ["food", "nature", "culture"], city: "Medellín", tag: "Day trip", search: "Medellin coffee farm tour", detail: "Pick, roast and taste coffee on a farm in the hills, from bean to cup. Half-day and full-day options." },
+    { title: "Exotic fruit tour at Plaza Minorista", styles: ["food", "budget"], city: "Medellín", search: "Medellin exotic fruit tour", detail: "Taste lulo, maracuyá, granadilla and more at Medellín's big local market. Easier with a guide." },
+    { title: "Day trip to Jardín", styles: ["nature", "culture", "relaxation"], city: "Medellín", tag: "Day trip", search: "Jardin Antioquia", detail: "A colourful colonial town in coffee country, about 3 hours away, with a lively plaza, waterfalls and cable cars." },
+    { title: "A day at a finca", styles: ["relaxation", "nature"], city: "Medellín", search: "Medellin finca day", detail: "The paisa way to relax: a countryside house with a pool, sancocho and family time. Perfect for the holidays." },
+    { title: "Spa afternoon in El Poblado", styles: ["relaxation", "luxury"], city: "Medellín", search: "Medellin spa", detail: "Massages and spa treatments in El Poblado are good value compared with home." },
+    { title: "Mercado de San Alejo", styles: ["shopping", "budget"], city: "Medellín", tag: "First Saturday of the month", search: "San Alejo market Medellin", detail: "Crafts, art and food stalls in Parque Bolívar on the first Saturday of the month." },
+  ],
+};
+
+/** Ideas that work anywhere, for styles a country has few specific ideas for. */
+export const GENERIC_STYLE_IDEAS: StyleIdea[] = [
+  { title: "Zip-line or canopy tour", styles: ["adventure"], search: "zipline", detail: "Most places with hills or forest have one nearby. Check reviews for safety." },
+  { title: "Guided day hike", styles: ["adventure", "nature"], search: "hiking day trip", detail: "A local guide knows the trails, the weather and the views." },
+  { title: "Free walking tour", styles: ["culture", "budget"], search: "walking tour", detail: "A quick way to learn a city's history on day one. Tip the guide at the end." },
+  { title: "Live folk music or dance show", styles: ["culture", "nightlife"], search: "folk show", detail: "Regional music and dance, often with dinner." },
+  { title: "Local cooking class", styles: ["food", "culture"], search: "cooking class", detail: "Learn a few local dishes to make again at home." },
+  { title: "Street-food tour", styles: ["food"], search: "street food tour", detail: "Taste more, more safely, with someone who knows where to eat." },
+  { title: "Guided nature or birdwatching walk", styles: ["nature"], search: "birdwatching tour", detail: "Early mornings are best for wildlife." },
+  { title: "Spa or massage afternoon", styles: ["relaxation", "luxury"], search: "spa", detail: "Plan one for the day after a long flight or a big hiking day." },
+  { title: "Dance class (salsa, bachata…)", styles: ["nightlife"], search: "salsa class", detail: "A beginners' class, then go dancing the same night." },
+  { title: "Local artisan market", styles: ["shopping"], search: "artisan market", detail: "Handmade souvenirs straight from the makers." },
+  { title: "Private guided tour", styles: ["luxury"], search: "private tour", detail: "Your own guide and pace, with transport included." },
+];
+
+// ---------- Restaurants for destination guides ----------
+// Long-running, widely known places only (the app still says to check they're open). `styles` nudges ordering:
+// fine dining suits "luxury"; cheap institutions suit "budget".
+
+export interface RestaurantIdea {
+  title: string;
+  detail: string;
+  styles?: TravelStyle[];
+  tag?: string;
+}
+
+export const RESTAURANTS: Record<string, RestaurantIdea[]> = {
+  "mexico city": [
+    { title: "Contramar", detail: "Roma's famous seafood lunch spot. Order the tuna tostadas and the pescado a la talla (half red, half green). Lunch only; book ahead.", styles: ["food"], tag: "Book ahead" },
+    { title: "El Cardenal", detail: "A Centro institution for classic Mexican breakfasts: hot chocolate, conchas with cream, and seasonal dishes.", styles: ["food", "culture"] },
+    { title: "Café de Tacuba", detail: "Historic restaurant (since 1912) in a tiled colonial dining room, serving traditional Mexican dishes. As much about the setting as the food.", styles: ["culture"] },
+    { title: "Churrería El Moro", detail: "Churros and hot chocolate since 1935. The original is on Eje Central, with branches around the city.", styles: ["food", "budget"] },
+    { title: "Taquería Los Cocuyos", detail: "A tiny late-night Centro taco stand famous for suadero and campechanos. Eat standing up.", styles: ["food", "budget", "nightlife"] },
+    { title: "El Huequito", detail: "Tacos al pastor since 1959. The original is a hole-in-the-wall on Ayuntamiento in the Centro.", styles: ["food", "budget"] },
+    { title: "Pujol", detail: "Enrique Olvera's world-famous restaurant in Polanco: the mole madre and tasting menus. Book weeks ahead.", styles: ["luxury", "food"], tag: "Splurge · book weeks ahead" },
+    { title: "Rosetta", detail: "Elena Reygadas's restaurant in a Roma mansion. Her bakery, Panadería Rosetta, is famous for its guava roll.", styles: ["food", "luxury"], tag: "Book ahead" },
+    { title: "Los Danzantes Coyoacán", detail: "Oaxacan-inspired food and their own mezcal, on Coyoacán's main plaza. Pairs well with the Frida Kahlo Museum.", styles: ["food", "culture"] },
+  ],
+  "panama city": [
+    { title: "Maito", detail: "Chef Mario Castrellón's celebrated restaurant in Coco del Mar: Panamanian ingredients with Caribbean and Asian influences.", styles: ["luxury", "food"], tag: "Book ahead" },
+    { title: "Donde José", detail: "An intimate tasting-menu counter in Casco Viejo built around Panamanian produce. Few seats, so book early.", styles: ["luxury", "food", "culture"], tag: "Splurge · book ahead" },
+    { title: "Diablicos", detail: "Traditional Panamanian food in Casco Viejo: sancocho, ropa vieja, patacones and carimañolas, often with folk dancing.", styles: ["culture", "food"] },
+    { title: "Café Unido", detail: "Panama's specialty coffee roaster, serving Geisha coffee, with cafés in Casco Viejo and around the city.", styles: ["food", "relaxation"] },
+  ],
+  "medellín": [
+    { title: "Hatoviejo", detail: "Classic paisa food in big portions: bandeja paisa, sancocho, arepas, chicharrón. Several locations, including El Poblado.", styles: ["food", "culture"] },
+    { title: "Mondongo's", detail: "Famous for its mondongo (tripe soup), plus other Antioquian classics. A Medellín favourite for family lunches.", styles: ["food", "budget"] },
+    { title: "El Cielo", detail: "Chef Juan Manuel Barrientos's multi-sensory tasting menu, one of Colombia's best-known restaurants.", styles: ["luxury", "food"], tag: "Splurge · book ahead" },
+    { title: "Carmen", detail: "Modern Colombian cooking in El Poblado; a long-time favourite for a special dinner.", styles: ["luxury", "food"], tag: "Book ahead" },
+    { title: "Pergamino Café", detail: "Medellín's best-known specialty café, in El Poblado. Good for coffee, pastries and buying beans to take home.", styles: ["food", "relaxation"] },
+  ],
+};

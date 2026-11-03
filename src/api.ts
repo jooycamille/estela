@@ -1,4 +1,4 @@
-import type { AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import type { Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -53,7 +53,15 @@ export type Alert = { tripId: string; itemId: string; flightNumber: string; chan
 
 export type LodgingResult = { name?: string; address: string; lat: number; lon: number; kind: "property" | "address"; area?: string };
 
-export type ListSuggestions = { theme: string; suggestions: ListSuggestion[]; finders: Link[]; ai: boolean };
+export type ListSuggestions = {
+  theme: string;
+  suggestions: ListSuggestion[];
+  styles: TravelStyle[];
+  styleIdeas: ListSuggestion[];
+  finders: Link[];
+  ai: boolean;
+  guide?: { restaurants: ListSuggestion[]; food: ListSuggestion[]; activities: ListSuggestion[]; sights: ListSuggestion[] };
+};
 export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }>;
 export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day">> & { day?: string | null };
 
@@ -66,6 +74,7 @@ export const api = {
   updateEntry: (listId: string, entryId: string, body: EntryInput) => request<ListEntry>(`/lists/${listId}/entries/${entryId}`, json("PATCH", body)),
   deleteEntry: (listId: string, entryId: string) => request<void>(`/lists/${listId}/entries/${entryId}`, json("DELETE")),
   dismissSuggestion: (listId: string, title: string) => request<void>(`/lists/${listId}/dismiss`, json("POST", { title })),
+  essentials: (listId: string) => request<Essentials>(`/lists/${listId}/essentials`),
   listSuggestions: (listId: string) => request<ListSuggestions>(`/lists/${listId}/suggestions`),
   listPlaces: (tripId: string) => request<TripPlace[]>(`/trips/${tripId}/list-places`),
   areas: (tripId: string) => request<AreaGroup[]>(`/trips/${tripId}/areas`),

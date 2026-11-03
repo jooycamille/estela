@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { listTheme, type ListTheme } from "../shared/lists.ts";
-import type { AreaGroup, ItineraryItem, Link, ListEntry, ListSuggestion, StayItem, Trip, TripList, TripPlace } from "../shared/types.ts";
+import type { AreaGroup, TravelStyle, ItineraryItem, Link, ListEntry, ListSuggestion, StayItem, Trip, TripList, TripPlace } from "../shared/types.ts";
 import { aiEnabled, extract } from "./ai.ts";
 import { activityLinks } from "./bookingLinks.ts";
-import { db, itemStart } from "./db.ts";
-import { IDEAS, mapsSearch, type Idea } from "./listIdeas.ts";
+import { db, itemStart, newId, now } from "./db.ts";
+import { GENERIC_STYLE_IDEAS, IDEAS, mapsSearch, RESTAURANTS, STYLE_IDEAS, type Idea, type StyleIdea } from "./listIdeas.ts";
 import { searchLodging } from "./lodging.ts";
 import { cityCentre, countryName } from "./places.ts";
 import { distanceKm, tripPlaces } from "./tripPlaces.ts";
@@ -76,9 +76,9 @@ function themeMatches(idea: Idea, theme: ListTheme) {
   return theme === "general" && idea.themes.includes("sights");
 }
 
-function ruleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: ListTheme): ListSuggestion[] {
+/** Where a list's ideas apply: its countries and cities, and the months you're in each country. */
+function ideaScope(list: TripList, trip: Trip, items: ItineraryItem[]) {
   const cities = listCities(list, trip, items);
-  // Seasonal ideas follow when you're actually in that country (no 6 January ideas if you've left by then).
   const stays = tripCities(trip, items);
   const monthsIn = (cc: string) => {
     const here = stays.filter((c) => c.countryCode === cc);
@@ -86,6 +86,64 @@ function ruleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: Li
   };
   const cityKeys = new Set(cities.map((c) => fold(c.city)));
   const countries = list.place ? [list.place.countryCode] : [...new Set([...cities.map((c) => c.countryCode), ...(trip.places ?? []).map((p) => p.countryCode)])];
+  return { cities, cityKeys, countries, monthsIn };
+}
+
+// Styles that suit each list theme come first in its "things to do" (food lists lead with food activities).
+const THEME_STYLES: Partial<Record<ListTheme, TravelStyle[]>> = {
+  food: ["food"], drinks: ["food", "nightlife"], nightlife: ["nightlife"], shopping: ["shopping"], nature: ["nature", "adventure"],
+};
+
+/** Things to do that match the trip's travel styles, for the list's place, taking turns between styles. */
+function styleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: ListTheme): ListSuggestion[] {
+  const styles = [...trip.styles].sort(
+    (a, b) => Number((THEME_STYLES[theme] ?? []).includes(b)) - Number((THEME_STYLES[theme] ?? []).includes(a)),
+  );
+  if (!styles.length) return [];
+  const { cities, cityKeys, countries, monthsIn } = ideaScope(list, trip, items);
+  const perStyle = new Map<TravelStyle, ListSuggestion[]>(styles.map((st) => [st, []]));
+  const used = new Set<string>();
+  const add = (idea: StyleIdea, style: TravelStyle, where: string) => {
+    if (used.has(idea.title)) return;
+    used.add(idea.title);
+    perStyle.get(style)!.push({
+      title: idea.title,
+      kind: "activity",
+      style,
+      detail: idea.detail,
+      city: idea.city,
+      tag: idea.tag,
+      source: "rules",
+      links: activityLinks(`${where} ${idea.search}`).slice(0, 2),
+    });
+  };
+  for (const cc of countries) {
+    const months = monthsIn(cc);
+    const where = cities.find((c) => c.countryCode === cc)?.city ?? countryName(cc);
+    for (const idea of STYLE_IDEAS[cc] ?? []) {
+      // Filed under its main style (listed first) among the trip's styles.
+      const style = idea.styles.find((st) => styles.includes(st));
+      if (!style) continue;
+      if (idea.months && !idea.months.some((m) => months.has(m))) continue;
+      if (idea.city && cityKeys.size && !cityKeys.has(fold(idea.city))) continue;
+      add(idea, style, idea.city ?? where);
+    }
+  }
+  // Styles with little specific to suggest get a general idea, searched in the list's city.
+  const where = cities[0]?.city ?? (list.place ? list.place.name : "");
+  for (const style of styles)
+    if (perStyle.get(style)!.length === 0)
+      for (const idea of GENERIC_STYLE_IDEAS.filter((i) => i.styles[0] === style || (i.styles.includes(style) && !styles.includes(i.styles[0])))) add({ ...idea, title: where ? `${idea.title} in ${where}` : idea.title }, style, where);
+  // Take turns so every style is represented.
+  const queues = styles.map((st) => [...perStyle.get(st)!]);
+  const out: ListSuggestion[] = [];
+  while (queues.some((q) => q.length)) for (const q of queues) if (q.length) out.push(q.shift()!);
+  return out;
+}
+
+function ruleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: ListTheme): ListSuggestion[] {
+  const { cities, cityKeys, countries, monthsIn } = ideaScope(list, trip, items);
+  // Seasonal ideas follow when you're actually in that country (no 6 January ideas if you've left by then).
   const out: (ListSuggestion & { seasonal: boolean })[] = [];
   for (const cc of countries) {
     const firstCity = cities.find((c) => c.countryCode === cc)?.city;
@@ -202,9 +260,12 @@ export async function listSuggestions(list: TripList, trip: Trip, items: Itinera
   const ai = ((await claudeIdeas(list, trip, items, theme)) ?? []).filter(fresh);
   const seen = new Set(ai.map((s) => fold(s.title)));
   const rules = ruleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !seen.has(fold(s.title)));
+  const shown = new Set([...ai, ...rules].map((s) => fold(s.title)));
   return {
     theme,
     suggestions: [...ai, ...rules].slice(0, 16),
+    styles: trip.styles,
+    styleIdeas: styleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !shown.has(fold(s.title))).slice(0, 12),
     finders: finders(theme, listCities(list, trip, items)),
     ai: aiEnabled(),
   };
@@ -326,4 +387,101 @@ export function dayPlans(trip: Trip, items: ItineraryItem[]) {
     out[day] = { entries: [...ordered, ...onDay.filter((e) => e.lat === undefined)], routeUrl: routeUrl(ordered, stay) };
   }
   return out;
+}
+
+// ---------- Destination guides (made automatically, one per city you stay in) ----------
+
+const flagOf = (cc: string) => String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
+const samePlace = (a?: TripPlace, b?: TripPlace) => !!a && !!b && a.type === b.type && a.countryCode === b.countryCode && fold(a.name) === fold(b.name);
+
+/** The places a trip's guides are for: cities from your flights, else the destinations you chose. */
+function guideDestinations(trip: Trip, items: ItineraryItem[]): (TripPlace & { from?: string; to?: string })[] {
+  const cities = tripCities(trip, items);
+  const out: (TripPlace & { from?: string; to?: string })[] = [];
+  for (const c of cities) {
+    const existing = out.find((o) => fold(o.name) === fold(c.city) && o.countryCode === c.countryCode);
+    if (existing) existing.to = c.to;
+    else out.push({ type: "city", name: c.city, countryCode: c.countryCode, lat: c.lat, lon: c.lon, from: c.from, to: c.to });
+  }
+  if (out.length) return out;
+  return (trip.places ?? []).map((p) => ({ ...p }));
+}
+
+/** Creates a guide for each destination that lacks one; drops empty guides for places no longer on the trip. */
+export function ensureGuides(trip: Trip, items: ItineraryItem[]): boolean {
+  const dests = guideDestinations(trip, items);
+  let changed = false;
+  for (const d of dests) {
+    if (db.lists.some((l) => l.tripId === trip.id && l.auto && samePlace(l.place, d))) continue;
+    const { from: _f, to: _t, ...place } = d;
+    db.lists.push({ id: newId(), tripId: trip.id, auto: true, name: d.name, emoji: flagOf(d.countryCode), place, entries: [], createdAt: now() });
+    changed = true;
+  }
+  const before = db.lists.length;
+  db.lists = db.lists.filter((l) => !(l.tripId === trip.id && l.auto && !l.entries.length && !dests.some((d) => samePlace(l.place, d))));
+  if (db.lists.length !== before) changed = true;
+  // Guides in trip order (by arrival), before your own lists.
+  const order = (l: TripList) => (l.auto ? dests.findIndex((d) => samePlace(l.place, d)) : 1000);
+  const mine = db.lists.filter((l) => l.tripId === trip.id).sort((a, b) => order(a) - order(b));
+  const others = db.lists.filter((l) => l.tripId !== trip.id);
+  db.lists = [...others, ...mine];
+  return changed;
+}
+
+/** Stays in a guide's city: those that start while you're there (or, without flights, that mention the city). */
+export function guideStays(list: TripList, trip: Trip, items: ItineraryItem[]): StayItem[] {
+  const dest = guideDestinations(trip, items).find((d) => samePlace(d, list.place));
+  const stays = items.filter((i): i is StayItem => i.kind === "stay");
+  if (dest?.from && dest.to) return stays.filter((s) => s.checkIn.slice(0, 10) >= dest.from! && s.checkIn.slice(0, 10) < dest.to!);
+  const key = fold(list.place?.name ?? "");
+  return stays.filter((s) => fold(`${s.address ?? ""} ${s.name}`).includes(key));
+}
+
+// How well an idea suits the trip's travel styles (list themes ↔ styles).
+const THEME_TO_STYLE: Partial<Record<ListTheme, TravelStyle>> = { food: "food", drinks: "food", sights: "culture", nature: "nature", nightlife: "nightlife", shopping: "shopping" };
+// Matching any of your styles moves an idea up; otherwise the curated order (most essential first) stands.
+const styleScore = (trip: Trip, themes: ListTheme[] = [], styles: TravelStyle[] = []) =>
+  Number(themes.some((t) => THEME_TO_STYLE[t] && trip.styles.includes(THEME_TO_STYLE[t]!)) || styles.some((s) => trip.styles.includes(s)));
+
+export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryItem[]) {
+  const taken = new Set([...list.entries.map((e) => fold(e.title)), ...(list.dismissed ?? []).map(fold)]);
+  const fresh = (s: ListSuggestion) => !taken.has(fold(s.title));
+  const city = list.place?.type === "city" ? list.place.name : undefined;
+  const ideaThemes = new Map((IDEAS[list.place?.countryCode ?? ""] ?? []).map((i) => [i.title, i.themes]));
+
+  // Restaurants: well-known places for the city, then food markets and halls from the guide.
+  const curated = (city ? Object.entries(RESTAURANTS).find(([k]) => fold(k) === fold(city))?.[1] ?? [] : [])
+    .map((r, i) => ({ r, i, score: styleScore(trip, [], r.styles) - (r.styles?.includes("luxury") && trip.styles.includes("budget") ? 2 : 0) }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map(({ r }): ListSuggestion => ({
+      title: r.title, kind: "place", detail: r.detail, city, tag: r.tag, source: "rules",
+      links: [{ label: "Map", url: mapsSearch(`${r.title}, ${city}`) }],
+    }));
+  const foodIdeas = ruleIdeas(list, trip, items, "food");
+  const markets = foodIdeas.filter((s) => s.kind === "place");
+  const restaurants = [...curated, ...markets.filter((m) => !curated.some((c) => fold(c.title) === fold(m.title)))].filter(fresh);
+  const food = foodIdeas.filter((s) => s.kind === "thing").filter(fresh);
+
+  // Must-visit: sights and nature spots, best match for your styles first (keeping the curated order otherwise).
+  const eatTitles = new Set(restaurants.map((r) => r.title));
+  const seen = new Set<string>();
+  const sights = [...ruleIdeas(list, trip, items, "sights"), ...ruleIdeas(list, trip, items, "nature")]
+    .filter((s) => s.kind === "place" && !eatTitles.has(s.title) && !seen.has(s.title) && (seen.add(s.title), true))
+    .map((s, i) => ({ s, i, score: styleScore(trip, ideaThemes.get(s.title)) }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map(({ s }) => s)
+    .filter(fresh);
+
+  const activities = styleIdeas(list, trip, items, "general").filter(fresh);
+  const stays = guideStays(list, trip, items);
+  const near = stays.map((s) => ({ label: `Restaurants near ${s.name}`, url: mapsSearch(`restaurants near ${s.address ?? s.name}`) }));
+  return {
+    theme: "guide",
+    guide: { restaurants: restaurants.slice(0, 10), food: food.slice(0, 12), activities: activities.slice(0, 12), sights: sights.slice(0, 12) },
+    suggestions: [],
+    styles: trip.styles,
+    styleIdeas: [],
+    finders: [...near, ...finders("food", city ? [{ city }] : []), ...finders("sights", city ? [{ city }] : [])],
+    ai: aiEnabled(),
+  };
 }

@@ -54,6 +54,7 @@ export interface PrepItem {
   text: string;
   detail?: string;
   due?: string; // YYYY-MM-DDTHH:mm, local
+  when?: "online" | "plane" | "arrival" | "check"; // border forms: where you fill it in
   links?: Link[];
   source?: string; // e.g. the activity this came from
   custom?: boolean; // added by the traveller
@@ -266,11 +267,12 @@ export interface Suggestion {
 
 // ---------- Your own lists ("Mexico Eats", "Mexico Places") ----------
 
-/** Something on a list: a place to go (restaurant, museum…) or a thing to try (a dish, a drink, an experience). */
+/** Something on a list: a place to go (restaurant, museum…), a thing to try (a dish, a drink), or a thing to do (an activity). */
 export interface ListEntry {
   id: string;
   title: string;
-  kind: "place" | "thing";
+  kind: "place" | "thing" | "activity";
+  section?: "eat" | "see"; // in destination guides: a restaurant, or a place to visit
   notes?: string;
   address?: string;
   area?: string; // neighbourhood, from the map (for grouping nearby places)
@@ -287,6 +289,7 @@ export interface TripList {
   tripId: string;
   name: string;
   emoji: string;
+  auto?: boolean; // a destination guide Joy made for one of your cities
   place?: TripPlace; // what it's about (Mexico, Mexico City…); none = anywhere on the trip
   entries: ListEntry[];
   dismissed?: string[]; // suggestion titles you said no to
@@ -295,7 +298,8 @@ export interface TripList {
 
 export interface ListSuggestion {
   title: string;
-  kind: "place" | "thing";
+  kind: "place" | "thing" | "activity";
+  style?: TravelStyle; // for "things to do for your style"
   detail?: string;
   city?: string;
   links?: Link[];
@@ -310,4 +314,32 @@ export interface AreaGroup {
   entries: (ListEntry & { listId: string; listEmoji: string; listName: string })[];
   suggestedDays: string[]; // days you're nearby with little else on
   routeUrl?: string; // Google Maps directions through them, in walking order
+}
+
+// ---------- Nearby essentials (per stay) ----------
+
+export type EssentialKind = "pharmacy" | "hospital" | "clinic" | "police" | "atm";
+
+export interface EssentialPlace {
+  name: string;
+  kind: EssentialKind;
+  address?: string;
+  lat: number;
+  lon: number;
+  km: number; // straight-line distance from the stay
+  open247?: boolean;
+  phone?: string;
+}
+
+export interface StayEssentials {
+  stayId: string;
+  stayName: string;
+  located: "exact" | "approximate" | "not-found";
+  places: Record<EssentialKind, EssentialPlace[]>;
+  directionsFrom?: string; // "lat,lon" of the stay, for map directions
+}
+
+export interface Essentials {
+  emergency?: { number: string; note?: string };
+  stays: StayEssentials[];
 }

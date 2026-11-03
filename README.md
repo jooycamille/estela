@@ -76,7 +76,16 @@ Each trip has a **Prepare** view next to the itinerary, built from its bookings:
 
 - **Where you'll be:** cities you stay in, worked out from your flights. Connections under 24 hours are listed separately, and the flight home is ignored. See `server/tripPlaces.ts`.
 - **Weather per stop** from [Open-Meteo](https://open-meteo.com/) (free, no key, credit shown in the app), for the city itself rather than its airport. Within about 15 days it's the forecast; further out, it's typical weather for those dates, averaged over the last 3 years. Cached in `data/weather-cache.json`. See `server/weather.ts`.
-- **Before you go:** travel insurance (naming risky booked activities such as snorkelling or hiking), passport validity, entry requirements (linking to official sources, since rules depend on your passport), a US ESTA when you transit the US, Colombia's Check-MIG, Smartraveller for Australians, an eSIM, money and currencies, offline maps, document copies, online check-in per journey, and your activities' own to-dos.
+- **Before you go:** travel insurance (naming risky booked activities such as snorkelling or hiking), passport validity, entry requirements (linking to official sources, since rules depend on your passport), a US ESTA when you transit the US, Smartraveller for Australians, an eSIM, money and currencies, offline maps, document copies, online check-in per journey, and your activities' own to-dos.
+- **Border forms:** one item per border you cross by air, in travel order. Each says what that country needs and whether you do it online before flying, on the plane, or on arrival:
+  - Colombia's Check-MIG, both arriving and leaving, due 1 hour before the flight
+  - US immigration and customs at the first US airport, even when only connecting
+  - Mexico's customs declaration on the plane, and Panama's customs declaration
+  - Australia's Incoming Passenger Card on the way home
+  - Singapore's SG Arrival Card, Thailand's TDAC, the Philippines' eTravel, Japan's Visit Japan Web, New Zealand's Traveller Declaration and Canada's declaration
+  - for any other country, a reminder to check, with the IATA link
+
+  Connections inside other countries' airports cross no border, so they don't get an item. Each item links to the official site. See `server/arrivalForms.ts`.
 - **Packing list:** essentials, plug adapters for your home country, long-flight comforts, clothes for the weather at each stop, everything your activities say to bring or wear, and items for your trip type.
 
 You can tick items off and add your own; this is saved per trip. Set your home country once (it's guessed from your first flight) for plug, currency and entry tips. See `server/prep.ts`.
@@ -114,13 +123,26 @@ Searches are centred on where you'll be on the check-in date: the city you last 
 
 The data comes from OpenStreetMap's [Nominatim](https://nominatim.org/) (© OpenStreetMap contributors, ODbL; the credit is shown in the app). Nominatim's usage policy applies: requests are spaced at least 1 second apart, cached for a day, and only sent when you press Find, never as you type. Coverage follows OSM: most hotels are on it, but some guest houses and private homes aren't, and you can always type the details yourself. See `server/lodging.ts`.
 
+## Destination guides
+
+Joy makes a guide for every city you stay in, worked out from your flights (or your chosen destinations if there are no flights yet). The guides sit in the **Show** switch, e.g. 🇲🇽 Mexico City, 🇵🇦 Panama City and 🇨🇴 Medellín. Each one has:
+
+- **🍽️ Restaurants:** long-running local favourites for the city (fine dining goes first for luxury trips and drops down for budget ones), plus food markets and food halls. There's also a "Restaurants near your stay" map search.
+- **🌮 Food to try:** local dishes and drinks, with seasonal ones (Christmas, Reyes) first when your dates fit.
+- **🎯 Things to do for your style:** activities matched to the trip's travel styles.
+- **📍 Must-visit places:** sights, neighbourhoods and day trips, with those matching your styles first.
+- **🆘 Essentials near where you're staying** (at the top of the guide): the country's emergency number, then for each stay in that city the nearest pharmacies, hospitals, clinics, police stations and ATMs/banks. Each shows the distance, "24/7" and a phone number when the map has them, and a directions link. Stays are found by name, then by a Plus Code (e.g. "8Q7X+2C, Sample Town", decoded locally), then by address. The search widens from about 1.5 km to 15 km for countryside stays. Data comes from OpenStreetMap via Nominatim and is cached for a week in `data/essentials-cache.json`.
+
+**+ Add** on any idea saves it to **Your picks**, where you can tick it off, plan it for a day, or turn it into an itinerary activity. Saved places join **Plan by area** like list entries. Guides follow your trip: new destinations get a guide, and empty guides for places you've dropped are removed. See `server/lists.ts` (guides), `server/essentials.ts` and `src/components/GuideView.tsx`.
+
 ## Your own lists
 
-Make lists like **🌮 Mexico Eats** or **🏛️ Mexico Places** from the **📝 Your own list** tile. Each list has a name, an icon and what it's about: a country or city on your trip, or anywhere. Joy guesses all three from the name. Lists sit in the **Show** switch next to Flights, Accommodation and Activities.
+You can still make your own lists, like **🌮 Mexico Eats**, with **+ New list** at the end of the Show switch. Each list has a name, an icon and what it's about: a country or city on your trip, or anywhere. Joy guesses all three from the name. Lists sit in the **Show** switch next to Flights, Accommodation and Activities.
 
 - **Entries** are either *places* (restaurants, markets, museums) or *things* (dishes, drinks, experiences). The headings follow the list's theme, e.g. "Places to eat" and "Food to try". Tick entries off when you've been or tried them, add notes, or use **+ Itinerary** to turn one into an activity.
 - **Finding places:** a place you add is looked up on the map (OpenStreetMap), so Joy knows its neighbourhood. Use **Find** to pick the exact spot.
 - **Joy's ideas:** every list gets suggestions for its theme and place, with seasonal ones (Christmas posadas, buñuelos and natilla, Medellín's alumbrados) first when your dates fit. Food ideas link to a map search for where to try them, and each list has "Find more" searches. Without Claude, the ideas come from a built-in guide of dishes, drinks and long-established sights (`server/listIdeas.ts`). With Claude connected, Joy also names specific restaurants and spots. **Not for me** hides an idea.
+- **Things to do for your travel style:** below the list ideas, every list also suggests activities matched to the trip's travel styles (set in Edit trip) for its place. For example, paragliding and tejo in Medellín, a temazcal or a Teotihuacan balloon ride in Mexico City, and birdwatching on Pipeline Road near Panama City. Styles that suit the list come first (food activities in an "Eats" list), and the styles take turns so each one is represented. Each idea links to tour searches on GetYourGuide and Viator. Added ones go under a **Things to do** heading. Where Joy has nothing specific for a style, it suggests a general idea (a cooking class, a spa afternoon…) in that city.
 - **Plan by area:** places from all your lists are grouped when they're within about 2.5 km of each other. Each group suggests good days: days you're in that city with little else on, avoiding travel days and spreading groups across different days. Pick a day and the places appear in the itinerary under that day in walking order, starting from your stay when it has a map position, with a **Route in Maps** link.
 
 See `server/lists.ts`.
@@ -168,7 +190,10 @@ server/fx.ts           exchange rates for trip totals
 server/tripPlaces.ts   stops and connections worked out from flights
 server/weather.ts      weather per stop (Open-Meteo)
 server/lodging.ts      property ↔ address lookup for stays (OpenStreetMap Nominatim)
-server/lists.ts        your own lists: suggestions, map lookup, grouping nearby places into days
+server/lists.ts        destination guides and your own lists: suggestions, map lookup, grouping nearby places into days
+server/essentials.ts   pharmacies, hospitals/clinics, police and ATMs near each stay (OpenStreetMap)
+server/pluscode.ts     decodes Google Plus Codes in addresses
+server/arrivalForms.ts immigration and customs forms for each border crossed
 server/listIdeas.ts    built-in list ideas (dishes, drinks, well-known sights) by country
 server/prep.ts         before-you-go checklist and packing list
 server/emailParser.ts  Claude extraction + heuristic fallback

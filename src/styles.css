@@ -359,7 +359,7 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 .add-tile.email:hover:not(:disabled) { background: var(--accent-soft); }
 .add-tile.on { border-color: currentColor; }
 .add-tile.email.on { border-color: var(--accent); }
-@media (max-width: 520px) { .add-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .add-tile.list { grid-column: span 2; } }
+@media (max-width: 520px) { .add-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* 3. Filters: a small, neutral segmented switch — "narrow what I see". */
 .list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 14px; }
@@ -378,8 +378,6 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 }
 
 /* Your own lists */
-.add-tile.list { background: var(--warn-bg); color: var(--warn); }
-.add-tile.list:hover:not(:disabled) { background: var(--warn-bg); }
 .category.own { border-left: 1px dashed transparent; }
 .list-form .emoji-pick { border: none; padding: 0; margin: 4px 0 10px; display: flex; flex-wrap: wrap; gap: 4px; }
 .list-form legend { font-size: 0.85rem; margin-bottom: 4px; }
@@ -397,7 +395,7 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 .list-head h2 { margin: 0 0 2px; }
 .list-head p { margin: 0; }
 .list-head-actions { display: flex; gap: 12px; }
-.list-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.list-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 @media (max-width: 1100px) { .list-columns { grid-template-columns: minmax(0, 1fr); } }
 .list-col h3, .areas h3, .list-ideas h3 { margin: 0 0 8px; font-size: 1rem; }
 .entries { list-style: none; margin: 0; padding: 0; }
@@ -437,3 +435,28 @@ button.link.muted-link { color: var(--muted); font-size: 0.78rem; margin-left: a
 .day-plan ol { margin: 4px 0 2px; padding-left: 22px; font-size: 0.9rem; }
 .day-plan li.done button { text-decoration: line-through; color: var(--muted); }
 button.link.plain { color: var(--text); font-size: inherit; font-weight: 500; text-align: left; }
+.style-ideas { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.style-ideas h4 { margin: 0 0 4px; font-size: 0.95rem; }
+.style-chip { display: inline-block; font-size: 0.75rem; padding: 1px 8px; margin: 2px 4px 2px 0; border-radius: 999px; background: var(--activity-bg); color: var(--activity-text); }
+
+/* Destination guides */
+.category.new-list { color: var(--accent); font-weight: 600; }
+.category.new-list:hover:not(:disabled) { color: var(--accent); text-decoration: underline; }
+.guide-head h2 { margin-bottom: 4px; }
+.guide-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.guide-nav button { font-size: 0.8rem; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+.guide-nav button:hover:not(:disabled) { background: var(--accent-soft); }
+.guide-section, .essentials { scroll-margin-top: 70px; }
+.list-col h4 { margin: 0 0 4px; font-size: 0.9rem; }
+button.link.more { margin-top: 10px; }
+.emergency { background: var(--danger-bg); color: var(--danger); border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; }
+.emergency a { color: inherit; font-size: 1.1rem; }
+.stay-essentials { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+.stay-essentials h4 { margin: 0 0 8px; font-size: 0.95rem; }
+.essentials-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.essential { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.essential h5 { margin: 0 0 4px; font-size: 0.85rem; }
+.essential ul { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
+.essential li { padding: 2px 0; overflow-wrap: anywhere; }
+.open247 { margin-left: 6px; font-size: 0.68rem; font-weight: 700; color: var(--ok); background: var(--ok-bg); border-radius: 999px; padding: 0 6px; }
+button.link.add-own { display: block; margin-top: 8px; }

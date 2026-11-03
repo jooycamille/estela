@@ -16,7 +16,7 @@ export interface LodgingResult {
   area?: string; // neighbourhood or suburb
 }
 
-interface NominatimPlace {
+export interface NominatimPlace {
   lat: string;
   lon: string;
   name?: string;
@@ -33,7 +33,7 @@ let queue: Promise<unknown> = Promise.resolve();
 let last = 0;
 
 /** One request at a time, at least 1.1 s apart (Nominatim policy), cached for a day. */
-function nominatim<T>(path: string): Promise<T> {
+export function nominatim<T>(path: string): Promise<T> {
   const hit = cache.get(path);
   if (hit && Date.now() - hit.at < 24 * 3600_000) return Promise.resolve(hit.value as T);
   const run = async () => {
@@ -115,7 +115,7 @@ const STREET_WORDS: [RegExp, string][] = [
 ];
 const expandStreet = (q: string) => STREET_WORDS.reduce((s, [re, word]) => s.replace(re, word), q);
 
-const viewbox = (lat: number, lon: number, d: number) => `${lon - d},${lat + d},${lon + d},${lat - d}`;
+export const viewbox = (lat: number, lon: number, d: number) => `${lon - d},${lat + d},${lon + d},${lat - d}`;
 
 /**
  * Search a property name or an address within ~40 km of where you'll be. Only searches further afield when there's

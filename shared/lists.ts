@@ -21,6 +21,16 @@ export const THEME_EMOJI: Record<ListTheme, string> = {
 };
 
 /** Headings for a list's two kinds of entries. */
+import type { TravelStyle } from "./types.ts";
+
+export const STYLE_LABELS: Record<TravelStyle, string> = {
+  adventure: "🧗 Adventure", culture: "🎭 Culture", food: "🍲 Food", relaxation: "🧖 Relaxation", nature: "🌿 Nature",
+  nightlife: "🌙 Nightlife", shopping: "🛍️ Shopping", budget: "💸 Budget", luxury: "✨ Luxury",
+};
+
+/** Things to do (activities) share the "thing" column when that's already called "Things to do". */
+export const activitiesMerged = (theme: ListTheme) => THEME_LABELS[theme].thing === "Things to do";
+
 export const THEME_LABELS: Record<ListTheme, { place: string; thing: string; placeOne: string; thingOne: string; done: string }> = {
   food: { place: "Places to eat", thing: "Food to try", placeOne: "Place to eat", thingOne: "Food to try", done: "tried" },
   drinks: { place: "Places to go", thing: "Drinks to try", placeOne: "Place", thingOne: "Drink to try", done: "tried" },

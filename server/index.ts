@@ -7,7 +7,8 @@ import { getAirport, searchAirports } from "./airports.ts";
 import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
 import { buildPrep } from "./prep.ts";
-import { areaGroups, dayPlans, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
+import { essentialsFor } from "./essentials.ts";
+import { areaGroups, dayPlans, ensureGuides, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
@@ -473,7 +474,8 @@ const ListInput = z.object({
 const httpUrl = z.string().trim().url().refine((u) => /^https?:\/\//i.test(u), "Use an http(s) link");
 const EntryInput = z.object({
   title: z.string().trim().min(1).max(160),
-  kind: z.enum(["place", "thing"]),
+  kind: z.enum(["place", "thing", "activity"]),
+  section: z.enum(["eat", "see"]).optional(),
   notes: z.string().trim().max(2000).optional().transform((s) => s || undefined),
   address: z.string().trim().max(300).optional().transform((s) => s || undefined),
   area: z.string().trim().max(120).optional(),
@@ -487,6 +489,10 @@ const EntryInput = z.object({
 const getList = (id: string) => db.lists.find((l) => l.id === id);
 
 app.get("/api/trips/:id/lists", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return res.status(404).json({ error: "Trip not found" });
+  // A guide for each city you're staying in, made (and tidied) automatically.
+  if (ensureGuides(trip, tripItems(trip.id))) save();
   res.json(db.lists.filter((l) => l.tripId === req.params.id));
 });
 
@@ -510,6 +516,7 @@ app.patch("/api/lists/:id", (req, res) => {
 });
 
 app.delete("/api/lists/:id", (req, res) => {
+  if (getList(req.params.id)?.auto) return res.status(400).json({ error: "Destination guides follow your trip and can't be deleted." });
   db.lists = db.lists.filter((l) => l.id !== req.params.id);
   save();
   res.status(204).end();
@@ -566,7 +573,19 @@ app.get("/api/lists/:id/suggestions", async (req, res) => {
   const list = getList(req.params.id);
   const trip = list && getTrip(list.tripId);
   if (!list || !trip) return res.status(404).json({ error: "List not found" });
-  res.json(await listSuggestions(list, trip, tripItems(trip.id)));
+  res.json(list.auto ? guideSuggestions(list, trip, tripItems(trip.id)) : await listSuggestions(list, trip, tripItems(trip.id)));
+});
+
+// Pharmacies, hospitals/clinics, police and ATMs near each stay in a guide's city.
+app.get("/api/lists/:id/essentials", async (req, res) => {
+  const list = getList(req.params.id);
+  const trip = list && getTrip(list.tripId);
+  if (!list || !trip || !list.auto) return res.status(404).json({ error: "Guide not found" });
+  const items = tripItems(trip.id);
+  const p = list.place;
+  const near = p?.lat !== undefined && p.lon !== undefined ? { lat: p.lat, lon: p.lon } : positionOn(trip, items, trip.startDate);
+  if (!near) return res.json({ emergency: undefined, stays: [] });
+  res.json(await essentialsFor(guideStays(list, trip, items), near, p?.countryCode));
 });
 
 app.get("/api/trips/:id/list-places", (req, res) => {

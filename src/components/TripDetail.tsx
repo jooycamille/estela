@@ -6,6 +6,7 @@ import EmailImport from "./EmailImport.tsx";
 import ItemCard from "./ItemCard.tsx";
 import ItemForm, { KIND_LABEL, type Kind } from "./ItemForm.tsx";
 import ListForm from "./ListForm.tsx";
+import GuideView from "./GuideView.tsx";
 import ListView from "./ListView.tsx";
 import PrepareView from "./PrepareView.tsx";
 import SpendSummary from "./SpendSummary.tsx";
@@ -150,14 +151,7 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
               <span className="add-icon" aria-hidden="true">✉️</span>
               <span>Import from email</span>
             </button>
-            <button
-              className={`add-tile list ${panel?.type === "new-list" ? "on" : ""}`}
-              aria-pressed={panel?.type === "new-list"}
-              onClick={() => setPanel({ type: "new-list" })}
-            >
-              <span className="add-icon" aria-hidden="true">📝</span>
-              <span>Your own list</span>
-            </button>
+
           </div>
         </section>
 
@@ -233,12 +227,24 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
                   key={l.id}
                   role="tab"
                   aria-selected={category === `list:${l.id}`}
-                  className={`category own ${category === `list:${l.id}` ? "on" : ""}`}
+                  className={`category ${l.auto ? "guide" : "own"} ${category === `list:${l.id}` ? "on" : ""}`}
+                  title={l.auto ? `Joy's guide to ${l.name}` : undefined}
                   onClick={() => setCategory(`list:${l.id}`)}
                 >
-                  {l.emoji} {l.name} <span className="count">{l.entries.length}</span>
+                  {l.emoji} {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
                 </button>
               ))}
+              <button
+                type="button"
+                className="category new-list"
+                aria-pressed={panel?.type === "new-list"}
+                onClick={() => {
+                  setPanel({ type: "new-list" });
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                + New list
+              </button>
             </div>
             {hasFlights && (
               <button
@@ -256,7 +262,10 @@ export default function TripDetail({ tripId, mockFlights }: { tripId: string; mo
             )}
           </div>
         )}
-        {openList && (
+        {openList?.auto && (
+          <GuideView key={openList.id} trip={trip} list={openList} onChanged={load} onAddToItinerary={addToItinerary} />
+        )}
+        {openList && !openList.auto && (
           <ListView
             key={openList.id}
             trip={trip}

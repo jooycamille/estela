@@ -23,6 +23,10 @@ function dueLabel(item: PrepItem) {
   const day = formatDay(item.due);
   if (item.group === "For your activities") return `Day before · ${day}`;
   if (item.text.startsWith("Check in online")) return `Opens about ${day}`;
+  if (item.when === "online") return `Online before you fly · by ${day}`;
+  if (item.when === "plane") return `On the plane · ${day}`;
+  if (item.when === "arrival") return `On arrival · ${day}`;
+  if (item.when === "check") return `Check before ${day}`;
   return `By ${day}`;
 }
 

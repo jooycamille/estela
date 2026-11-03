@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { listTheme, THEME_LABELS } from "../../shared/lists.ts";
+import { activitiesMerged, listTheme, STYLE_LABELS, THEME_LABELS } from "../../shared/lists.ts";
 import type { AreaGroup, ListEntry, ListSuggestion, Trip, TripList } from "../../shared/types.ts";
 import { api, type ListSuggestions } from "../api.ts";
 import { formatDay } from "../format.ts";
 import LodgingField from "./LodgingField.tsx";
 import { flag } from "./PlaceSelect.tsx";
 
-const tripDays = (trip: Trip) => {
+export const tripDays = (trip: Trip) => {
   const out: string[] = [];
   for (let d = new Date(`${trip.startDate}T00:00:00Z`); d <= new Date(`${trip.endDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10));
   return out;
@@ -30,6 +30,7 @@ export default function ListView({
 }) {
   const theme = listTheme(list.name, list.emoji);
   const labels = THEME_LABELS[theme];
+  const merged = activitiesMerged(theme); // "Things to do" is already the second column
   const days = tripDays(trip);
   const [ideas, setIdeas] = useState<ListSuggestions>();
   const [areas, setAreas] = useState<AreaGroup[]>([]);
@@ -54,7 +55,13 @@ export default function ListView({
   };
 
   const places = list.entries.filter((e) => e.kind === "place");
-  const things = list.entries.filter((e) => e.kind === "thing");
+  const things = list.entries.filter((e) => e.kind === "thing" || (merged && e.kind === "activity"));
+  const activities = merged ? [] : list.entries.filter((e) => e.kind === "activity");
+  const columns: ["place" | "thing" | "activity", ListEntry[], string][] = [
+    ["place", places, labels.place],
+    ["thing", things, labels.thing],
+    ...(activities.length ? [["activity", activities, "Things to do"] as ["activity", ListEntry[], string]] : []),
+  ];
   const done = list.entries.filter((e) => e.done).length;
   // Areas that include something from this list (other lists' places nearby are shown too).
   const myAreas = areas.filter((g) => g.entries.some((e) => e.listId === list.id));
@@ -86,7 +93,7 @@ export default function ListView({
       {error && <p className="error">{error}</p>}
 
       <div className="list-columns">
-        {([["place", places, labels.place], ["thing", things, labels.thing]] as const).map(([kind, entries, heading]) => (
+        {columns.map(([kind, entries, heading]) => (
           <section key={kind} className="card list-col">
             <h3>{heading} <span className="muted small">{entries.length || ""}</span></h3>
             {entries.length === 0 && <p className="muted small">None yet. Add your own below, or pick from Joy's ideas.</p>}
@@ -108,7 +115,16 @@ export default function ListView({
         ))}
       </div>
 
-      <AddEntry list={list} tripId={trip.id} labels={labels} onAdd={(body) => act(() => api.addEntry(list.id, body))} />
+      <AddEntry
+        list={list}
+        tripId={trip.id}
+        options={[
+          { key: "place", kind: "place", label: `📍 ${labels.placeOne}` },
+          { key: "thing", kind: "thing", label: `✨ ${labels.thingOne}`, placeholder: labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night" },
+          ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: "🎯 Thing to do", placeholder: "e.g. Salsa class" }]),
+        ]}
+        onAdd={(body) => act(() => api.addEntry(list.id, body))}
+      />
 
       {(myAreas.length > 0 || unlocated.length > 0) && (
         <section className="card areas">
@@ -148,6 +164,27 @@ export default function ListView({
             />
           ))}
         </ul>
+        {ideas && ideas.styleIdeas.length > 0 && (
+          <div className="style-ideas">
+            <h4>🎯 Things to do for your travel style</h4>
+            <p className="muted small">
+              Matched to your trip's styles:{" "}
+              {ideas.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}
+              <span className="tiny"> (change them in Edit trip)</span>
+            </p>
+            <ul className="idea-grid">
+              {ideas.styleIdeas.map((s) => (
+                <IdeaCard
+                  key={s.title}
+                  idea={s}
+                  labels={labels}
+                  onAdd={() => act(() => api.addEntry(list.id, { title: s.title, kind: "activity", notes: s.detail }))}
+                  onDismiss={() => act(() => api.dismissSuggestion(list.id, s.title))}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
         {ideas && ideas.finders.length > 0 && (
           <div className="finders">
             <span className="muted small">Find more:</span>
@@ -167,7 +204,7 @@ export default function ListView({
   );
 }
 
-function EntryRow({
+export function EntryRow({
   entry,
   days,
   doneLabel,
@@ -221,18 +258,22 @@ function EntryRow({
   );
 }
 
-function AddEntry({
+export type AddOption = { key: string; kind: ListEntry["kind"]; section?: ListEntry["section"]; label: string; placeholder?: string };
+
+export function AddEntry({
   list,
   tripId,
-  labels,
+  options,
   onAdd,
 }: {
   list: TripList;
   tripId: string;
-  labels: (typeof THEME_LABELS)[keyof typeof THEME_LABELS];
+  options: AddOption[];
   onAdd: (body: Partial<ListEntry>) => Promise<void>;
 }) {
-  const [kind, setKind] = useState<"place" | "thing">("place");
+  const [optionKey, setOptionKey] = useState(options[0].key);
+  const option = options.find((o) => o.key === optionKey) ?? options[0];
+  const kind = option.kind;
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [picked, setPicked] = useState<Pick<ListEntry, "address" | "area" | "lat" | "lon">>({});
@@ -243,7 +284,7 @@ function AddEntry({
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await onAdd({ title: title.trim(), kind, notes: notes.trim() || undefined, ...(kind === "place" ? picked : {}) });
+      await onAdd({ title: title.trim(), kind, section: option.section, notes: notes.trim() || undefined, ...(kind === "place" ? picked : {}) });
       setTitle("");
       setNotes("");
       setPicked({});
@@ -261,9 +302,9 @@ function AddEntry({
       }}
     >
       <div className="kind-switch" role="radiogroup" aria-label="What are you adding?">
-        {(["place", "thing"] as const).map((k) => (
-          <button key={k} type="button" role="radio" aria-checked={kind === k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>
-            {k === "place" ? `📍 ${labels.placeOne}` : `✨ ${labels.thingOne}`}
+        {options.map((o) => (
+          <button key={o.key} type="button" role="radio" aria-checked={o.key === option.key} className={o.key === option.key ? "on" : ""} onClick={() => setOptionKey(o.key)}>
+            {o.label}
           </button>
         ))}
       </div>
@@ -287,7 +328,7 @@ function AddEntry({
         ) : (
           <label>
             Name
-            <input required value={title} placeholder={labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night"} onChange={(e) => setTitle(e.target.value)} />
+            <input required value={title} placeholder={option.placeholder} onChange={(e) => setTitle(e.target.value)} />
           </label>
         )}
         <label>
@@ -297,13 +338,13 @@ function AddEntry({
       </div>
       {kind === "place" && picked.address && <p className="muted tiny">📍 {picked.address}</p>}
       <div className="actions">
-        <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Add to list"}</button>
+        <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Save"}</button>
       </div>
     </form>
   );
 }
 
-function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; listId: string; days: string[]; onPlan: (day: string) => void }) {
+export function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; listId: string; days: string[]; onPlan: (day: string) => void }) {
   return (
     <div className="area">
       <div className="area-head">
@@ -335,7 +376,7 @@ function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; listId: s
   );
 }
 
-function IdeaCard({
+export function IdeaCard({
   idea,
   labels,
   onAdd,
@@ -350,7 +391,9 @@ function IdeaCard({
   return (
     <li className="idea">
       <div className="idea-top">
-        <span className="idea-kind muted tiny">{idea.kind === "place" ? `📍 ${labels.placeOne}` : `✨ ${labels.thingOne}`}</span>
+        <span className="idea-kind muted tiny">
+          {idea.style ? STYLE_LABELS[idea.style] : idea.kind === "place" ? `📍 ${labels.placeOne}` : idea.kind === "activity" ? "🎯 Thing to do" : `✨ ${labels.thingOne}`}
+        </span>
         {idea.tag && <span className="idea-tag">{idea.tag}</span>}
       </div>
       <b>{idea.title}</b>

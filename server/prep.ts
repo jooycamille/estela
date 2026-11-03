@@ -1,4 +1,5 @@
 import type { ActivityItem, FlightItem, ItineraryItem, Link, PrepItem, Trip } from "../shared/types.ts";
+import { borderForms } from "./arrivalForms.ts";
 import type { StopWeather } from "./weather.ts";
 import type { tripPlaces } from "./tripPlaces.ts";
 
@@ -122,15 +123,13 @@ export function buildPrep(
       links: [{ label: "Official eTA site", url: "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/eta.html" }],
     });
   }
-  const intoColombia = flights.find((f) => places.stops.some((s) => s.countryCode === "CO" && s.from === (f.arrivalTime ?? f.departureTime).slice(0, 10)));
-  if (intoColombia && home !== "CO") {
-    todoItem({
-      group: "Before each flight",
-      text: "Fill in Colombia's Check-MIG form",
-      detail: `Colombia asks visitors to complete the free online Check-MIG migration form shortly before flying in (${intoColombia.flightNumber}) and again before leaving. Only use the official Migración Colombia site.`,
-      due: minusHours(intoColombia.departureTime, 72),
-      links: [{ label: "Migración Colombia", url: "https://www.migracioncolombia.gov.co/" }],
-    });
+  // Immigration and customs forms for every border crossed (Check-MIG, arrival cards, customs declarations…).
+  const transitAt = (f: FlightItem) => places.transits.some((t) => t.iata === f.to && t.date === (f.arrivalTime ?? f.departureTime).slice(0, 10));
+  for (const b of borderForms(flights, home, countryName, transitAt)) {
+    todoItem(
+      { group: "Border forms", text: b.text, detail: b.detail, due: b.due ?? b.flight.departureTime.slice(0, 16), when: b.when, links: b.links },
+      `${b.direction}-${b.country}-${b.flight.flightNumber}-${b.flight.departureTime.slice(0, 10)}`,
+    );
   }
   if (isAU && foreign.length) {
     todoItem({
@@ -281,7 +280,7 @@ export function buildPrep(
     }
   }
 
-  const order = ["Do soon", "Before each flight", "For your activities"];
+  const order = ["Do soon", "Border forms", "Before each flight", "For your activities"];
   todo.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || (a.due ?? "").localeCompare(b.due ?? ""));
   return { todo, packing };
 }
