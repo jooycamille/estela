@@ -6,6 +6,7 @@ import TripDetail from "./components/TripDetail.tsx";
 import TripList from "./components/TripList.tsx";
 import FlightDataSettings from "./components/FlightDataSettings.tsx";
 import Logo from "./components/Logo.tsx";
+import ScrollTop from "./components/ScrollTop.tsx";
 
 // Minimal hash routing: #/ (trips) and #/trip/:id
 function useRoute() {
@@ -140,6 +141,7 @@ export default function App() {
           <TripList />
         )}
       </main>
+      <ScrollTop />
       {status && status.flightProvider !== "mock" && (
         <footer className="attribution">
           Flight data by{" "}

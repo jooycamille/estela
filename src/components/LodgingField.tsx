@@ -32,7 +32,7 @@ export default function LodgingField({
   const [busy, setBusy] = useState(false);
 
   const find = async () => {
-    if (value.trim().length < 3) return;
+    if ((value ?? "").trim().length < 3) return;
     setBusy(true);
     try {
       setResults(await (search ? search(value.trim()) : api.searchLodging(value.trim(), tripId, date)));
@@ -51,7 +51,7 @@ export default function LodgingField({
           id={id}
           required={required}
           placeholder={placeholder}
-          value={value}
+          value={value ?? ""}
           autoComplete="off"
           onChange={(e) => {
             onChange(e.target.value);
@@ -64,7 +64,7 @@ export default function LodgingField({
             } else if (e.key === "Escape") setResults(undefined);
           }}
         />
-        <button type="button" className="secondary" disabled={busy || value.trim().length < 3} onClick={find} title={`Look up this ${label.toLowerCase()}`}>
+        <button type="button" className="secondary" disabled={busy || (value ?? "").trim().length < 3} onClick={find} title={`Look up this ${label.toLowerCase()}`}>
           {busy ? "…" : "🔍 Find"}
         </button>
       </div>

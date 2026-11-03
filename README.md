@@ -125,7 +125,7 @@ The data comes from OpenStreetMap's [Nominatim](https://nominatim.org/) (© Open
 
 ## Destination guides
 
-Joy makes a guide for every city you stay in, worked out from your flights (or your chosen destinations if there are no flights yet). The guides sit in the **Show** switch, e.g. 🇲🇽 Mexico City, 🇵🇦 Panama City and 🇨🇴 Medellín. Each one has:
+Joy makes a guide for every city you stay in, worked out from your flights (or your chosen destinations if there are no flights yet). The guides are in the trip's **✨ Suggestions** tab, next to Joy's tips and your own lists (e.g. 💡 Tips · 🇲🇽 Mexico City · 🇵🇦 Panama City · 🇨🇴 Medellín). The itinerary's **Show** switch only filters bookings. Each guide has:
 
 - **🍽️ Restaurants:** long-running local favourites for the city (fine dining goes first for luxury trips and drops down for budget ones), plus food markets and food halls. Each has a price level for that city, **$** cheap eats, **$$** mid-range or **$$$** splurge, and you can filter by price. Restaurants you save keep their level, and you can set or change it ($ / $$ / $$$) on any restaurant in Your picks or in an "Eats" list, including ones you add yourself. There's also a "Restaurants near your stay" map search.
 - **🌮 Food to try:** local dishes and drinks, with seasonal ones (Christmas, Reyes) first when your dates fit.
@@ -137,7 +137,7 @@ Joy makes a guide for every city you stay in, worked out from your flights (or y
 
 ## Your own lists
 
-You can still make your own lists, like **🌮 Mexico Eats**, with **+ New list** at the end of the Show switch. Each list has a name, an icon and what it's about: a country or city on your trip, or anywhere. Joy guesses all three from the name. Lists sit in the **Show** switch next to Flights, Accommodation and Activities.
+You can still make your own lists, like **🌮 Mexico Eats**, with **+ New list** in the Suggestions tab. Each list has a name, an icon and what it's about: a country or city on your trip, or anywhere. Joy guesses all three from the name. Lists sit in the **✨ Suggestions** tab, next to the city guides.
 
 - **Entries** are either *places* (restaurants, markets, museums) or *things* (dishes, drinks, experiences). The headings follow the list's theme, e.g. "Places to eat" and "Food to try". Tick entries off when you've been or tried them, add notes, or use **+ Itinerary** to turn one into an activity.
 - **Finding places:** a place you add is looked up on the map (OpenStreetMap), so Joy knows its neighbourhood. Use **Find** to pick the exact spot.
@@ -148,6 +148,9 @@ You can still make your own lists, like **🌮 Mexico Eats**, with **+ New list*
 See `server/lists.ts`.
 
 ## Trip view and totals
+
+- **Jump to a day:** a strip of the trip's days stays at the top while you scroll the itinerary. Tap a day to jump to it. The day you're on is highlighted, and on phones the strip slides to keep it in view. Small icons show what's on each day (✈️ 🏨 🎟️, 📍 for planned places, 🛏️ for nights at a booked stay; a night jumps to its check-in). Days with nothing at all are greyed out, so gaps stand out. **Today** appears while you're travelling.
+- **Back to top:** a round ↑ button at the bottom right. It appears once you've scrolled down, hides while you're scrolling, and comes back a moment after you stop.
 
 Tabs above the itinerary filter it to **Flights**, **Accommodation** or **Activities**, each with a count.
 

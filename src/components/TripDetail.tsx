@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
 import { api, saveTripOffline, type DayPlans } from "../api.ts";
 import { formatDateRange, formatDay } from "../format.ts";
+import DayStrip, { dayId, type DayInfo } from "./DayStrip.tsx";
 import EmailImport from "./EmailImport.tsx";
 import ItemCard from "./ItemCard.tsx";
 import ItemForm, { KIND_LABEL, type Kind } from "./ItemForm.tsx";
@@ -29,7 +30,7 @@ type Panel =
   | { type: "edit-list"; list: TripList }
   | { type: "travellers" }
   | null;
-type Category = "all" | Kind | `list:${string}`;
+type Category = "all" | Kind; // filters the itinerary
 
 export default function TripDetail({ tripId, mockFlights, initialView }: { tripId: string; mockFlights: boolean; initialView?: "prepare" }) {
   const [data, setData] = useState<{ trip: Trip; items: ItineraryItem[]; role: TripRole }>();
@@ -42,6 +43,8 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const [plans, setPlans] = useState<DayPlans>({});
   const [view, setView] = useState<"itinerary" | "prepare" | "ideas">(initialView ?? "itinerary");
   const [ideaCount, setIdeaCount] = useState(0);
+  // In the Suggestions tab: Joy's tips, or one of the city guides / your lists (by id).
+  const [ideaSection, setIdeaSection] = useState<string>("tips");
   const [openTodos, setOpenTodos] = useState(0);
 
   const load = useCallback(() => {
@@ -90,8 +93,30 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   // Days with places planned from your lists show up too (in the All view).
   if (category === "all") for (const d of Object.keys(plans)) if (!byDay.has(d)) byDay.set(d, []);
   const days = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
-  const openList = category.startsWith("list:") ? lists.find((l) => `list:${l.id}` === category) : undefined;
+  // Every day of the trip for the date strip (plus any bookings outside the dates), with what's on each.
+  const stripDays: DayInfo[] = (() => {
+    const all = new Set(days.map(([d]) => d));
+    for (let d = new Date(`${trip.startDate}T12:00:00Z`); d <= new Date(`${trip.endDate}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) all.add(d.toISOString().slice(0, 10));
+    return [...all].sort().map((day) => {
+      const dayItems = byDay.get(day) ?? [];
+      const icons: string[] = [...new Set(dayItems.map((i) => KIND_ICON[i.kind]))];
+      if (category === "all" && plans[day]) icons.push("📍");
+      // A night at a booked stay isn't a gap: show the bed, and jump to the stay's check-in.
+      const stay = !byDay.has(day) && (category === "all" || category === "stay")
+        ? items.find((i): i is Extract<ItineraryItem, { kind: "stay" }> => i.kind === "stay" && i.checkIn.slice(0, 10) < day && i.checkOut.slice(0, 10) >= day)
+        : undefined;
+      if (stay) icons.push("🛏️");
+      return { day, icons, hasContent: byDay.has(day), target: stay?.checkIn.slice(0, 10) };
+    });
+  })();
+  const openList = ideaSection !== "tips" ? lists.find((l) => l.id === ideaSection) : undefined;
+  const openIdeas = (section: string) => {
+    setView("ideas");
+    setIdeaSection(section);
+  };
+  // "+ Itinerary" on a guide or list entry: switch to the itinerary with the activity form filled in.
   const addToItinerary = (e: ListEntry) => {
+    setView("itinerary");
     setPanel({ type: "add", kind: "activity", initial: { kind: "activity", title: e.title, location: e.address ?? e.area, notes: e.notes, start: e.day ? `${e.day}T10:00` : "" } as Partial<DraftItem> });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -110,7 +135,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
               <span className={`tag ${trip.purpose}`}>{trip.purpose}</span> · {partySummary(trip)}
               {trip.styles.length > 0 && ` · ${trip.styles.join(", ")}`}
             </p>
-            <SpendSummary items={items} category={category.startsWith("list:") ? "all" : (category as "all" | Kind)} />
+            <SpendSummary items={items} category={category} />
           </div>
           <div className="head-actions">
             <button className={`ghost ${panel?.type === "travellers" ? "on" : ""}`} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
@@ -142,8 +167,75 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           </button>
         </div>
 
-        {/* Loaded on every tab (hidden unless chosen) so the tab can show how many ideas there are. */}
-        <div hidden={view !== "ideas"}>
+        {view === "ideas" && (
+          <>
+            {/* Joy's tips, a guide for each city you stay in, and your own lists. */}
+            <div className="idea-nav categories" role="tablist" aria-label="Suggestions">
+              <button role="tab" aria-selected={ideaSection === "tips"} className={`category ${ideaSection === "tips" ? "on" : ""}`} onClick={() => setIdeaSection("tips")}>
+                💡 Tips {ideaCount > 0 && <span className="count">{ideaCount}</span>}
+              </button>
+              {lists.map((l) => (
+                <button
+                  key={l.id}
+                  role="tab"
+                  aria-selected={ideaSection === l.id}
+                  className={`category ${l.auto ? "guide" : "own"} ${ideaSection === l.id ? "on" : ""}`}
+                  title={l.auto ? `Joy's guide to ${l.name}` : undefined}
+                  onClick={() => setIdeaSection(l.id)}
+                >
+                  {l.emoji} {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="category new-list edit-only"
+                aria-pressed={panel?.type === "new-list"}
+                onClick={() => setPanel({ type: "new-list" })}
+              >
+                + New list
+              </button>
+            </div>
+            {panel?.type === "new-list" && (
+              <ListForm
+                tripId={trip.id}
+                onCancel={() => setPanel(null)}
+                onSubmit={async (v) => {
+                  const list = await api.createList(trip.id, v);
+                  setPanel(null);
+                  load();
+                  setIdeaSection(list.id);
+                }}
+              />
+            )}
+            {panel?.type === "edit-list" && (
+              <ListForm
+                tripId={trip.id}
+                initial={panel.list}
+                onCancel={() => setPanel(null)}
+                onSubmit={async (v) => {
+                  await api.updateList(panel.list.id, v);
+                  setPanel(null);
+                  load();
+                }}
+              />
+            )}
+            {openList?.auto && <GuideView key={openList.id} trip={trip} list={openList} onChanged={load} onAddToItinerary={addToItinerary} />}
+            {openList && !openList.auto && (
+              <ListView
+                key={openList.id}
+                trip={trip}
+                list={openList}
+                onChanged={load}
+                onEdit={() => setPanel({ type: "edit-list", list: openList })}
+                onDeleted={() => setIdeaSection("tips")}
+                onAddToItinerary={addToItinerary}
+              />
+            )}
+            {ideaSection !== "tips" && !openList && <p className="muted">That list was deleted.</p>}
+          </>
+        )}
+        {/* Loaded on every tab (hidden unless chosen) so the tab can show how many tips there are. */}
+        <div hidden={view !== "ideas" || ideaSection !== "tips"}>
           <Suggestions tripId={trip.id} version={version} onCount={setIdeaCount} />
         </div>
         {view === "ideas" ? null : view === "prepare" ? (
@@ -184,6 +276,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <div className="card">
             <h3>Add {KIND_LABEL[panel.kind].toLowerCase()}</h3>
             <ItemForm
+              key={`${panel.kind}:${(panel.initial as { title?: string } | undefined)?.title ?? ""}`} /* a fresh form when switching Flight / Accommodation / Activity */
               kind={panel.kind}
               initial={panel.initial}
               tripId={trip.id}
@@ -198,41 +291,17 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             />
           </div>
         )}
-        {panel?.type === "new-list" && (
-          <ListForm
-            tripId={trip.id}
-            onCancel={() => setPanel(null)}
-            onSubmit={async (v) => {
-              const list = await api.createList(trip.id, v);
-              setPanel(null);
-              load();
-              setCategory(`list:${list.id}`);
-            }}
-          />
-        )}
-        {panel?.type === "edit-list" && (
-          <ListForm
-            tripId={trip.id}
-            initial={panel.list}
-            onCancel={() => setPanel(null)}
-            onSubmit={async (v) => {
-              await api.updateList(panel.list.id, v);
-              setPanel(null);
-              load();
-            }}
-          />
-        )}
         {panel?.type === "email" && (
           <EmailImport tripId={trip.id} onCancel={() => setPanel(null)} onDone={() => { setPanel(null); load(); }} onItemsChanged={load} />
         )}
 
-        {items.length === 0 && lists.length === 0 && !panel && (
+        {items.length === 0 && !panel && (
           <div className="card empty">
             <p>Nothing here yet. Add a flight, stay or activity — or forward a booking email and Joy will sort it out.</p>
           </div>
         )}
 
-        {(items.length > 0 || lists.length > 0) && (
+        {items.length > 0 && (
           <div className="list-bar">
             <span className="list-bar-label">Show</span>
             <div className="categories" role="tablist" aria-label="Show bookings">
@@ -247,29 +316,6 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                   {CATEGORY_TABS[c]} <span className="count">{c === "all" ? items.length : count(c)}</span>
                 </button>
               ))}
-              {lists.map((l) => (
-                <button
-                  key={l.id}
-                  role="tab"
-                  aria-selected={category === `list:${l.id}`}
-                  className={`category ${l.auto ? "guide" : "own"} ${category === `list:${l.id}` ? "on" : ""}`}
-                  title={l.auto ? `Joy's guide to ${l.name}` : undefined}
-                  onClick={() => setCategory(`list:${l.id}`)}
-                >
-                  {l.emoji} {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="category new-list edit-only"
-                aria-pressed={panel?.type === "new-list"}
-                onClick={() => {
-                  setPanel({ type: "new-list" });
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                + New list
-              </button>
             </div>
             {hasFlights && (
               <button
@@ -287,34 +333,20 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             )}
           </div>
         )}
-        {openList?.auto && (
-          <GuideView key={openList.id} trip={trip} list={openList} onChanged={load} onAddToItinerary={addToItinerary} />
-        )}
-        {openList && !openList.auto && (
-          <ListView
-            key={openList.id}
-            trip={trip}
-            list={openList}
-            onChanged={load}
-            onEdit={() => setPanel({ type: "edit-list", list: openList })}
-            onDeleted={() => setCategory("all")}
-            onAddToItinerary={addToItinerary}
-          />
-        )}
-        {category.startsWith("list:") && !openList && lists.length > 0 && <p className="muted">That list was deleted.</p>}
-
-        {category !== "all" && !category.startsWith("list:") && count(category as Kind) === 0 && (
+        {category !== "all" && count(category) === 0 && (
           <div className="card empty">
-            <p>No {CATEGORY_TABS[category as Kind].replace(/^\S+ /, "").toLowerCase()} yet.</p>
+            <p>No {CATEGORY_TABS[category].replace(/^\S+ /, "").toLowerCase()} yet.</p>
           </div>
         )}
 
-        {!openList && days.map(([day, dayItems], i) => {
+        {days.length > 1 && <DayStrip days={stripDays} />}
+
+        {days.map(([day, dayItems], i) => {
           // A header where a new part of the trip begins.
           const part = partOn(trip, day);
           const startsPart = part && (i === 0 || partOn(trip, days[i - 1][0])?.id !== part.id);
           return (
-          <section key={day} className="day">
+          <section key={day} id={dayId(day)} className="day">
             {startsPart && (
               <div className="part-banner">
                 <b>{part.name}</b>
@@ -340,7 +372,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 <ol>
                   {plans[day].entries.map((e) => (
                     <li key={e.id} className={e.done ? "done" : ""}>
-                      <button type="button" className="link plain" onClick={() => setCategory(`list:${e.listId}`)} title={`Open ${e.listName}`}>
+                      <button type="button" className="link plain" onClick={() => openIdeas(e.listId)} title={`Open ${e.listName}`}>
                         <span aria-hidden="true">{e.listEmoji}</span> {e.title}
                       </button>
                       {e.area && <span className="muted tiny"> · {e.area}</span>}
