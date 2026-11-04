@@ -1,3 +1,4 @@
+import { cancellationOf } from "../shared/cancellation.ts";
 import type { ActivityItem, FlightItem, ItineraryItem, Link, PrepItem, Trip } from "../shared/types.ts";
 import { borderForms, laterIfNight } from "./arrivalForms.ts";
 import { airportTimeZone, wallTimeToUtc } from "./time.ts";
@@ -130,6 +131,34 @@ export function buildPrep(
       detail: "Visa-exempt travellers flying to or through Canada usually need an eTA. Only use the official site.",
       links: [{ label: "Official eTA site", url: "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/eta.html" }],
     });
+  }
+  // Free cancellation running out, for every activity: on the checklist, with reminders 3 days and a day before.
+  const sortedFlights = [...flights].sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+  // Deadlines are in the activity's local time: where the last flight before it landed.
+  const airportAt = (wall: string) => [...sortedFlights].reverse().find((f) => (f.arrivalTime ?? f.departureTime) <= wall)?.to ?? sortedFlights[0]?.from;
+  for (const a of activities) {
+    const terms = cancellationOf(a);
+    if (terms?.kind !== "free" || !terms.until || a.dateEstimated) continue;
+    const airport = airportAt(a.start);
+    const tz = airport && airportTimeZone(airport);
+    if ((tz ? Date.parse(wallTimeToUtc(terms.until, tz)) : Date.parse(`${terms.until}:00Z`)) <= Date.now()) continue;
+    const by = `${fmt(terms.until.slice(0, 10))}${terms.timed ? ` at ${terms.until.slice(11, 16)}` : ""}`;
+    const minus = (hours: number) => new Date(Date.parse(`${terms.until}:00Z`) - hours * 3_600_000).toISOString().slice(0, 16);
+    todoItem(
+      {
+        group: "Free cancellation",
+        text: `Keep or cancel: ${a.title}`,
+        detail: `Free to cancel until ${by} local time. After that you'd be charged. Tick this once you've decided, and the reminders stop.`,
+        due: terms.until,
+        source: a.title,
+        links: a.links,
+        reminders: airport ? reminders(airport, [
+          { wall: minus(72), label: `3 days left to cancel "${a.title}" for free (until ${by}).` },
+          { wall: minus(24), label: `Last day to cancel "${a.title}" for free (until ${by}).` },
+        ]) : undefined,
+      },
+      `${a.id}-${terms.until}`,
+    );
   }
   // Immigration and customs forms for every border crossed (Check-MIG, arrival cards, customs declarations…).
   const transitAt = (f: FlightItem) => places.transits.some((t) => t.iata === f.to && t.date === (f.arrivalTime ?? f.departureTime).slice(0, 10));

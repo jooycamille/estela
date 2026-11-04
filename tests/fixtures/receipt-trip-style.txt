@@ -1,0 +1,38 @@
+Subject: Fwd: Payment Receipt - Kayak tour - Sam Example- 1 pax
+From: sam@example.com
+
+---------- Forwarded message ---------
+From: Sample Bay Tours <messages@example.com>
+Date: Sat, Sep 12, 2026 at 12:59 AM
+Subject: Payment Receipt - Kayak tour - Sam Example- 1 pax
+To: <sam@example.com>
+
+
+[image: Company Logo]
+*Hello Sam**,*
+
+Thank you for your booking!
+*Customer Receipt*
+
+Friday, September 11, 2026
+Receipt Number: 999999999999999000111
+------------------------------
+Participant: Sam Example
+------------------------------
+Trip Name: Kayak tour - Sam Example- 1 pax
+------------------------------
+Destination:
+------------------------------
+Trip Date: Dec 31, 2026
+------------------------------
+*Trip Price:*
+Kayak tour - Sam Example- 1 pax x 1 $55.00
+*Total* $55.00
+*Payment Details*
+
+*Amount Paid:*
+*A$77.71*
+------------------------------
+*Payment Plan Overview:*
+Remaining Amount Due:
+$0.00

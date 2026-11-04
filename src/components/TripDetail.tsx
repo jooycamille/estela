@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
 import { api, saveTripOffline, type DayPlans } from "../api.ts";
 import { formatDateRange, formatDay } from "../format.ts";
+import { flightForTransfer } from "../../shared/cancellation.ts";
 import DayStrip, { dayId, type DayInfo } from "./DayStrip.tsx";
 import EmailImport from "./EmailImport.tsx";
 import ItemCard from "./ItemCard.tsx";
@@ -9,6 +10,7 @@ import ItemForm, { KIND_LABEL, type Kind } from "./ItemForm.tsx";
 import ListForm from "./ListForm.tsx";
 import GuideView from "./GuideView.tsx";
 import ListView from "./ListView.tsx";
+import PlaceForm, { type AddedPlace } from "./PlaceForm.tsx";
 import PrepareView from "./PrepareView.tsx";
 import SpendSummary from "./SpendSummary.tsx";
 import TravellersPanel from "./TravellersPanel.tsx";
@@ -23,7 +25,8 @@ const startOf = (i: ItineraryItem) =>
   i.kind === "flight" ? i.live?.departureTime ?? i.departureTime : i.kind === "stay" ? i.checkIn : i.start;
 
 type Panel =
-  | { type: "add"; kind: Kind; initial?: Partial<DraftItem>; date?: string }
+  | { type: "add"; kind: Kind; initial?: Partial<DraftItem>; date?: string; inline?: boolean } // inline: opened from that day
+  | { type: "place"; date?: string; inline?: boolean }
   | { type: "email" }
   | { type: "edit-trip" }
   | { type: "new-list" }
@@ -47,6 +50,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const [ideaSection, setIdeaSection] = useState<string>("tips");
   const [emptyDay, setEmptyDay] = useState<string>(); // a day with nothing on it, picked in the date strip
   const [openTodos, setOpenTodos] = useState(0);
+  const [addedPlace, setAddedPlace] = useState<AddedPlace>(); // the note after adding one, with where to find it
 
   const load = useCallback(() => {
     api.trip(tripId).then((d) => { setData(d); setVersion((v) => v + 1); }).catch((e) => setError(e.message));
@@ -104,10 +108,54 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const stayOn = (day: string) =>
     items.find((i): i is Extract<ItineraryItem, { kind: "stay" }> => i.kind === "stay" && i.checkIn.slice(0, 10) <= day && i.checkOut.slice(0, 10) > day);
   // Days where only accommodation is booked still need things to do.
-  const addFor = (day: string, kind: Kind) => {
-    setPanel({ type: "add", kind, date: day });
+  const addFor = (day: string, kind: Kind | "place") => {
+    // Open the form right there in that day, if it's showing, so you keep your place in the itinerary.
+    const inline = byDay.has(day);
+    setPanel(kind === "place" ? { type: "place", date: day, inline } : { type: "add", kind, date: day, inline });
+    setAddedPlace(undefined);
     setEmptyDay(undefined);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (inline) requestAnimationFrame(() => document.getElementById("day-add-form")?.scrollIntoView({ block: "nearest" }));
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  // The Add form for whatever's open: at the top of the page, or inside the day it was opened from.
+  const addForm = () => {
+    if (panel?.type === "place") {
+      return (
+        <PlaceForm
+          key={panel.date ?? ""}
+          trip={trip}
+          lists={lists}
+          date={panel.date}
+          onCancel={() => setPanel(null)}
+          onAdded={(place) => {
+            setPanel(null);
+            if (!panel.inline) setAddedPlace(place); // from a day, you can see it arrive
+            setCategory("all"); // places show in the All view
+            load();
+          }}
+        />
+      );
+    }
+    if (panel?.type !== "add") return null;
+    return (
+      <div className="card">
+        <h3>Add {KIND_LABEL[panel.kind].toLowerCase()}</h3>
+        <ItemForm
+          key={`${panel.kind}:${(panel.initial as { title?: string } | undefined)?.title ?? ""}:${panel.date ?? ""}`} /* a fresh form when switching Flight / Accommodation / Activity */
+          kind={panel.kind}
+          initial={panel.initial}
+          tripId={trip.id}
+          defaultDate={panel.date ?? trip.startDate}
+          submitLabel="Add"
+          onCancel={() => setPanel(null)}
+          onSubmit={async (d) => {
+            await api.addItems(trip.id, [d]);
+            setPanel(null);
+            load();
+          }}
+        />
+      </div>
+    );
   };
   // Every day of the trip for the date strip (plus any bookings outside the dates), with what's on each.
   const stripDays: DayInfo[] = (() => {
@@ -268,18 +316,26 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <h4>Add to your trip</h4>
           <div className="add-tiles">
             {(["flight", "stay", "activity"] as Kind[]).map((k) => {
-              const on = panel?.type === "add" && panel.kind === k;
+              const on = panel?.type === "add" && !panel.inline && panel.kind === k;
               return (
-                <button key={k} className={`add-tile ${k} ${on ? "on" : ""}`} aria-pressed={on} onClick={() => setPanel({ type: "add", kind: k })}>
+                <button key={k} className={`add-tile ${k} ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setPanel({ type: "add", kind: k }); setAddedPlace(undefined); }}>
                   <span className="add-icon" aria-hidden="true">{KIND_ICON[k]}</span>
                   <span>{KIND_LABEL[k]}</span>
                 </button>
               );
             })}
             <button
+              className={`add-tile place ${panel?.type === "place" && !panel.inline ? "on" : ""}`}
+              aria-pressed={panel?.type === "place" && !panel.inline}
+              onClick={() => { setPanel({ type: "place" }); setAddedPlace(undefined); }}
+            >
+              <span className="add-icon" aria-hidden="true">📍</span>
+              <span>Place</span>
+            </button>
+            <button
               className={`add-tile email ${panel?.type === "email" ? "on" : ""}`}
               aria-pressed={panel?.type === "email"}
-              onClick={() => setPanel({ type: "email" })}
+              onClick={() => { setPanel({ type: "email" }); setAddedPlace(undefined); }}
             >
               <span className="add-icon" aria-hidden="true">✉️</span>
               <span>Import from email</span>
@@ -288,24 +344,17 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           </div>
         </section>
 
-        {panel?.type === "add" && (
-          <div className="card">
-            <h3>Add {KIND_LABEL[panel.kind].toLowerCase()}</h3>
-            <ItemForm
-              key={`${panel.kind}:${(panel.initial as { title?: string } | undefined)?.title ?? ""}:${panel.date ?? ""}`} /* a fresh form when switching Flight / Accommodation / Activity */
-              kind={panel.kind}
-              initial={panel.initial}
-              tripId={trip.id}
-              defaultDate={panel.date ?? trip.startDate}
-              submitLabel="Add"
-              onCancel={() => setPanel(null)}
-              onSubmit={async (d) => {
-                await api.addItems(trip.id, [d]);
-                setPanel(null);
-                load();
-              }}
-            />
-          </div>
+        {(panel?.type === "add" || panel?.type === "place") && !panel.inline && addForm()}
+        {addedPlace && (
+          <p className="place-added small" role="status">
+            📍 <b>{addedPlace.title}</b> {addedPlace.day ? <>is on {formatDay(addedPlace.day)}.</> : <>is saved in {addedPlace.listName}, ready to plan for a day.</>}{" "}
+            {addedPlace.day ? (
+              <button type="button" className="link" onClick={() => document.getElementById(dayId(addedPlace.day!))?.scrollIntoView({ behavior: "smooth" })}>Show that day</button>
+            ) : (
+              <button type="button" className="link" onClick={() => openIdeas(addedPlace.listId)}>Open {addedPlace.listName}</button>
+            )}
+            <button type="button" className="chip-x" aria-label="Dismiss" onClick={() => setAddedPlace(undefined)}>×</button>
+          </p>
         )}
         {panel?.type === "email" && (
           <EmailImport tripId={trip.id} onCancel={() => setPanel(null)} onDone={() => { setPanel(null); load(); }} onItemsChanged={load} />
@@ -375,13 +424,14 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                     {KIND_ICON[k]} {KIND_LABEL[k]}
                   </button>
                 ))}
+                <button type="button" className="secondary add-for-day place" onClick={() => addFor(emptyDay, "place")}>📍 Place</button>
               </div>
             )}
           </div>
         )}
-        {items.length === 0 && !panel && (
+        {items.length === 0 && !panel && Object.keys(plans).length === 0 && (
           <div className="card empty">
-            <p>Nothing booked yet. Tap a date above, or add a flight, stay or activity, or forward a booking email and Joy will sort it out.</p>
+            <p>Nothing booked yet. Tap a date above, or add a flight, stay, activity or place, or forward a booking email and Joy will sort it out.</p>
           </div>
         )}
 
@@ -403,7 +453,13 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
               {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> outside trip dates</span>}
             </h2>
             {dayItems.map((item) => (
-              <ItemCard key={item.id} item={item} mockFlights={mockFlights} onChange={load} />
+              <ItemCard
+                key={item.id}
+                item={item}
+                mockFlights={mockFlights}
+                onChange={load}
+                linkedFlight={item.kind === "activity" && item.category === "transfer" ? flightForTransfer(item, items.filter((i): i is Extract<ItineraryItem, { kind: "flight" }> => i.kind === "flight")) : undefined}
+              />
             ))}
             {category === "all" && dayItems.length === 0 && !plans[day] && (
               // Nothing on this day yet: say so (and where you're sleeping), with quick ways to add something.
@@ -415,21 +471,25 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 )}
                 <span className="nothing-yet-actions edit-only">
                   <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Activity</button>
+                  <button type="button" className="link" onClick={() => addFor(day, "place")}>+ Place</button>
                   {!stayOn(day) && <button type="button" className="link" onClick={() => addFor(day, "stay")}>+ Accommodation</button>}
                   {!stayOn(day) && <button type="button" className="link" onClick={() => addFor(day, "flight")}>+ Flight</button>}
                 </span>
               </div>
             )}
-            {category === "all" && dayItems.length > 0 && dayItems.every((i) => i.kind === "stay") && !plans[day] && (
+            {category === "all" && dayItems.length > 0 && dayItems.every((i) => i.kind === "stay" || (i.kind === "activity" && i.category === "transfer")) && !plans[day] && (
               <p className="no-activities">
                 <span className="muted small">No activities planned yet</span>
-                <button type="button" className="link edit-only" onClick={() => addFor(day, "activity")}>+ Add activity</button>
+                <span className="edit-only nothing-yet-actions">
+                  <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Add activity</button>
+                  <button type="button" className="link" onClick={() => addFor(day, "place")}>+ Place</button>
+                </span>
               </p>
             )}
             {category === "all" && plans[day] && (
               <div className="day-plan">
                 <div className="day-plan-head">
-                  <b>📍 Planned from your lists</b>
+                  <b>📍 Places to visit</b>
                   {plans[day].routeUrl && (
                     <a className="small" href={plans[day].routeUrl} target="_blank" rel="noopener noreferrer">Route in Maps ↗</a>
                   )}
@@ -445,6 +505,17 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                   ))}
                 </ol>
               </div>
+            )}
+            {/* Days with the "nothing planned" lines above already offer these. */}
+            {(category === "all" || category === "activity") &&
+              !(category === "all" && !plans[day] && dayItems.every((i) => i.kind === "stay" || (i.kind === "activity" && i.category === "transfer"))) && (
+              <p className="day-add edit-only">
+                <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Activity</button>
+                <button type="button" className="link" onClick={() => addFor(day, "place")}>+ Place</button>
+              </p>
+            )}
+            {(panel?.type === "add" || panel?.type === "place") && panel.inline && panel.date === day && (
+              <div id="day-add-form" className="day-add-form">{addForm()}</div>
             )}
           </section>
           );

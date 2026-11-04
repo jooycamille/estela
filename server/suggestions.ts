@@ -172,7 +172,7 @@ export function ruleSuggestions(trip: Trip, items: ItineraryItem[]): Suggestion[
     if (stay && (hour >= 21 || hour < 5)) {
       add({ title: `Late arrival — tell ${stay.name}`, description: `${f.flightNumber} lands at ${arr.slice(11)}. Let the property know so your room isn't released, and pre-book a transfer.`, category: "logistics", day: day(arr) });
     }
-    const next = sorted.find((i) => i.kind === "activity" && itemStart(i) > arr);
+    const next = sorted.find((i) => i.kind === "activity" && i.category !== "transfer" && itemStart(i) > arr);
     if (next && hours(arr, itemStart(next)) < 2) {
       add({ title: "Little buffer after landing", description: `"${next.kind === "activity" ? next.title : ""}" starts less than 2 hours after ${f.flightNumber} lands. Allow for immigration, bags and transfer.`, category: "logistics", day: day(arr) });
     }

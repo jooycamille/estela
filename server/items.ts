@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { DraftItem, ItineraryItem, StoredAttachment } from "../shared/types.ts";
+import type { ActivityGuide, DraftItem, ItineraryItem, StoredAttachment } from "../shared/types.ts";
 import { db, newId, now, save } from "./db.ts";
 import { normaliseFlightNumber } from "./emailParser.ts";
 import { refreshFlight } from "./flightStatus.ts";
@@ -18,7 +18,7 @@ const AttachmentRef = z
 const lines = z.array(z.string().trim().min(1)).optional().transform((l) => (l?.length ? l : undefined));
 const GuideInput = z
   .object({
-    itinerary: lines, whatToBring: lines, whatToWear: lines, dos: lines, donts: lines, beforeYouGo: lines, goodToKnow: lines,
+    itinerary: lines, whatToBring: lines, whatToWear: lines, dos: lines, donts: lines, beforeYouGo: lines, goodToKnow: lines, included: lines, notIncluded: lines,
     meetingPoint: opt, endPoint: opt, cancellation: opt, provider: opt, pin: opt,
   })
   .optional()
@@ -62,6 +62,14 @@ export const ItemInput = z.discriminatedUnion("kind", [
     category: opt,
     guide: GuideInput,
     dateEstimated: z.boolean().optional().transform((b) => b || undefined),
+    fromReceipt: z.boolean().optional().transform((b) => b || undefined),
+    includes: z
+      .array(z.object({ title: z.string().trim().min(1).max(160), address: z.string().trim().max(300).optional(), lat: z.number().min(-90).max(90).optional(), lon: z.number().min(-180).max(180).optional() }))
+      .max(30)
+      .optional(),
+    broughtItems: z.array(z.string().max(500)).max(100).optional(),
+    flightNumber: opt,
+    transferLeg: z.enum(["pickup", "dropoff", "other"]).optional(),
   }),
 ]).superRefine((v, ctx) => {
   // Ends can't come before starts (flights are left alone: arrivals are local times and can look "earlier").
@@ -82,6 +90,31 @@ const norm = (s: string) => s.trim().toLowerCase();
 
 /** Is `input` the same booking as an existing item (e.g. the same email forwarded twice, or a schedule-change email)? */
 function findExisting(tripId: string, input: ItemInputT): ItineraryItem | undefined {
+  return findExact(tripId, input) ?? findReceiptMatch(tripId, input);
+}
+
+const COMMON_WORDS = new Set(["tour", "tours", "trip", "the", "and", "with", "experience", "activity", "class", "from", "for", "city", "day", "private", "group", "small", "ticket", "tickets"]);
+const titleWords = (t: string) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1 && !COMMON_WORDS.has(w));
+
+/**
+ * A receipt rarely names a booking the way its confirmation does ("E-bike tour" and "City E-Bike Tour with Tacos") or
+ * shares its reference. It's the same booking when all of the shorter name's words are in the longer one, on the same
+ * day; or, when one of the dates is only a guess, with two or more such words.
+ */
+function findReceiptMatch(tripId: string, input: ItemInputT): ItineraryItem | undefined {
+  if (input.kind !== "activity") return;
+  const wanted = titleWords(input.title);
+  return db.items.find((i) => {
+    if (i.tripId !== tripId || i.kind !== "activity" || !(input.fromReceipt || i.fromReceipt)) return false;
+    if (i.confirmationCode && input.confirmationCode) return false;
+    const have = titleWords(i.title);
+    const [short, long] = wanted.length <= have.length ? [wanted, have] : [have, wanted];
+    if (short.length === 0 || !short.every((w) => long.includes(w))) return false;
+    return sameDay(i.start, input.start) || ((!!input.dateEstimated || !!i.dateEstimated) && short.length >= 2);
+  });
+}
+
+function findExact(tripId: string, input: ItemInputT): ItineraryItem | undefined {
   return db.items.find((i) => {
     if (i.tripId !== tripId || i.kind !== input.kind) return false;
     if (i.kind === "flight" && input.kind === "flight") {
@@ -142,7 +175,26 @@ export async function upsertFromEmail(tripId: string, drafts: DraftItem[], email
         existing.dateEstimated = undefined;
       }
       // A shorter follow-up email mustn't wipe details an earlier one gave (the pickup, what to bring).
-      if (input.guide) defined.guide = { ...existing.guide, ...input.guide };
+      if (input.guide) {
+        defined.guide = { ...existing.guide, ...input.guide };
+        // Keep what you added yourself alongside what this email lists.
+        for (const key of ["included", "notIncluded"] as const) {
+          const both = [...new Set([...(existing.guide?.[key] ?? []), ...(input.guide[key] ?? [])])];
+          if (both.length) (defined.guide as ActivityGuide)[key] = both;
+        }
+      }
+      if (input.fromReceipt && !existing.fromReceipt) {
+        // The booking's own email knows better: a receipt only fills in what's missing, or replaces a guessed date.
+        const datesKnown = !!existing.dateEstimated && !input.dateEstimated;
+        for (const key of Object.keys(defined)) {
+          if (datesKnown && (key === "start" || key === "end")) continue;
+          if (key === "guide" || existing[key as keyof typeof existing] !== undefined) delete defined[key];
+        }
+        delete defined.fromReceipt;
+        if (input.guide) defined.guide = { ...input.guide, ...existing.guide };
+      } else if (existing.fromReceipt && !input.fromReceipt) {
+        existing.fromReceipt = undefined; // now the real booking email has arrived
+      }
     }
     if (existing.kind === "flight" && input.kind === "flight" && input.departureTime !== existing.departureTime) {
       existing.changes.push({ at: now(), field: "Departure time (airline email)", from: existing.departureTime, to: input.departureTime, acknowledged: false });

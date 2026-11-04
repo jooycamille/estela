@@ -208,6 +208,8 @@ export interface ActivityGuide {
   donts?: string[]; // including "not allowed"
   beforeYouGo?: string[]; // things to do beforehand (pay a fee in cash, confirm pickup, …)
   goodToKnow?: string[];
+  included?: string[]; // what the price covers (lunch, pickup, entry)
+  notIncluded?: string[]; // what you'd pay for or arrange yourself
   meetingPoint?: string; // meeting point or pickup location/time
   endPoint?: string;
   cancellation?: string;
@@ -215,8 +217,15 @@ export interface ActivityGuide {
   pin?: string; // check-in PIN, if the booking has one
 }
 
-export const GUIDE_LIST_KEYS = ["itinerary", "whatToBring", "whatToWear", "dos", "donts", "beforeYouGo", "goodToKnow"] as const;
+export const GUIDE_LIST_KEYS = ["itinerary", "whatToBring", "whatToWear", "dos", "donts", "beforeYouGo", "goodToKnow", "included", "notIncluded"] as const;
 export const GUIDE_TEXT_KEYS = ["meetingPoint", "endPoint", "cancellation", "provider", "pin"] as const;
+
+export interface IncludedPlace {
+  title: string;
+  address?: string;
+  lat?: number;
+  lon?: number;
+}
 
 export interface ActivityItem extends ItemBase {
   kind: "activity";
@@ -229,6 +238,11 @@ export interface ActivityItem extends ItemBase {
   category?: string;
   guide?: ActivityGuide;
   dateEstimated?: boolean; // the email gave no date; it was inferred (e.g. from the cancellation deadline)
+  fromReceipt?: boolean; // known only from an invoice or payment receipt
+  broughtItems?: string[]; // "What to bring" items ticked off for this activity
+  includes?: IncludedPlace[]; // places a tour takes you to, so they needn't be seen separately
+  flightNumber?: string; // a ride (category "transfer"): the flight it's for
+  transferLeg?: "pickup" | "dropoff" | "other";
 }
 
 export type ItineraryItem = FlightItem | StayItem | ActivityItem;

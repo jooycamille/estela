@@ -8,6 +8,8 @@ export interface ActivityFields {
   start: string;
   end?: string;
   dateEstimated?: boolean;
+  fromReceipt?: boolean; // only an invoice or payment receipt: a later booking email fills in the rest
+  notes?: string;
   location?: string;
   category?: string;
   confirmationCode?: string;
@@ -15,10 +17,12 @@ export interface ActivityFields {
   guide: ActivityGuide;
 }
 
-type Section = "bring" | "wear" | "donts" | "dos" | "info" | "meeting" | "end" | "itinerary" | "cancellation" | "stop" | "faq";
+type Section = "included" | "notIncluded" | "bring" | "wear" | "donts" | "dos" | "info" | "meeting" | "end" | "itinerary" | "cancellation" | "stop" | "faq";
 
 // Headings as they appear in booking emails, in priority order. "stop" headings end the current section.
 const HEADINGS: [RegExp, Section][] = [
+  [/^\W*(?:what['’]?s not included|what is not included|not included|excluded|excludes|exclusions|price does not include|does not include)\W*$/i, "notIncluded"],
+  [/^\W*(?:what['’]?s included|what is included|included|includes|inclusions|price includes|this (?:tour|activity|experience) includes)\W*$/i, "included"],
   [/^(?:what to bring|things to bring|what to pack|bring along|please bring)$/i, "bring"],
   [/^(?:what to wear|dress code|clothing)$/i, "wear"],
   [/^(?:not allowed|what not to bring|don'?ts|restrictions|prohibited(?: items)?|not permitted)$/i, "donts"],
@@ -48,6 +52,10 @@ const sentences = (s: string) =>
 
 /** Put each paragraph sentence where a traveller would look for it. */
 function categorize(sentence: string): keyof ActivityGuide {
+  if (!/\?$/.test(sentence)) {
+    if (/\b(?:not included|isn['’]t included|not covered|additional charge|extra charge|extra cost|at your own expense)\b/i.test(sentence)) return "notIncluded";
+    if (/\b(?:is|are|and|drop[- ]?off|pick[- ]?up|lunch|breakfast|dinner|entry|entrance|transport(?:ation)?)\s+(?:is\s+|are\s+)?included\b/i.test(sentence)) return "included";
+  }
   if (/^(?:please )?(?:do not|don['’]t|never|no)\b|\b(?:not allowed|prohibited|forbidden|not permitted|avoid)\b/i.test(sentence)) return "donts";
   if (/\b(?:paid?|pay|payable)\b.*\bcash\b|\bcash\b.*\b(?:paid?|pay|fee|tax)\b|\b(?:confirm|provide|check your (?:email|phone|messages|whatsapp)|be ready|download|print|reply|send us|let us know|must (?:provide|confirm|book|arrive|bring|show))\b/i.test(sentence)) return "beforeYouGo";
   if (/\b(?:wear|clothes|clothing|shoes|swimsuit|swimwear|dress|attire|footwear)\b/i.test(sentence)) return "whatToWear";
@@ -95,6 +103,111 @@ function cancellationDeadline(text: string, fallbackYear: number, range?: { star
 
 const toLocal = (d: Date) => d.toISOString().slice(0, 16);
 
+// ---------- Only an invoice or payment receipt ----------
+
+const RECEIPT_WORD = /\b(?:receipts?|invoices?|payment (?:confirmation|confirmed|received|successful))\b/i;
+const NOT_ACTIVITY_RECEIPT = /\b(?:e-?tickets?|electronic ticket|boarding pass)\b/i;
+const TITLE_LABEL = /^\W*(?:trip|tour|activity|experience|event|excursion|product|service|package|class|item|description)(?: name| title| details?)?\W*:\s*(.*)$/i;
+const TITLE_TABLE = /^\W*(?:description|items?|services?|products?)\b.*\b(?:qty|quantity|amount|price|total|rate|unit)\b/i;
+const LINE_ITEM = /^\W*(?:\d+\s*[x×]\s+)?(.+?)\s+(?:[x×]\s*\d+\s+)?\W*(?:[A-Z]{1,3}\W?)?\d[\d.,]*\W*(?:[A-Z]{3})?\W*$/;
+const NOT_A_TITLE = /^(?:sub-?total|total|tax|gst|vat|fees?|service fee|processing fee|amount|balance|discount|deposit|paid|payment|price|n\/a|none)\b|^[\W\d]*$/i;
+// "Trip Date: Dec 31" says when it is. "Invoice date", "Date paid" and a bare "Date" only say when it was paid.
+const ACTIVITY_DATE = /^\W*(?:(?:trip|tour|activity|experience|event|excursion|class|travel|service|departure|start|visit)\s+date|date of (?:the )?(?:trip|tour|activity|experience|event|class|travel|service|visit)|departure|departs|starts?)\W*(?::\s*(.*))?$/i;
+const PAX = /^\d+\s*(?:pax|people|persons?|guests?|adults?|travell?ers?|participants?)$/i;
+
+const subjects = (text: string) =>
+  [...text.matchAll(/^\W*subject:\s*(.+)$/gim)].map((m) => m[1].replace(/^(?:\s*(?:fwd?|re)\s*:\s*)+/i, "").trim());
+
+function isReceipt(text: string) {
+  if (NOT_ACTIVITY_RECEIPT.test(subjects(text).join(" "))) return false;
+  return subjects(text).some((s) => RECEIPT_WORD.test(s)) ||
+    /^\W*(?:customer |payment |tax |booking |your |sales )?(?:receipt|invoice)\b[^.!?\n]{0,40}$/im.test(text);
+}
+
+/** "E-bike tour - Sam Example- 1 pax" → "E-bike tour": the name of the thing, without who's going. */
+function receiptTitle(raw: string, participant?: string) {
+  return raw
+    .replace(/\*/g, "")
+    .split(/\s+[-–—]\s*|\s*[-–—]\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part && !PAX.test(part) && part.toLowerCase() !== participant?.toLowerCase())
+    .join(" – ")
+    .trim();
+}
+
+function parseReceipt(text: string, body: string, lines: string[], fallbackYear: number, range?: { startDate: string; endDate: string }): ActivityFields | undefined {
+  if (!isReceipt(text)) return;
+  const usable = (t?: string) => (t && t.length >= 3 && t.length <= 150 && !NOT_A_TITLE.test(t) ? t : undefined);
+  const plain = lines.map((l) => l.replace(/\*/g, "").trim());
+  const valueAfter = (i: number, sameLine?: string) => sameLine?.trim() || (plain[i + 1] && !/:\s*$/.test(plain[i + 1]) ? plain[i + 1] : undefined);
+  const participant = plain.map((l) => l.match(/^(?:participant|travell?er|customer|guest|lead traveller|billed to)\s*:\s*(.+)$/i)?.[1]).find(Boolean)?.trim();
+
+  // --- What it's for: a labelled name, the invoice's first line, the subject, and at least who it's from.
+  let raw: string | undefined;
+  for (let i = 0; i < plain.length && !raw; i++) {
+    const m = plain[i].match(TITLE_LABEL);
+    if (m) raw = usable(valueAfter(i, m[1]));
+  }
+  if (!raw) {
+    const heading = plain.findIndex((l) => TITLE_TABLE.test(l));
+    if (heading >= 0) raw = usable(plain[heading + 1]?.match(LINE_ITEM)?.[1] ?? plain[heading + 1]);
+  }
+  if (!raw) raw = plain.map((l) => (/[x×]\s*\d+\s|^\d+\s*[x×]\s/.test(l) ? l.match(LINE_ITEM)?.[1] : undefined)).find((t) => usable(t));
+  for (const subject of subjects(text)) {
+    raw ??= usable(subject.match(/(?:receipt|invoice|payment)\b(?:\s+(?:#|no\.?|number)?\s*[\w-]*\d[\w-]*)?\s*(?:[-–—:]|\bfor\b)\s*(.+)$/i)?.[1]);
+  }
+  if (!raw) {
+    const merchant = [...subjects(text), ...plain].map((l) => l.match(/\b(?:receipt|invoice|payment)\s+(?:from|to)\s+(.+?)(?:\s+#.*)?$/i)?.[1]).find(Boolean);
+    raw = usable(merchant?.replace(/[.!]$/, ""));
+  }
+  const title = raw && receiptTitle(raw, participant);
+  if (!title) return;
+
+  // --- When: only a date that says it's the activity's, or one in its name. Otherwise it's a guess within the trip.
+  const dated = (value?: string) => {
+    const d = value && findDates(value, fallbackYear)[0];
+    if (!d) return;
+    const [, mm, dd] = d.date.split("-").map(Number);
+    const date = /\b\d{4}\b/.test(value) ? d.date : `${yearFor(mm, dd, fallbackYear, range)}-${d.date.slice(5)}`;
+    return { date, time: findTimes(value)[0]?.time };
+  };
+  let when: { date: string; time?: string } | undefined;
+  for (let i = 0; i < plain.length && !when; i++) {
+    const m = plain[i].match(ACTIVITY_DATE);
+    if (m) when = dated(valueAfter(i, m[1]));
+  }
+  when ??= dated(raw);
+  if (!when && !range) return;
+  const dateEstimated = !when;
+  const start = `${when?.date ?? range!.startDate}T${when?.time ?? "09:00"}`;
+
+  // --- The rest. The receipt's own number isn't a booking reference, so it goes in the notes.
+  const receiptLine = /\b(?:receipt|invoice|transaction|payment)\b/i;
+  const ref = findConfirmation(body.split("\n").filter((l) => !receiptLine.test(l)).join("\n"));
+  const receiptNo = plain.map((l) => l.match(/\b(?:receipt|invoice)\s*(?:number|no\.?|#)\s*:?\s*#?([\w-]*\d[\w-]*)/i)?.[1]).find(Boolean);
+  const total = findTotalPrice(body);
+  const place = plain.map((l, i) => usable(l.match(/^(?:destination|location|venue|meeting point)\s*:\s*(.+)$/i)?.[1] ?? (/^(?:destination|location|venue)\s*:$/i.test(l) && !/^-+$/.test(plain[i + 1] ?? "") ? valueAfter(i) : undefined))).find(Boolean);
+
+  const guide: ActivityGuide = {};
+  const operator = text.match(/forwarded message[^\n]*\n\s*from:\s*([^<\n]+)/i)?.[1];
+  if (operator?.trim() && !/@/.test(operator)) guide.provider = operator.trim();
+  if (dateEstimated) push(guide, "beforeYouGo", "Confirm the date and start time in your booking — this came from a receipt that doesn't say when it is, so the date is a placeholder.");
+  else if (!when?.time) push(guide, "beforeYouGo", "Check the start time in your booking — this came from a receipt that doesn't give one.");
+
+  return {
+    title,
+    start,
+    dateEstimated,
+    fromReceipt: true,
+    location: place,
+    category: title.match(/\b(class|cruise|tour|show|tasting|museum|workshop|hike|safari|concert|ticket|excursion|dinner|lesson)\b/i)?.[1]?.toLowerCase(),
+    confirmationCode: ref,
+    price: total && total.amount > 0 ? total : undefined,
+    notes: receiptNo ? `Paid · receipt ${receiptNo}` : "Paid",
+    guide,
+  };
+}
+
 export function parseActivity(text: string, fallbackYear: number, range?: { startDate: string; endDate: string }): ActivityFields | undefined {
   const adsAt = text.search(ADS);
   // Drop email/forwarding header lines ("Date: Wed, Oct 14, 2026 at 12:12 AM" is when it was sent, not the activity).
@@ -112,6 +225,11 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
 
   // --- Title: the line above the participants line ("1 Adult (Age 7 - 99) • English • 14 hours"), skipping dates.
   const pIdx = lines.findIndex((l) => PARTICIPANTS.test(l));
+  // An invoice's or receipt's dates are mostly about the payment, so it has its own, stricter rules.
+  if (pIdx < 0 && !operatorMessage && isReceipt(text)) {
+    const receipt = parseReceipt(text, body, lines, fallbackYear, range);
+    if (receipt) return receipt;
+  }
   let title: string | undefined;
   let titleIdx = -1;
   if (pIdx > 0) {
@@ -148,7 +266,7 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
       if (name.length >= 8 && name.length <= 200) title = name;
     }
   }
-  if (!title) return;
+  if (!title) return parseReceipt(text, body, lines, fallbackYear, range);
   // Where the name appears, so the date and price are looked for around it.
   if (titleIdx < 0) titleIdx = lines.findIndex((l) => l.includes(title!.slice(0, 25)));
 
@@ -220,6 +338,12 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
       else faq.at(-1)?.a.push(line);
       continue;
     }
+    if (section === "included" || section === "notIncluded") {
+      // A list, one per line: anything long is prose that's run on past it.
+      const entry = line.replace(/^\s*(?:[-•*·▪●✓✔✗✘×x]|\d+[.)])\s+/i, "").trim();
+      if (entry.length <= 120) push(guide, section, entry);
+      continue;
+    }
     if (bullet.test(line) && ["bring", "wear", "donts", "dos"].includes(section)) {
       flush();
       const key = ({ bring: "whatToBring", wear: "whatToWear", donts: "donts", dos: "dos" } as const)[section as "bring"];
@@ -279,6 +403,12 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
     for (const item of reminders.split(/^\s*[•*-]\s*/m)) {
       for (const sentence of sentences(item.replace(/\s+/g, " ").trim())) push(guide, categorize(sentence), sentence);
     }
+  }
+
+  // Terms stated outside a "Cancellation policy" section.
+  if (!guide.cancellation) {
+    const terms = body.match(/^[^\n]*\b(?:free cancell?ation|non[- ]?refundable|fully refundable|cancel (?:before|by|until|up to)\b[^\n]*refund)[^\n]*$/im)?.[0];
+    if (terms && terms.length <= 200) guide.cancellation = clean(terms);
   }
 
   const location = guide.meetingPoint?.split(" · ")[0];

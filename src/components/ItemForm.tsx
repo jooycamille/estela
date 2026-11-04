@@ -269,12 +269,24 @@ function GenericItemForm({
                     <textarea rows={3} value={guide[k]} onChange={(e) => setGuide((g) => ({ ...g, [k]: e.target.value }))} />
                   </label>
                 ))}
-                {GUIDE_TEXT_KEYS.map((k) => (
-                  <label key={k}>
-                    {GUIDE_LABELS[k]}
-                    <input value={guide[k]} onChange={(e) => setGuide((g) => ({ ...g, [k]: e.target.value }))} />
-                  </label>
-                ))}
+                {GUIDE_TEXT_KEYS.map((k) =>
+                  k === "meetingPoint" || k === "endPoint" ? (
+                    <LodgingField
+                      key={k}
+                      label={GUIDE_LABELS[k]}
+                      value={guide[k]}
+                      placeholder="A place or address — Find shows where it is"
+                      search={(q) => api.searchPlaces(q, undefined, tripId, values.start?.slice(0, 10))}
+                      onChange={(v) => setGuide((g) => ({ ...g, [k]: v }))}
+                      onPick={(r) => setGuide((g) => ({ ...g, [k]: placeText(r) }))}
+                    />
+                  ) : (
+                    <label key={k}>
+                      {GUIDE_LABELS[k]}
+                      <input value={guide[k]} onChange={(e) => setGuide((g) => ({ ...g, [k]: e.target.value }))} />
+                    </label>
+                  ),
+                )}
               </div>
             </>
           )}
@@ -289,6 +301,10 @@ function GenericItemForm({
   );
 }
 
+/** A picked place as text: its name and full address, without repeating the name. */
+const placeText = (r: LodgingResult) =>
+  r.name && !r.address.toLowerCase().startsWith(r.name.toLowerCase()) ? `${r.name}, ${r.address}` : r.address;
+
 const GUIDE_LABELS: Record<string, string> = {
   itinerary: "Itinerary",
   whatToBring: "What to bring",
@@ -297,6 +313,8 @@ const GUIDE_LABELS: Record<string, string> = {
   donts: "Don'ts / not allowed",
   beforeYouGo: "Before you go",
   goodToKnow: "Good to know",
+  included: "Included",
+  notIncluded: "Not included",
   meetingPoint: "Meeting point / pickup",
   endPoint: "Ends at",
   cancellation: "Cancellation policy",

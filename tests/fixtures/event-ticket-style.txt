@@ -1,0 +1,54 @@
+Subject: Fwd: You're in! Your SAMPLE BAND - THE SAMPLE TOUR ticket confirmation
+From: sam@example.com
+
+---------- Forwarded message ---------
+From: Sample Tickets <no-reply@example.com>
+Date: Tue, Sep 1, 2026 at 6:26 AM
+Subject: You're in! Your SAMPLE BAND - THE SAMPLE TOUR ticket confirmation
+To: <sam@example.com>
+
+
+Thank you for purchasing tickets from Sample Tickets. Your order number is
+12-34567/XYZ
+[image: Sample Tickets]
+<https://click.example.com/?qs=aaa>
+View
+in browser
+<https://click.example.com/?qs=bbb>
+You got the ticket!
+*ORDER* # 12-34567/XYZ
+
+
+
+[image: SAMPLE BAND - THE SAMPLE TOUR]
+
+
+
+SAMPLE BAND - THE SAMPLE TOUR
+Sat 11 Mar 2028 • 9:00 PM
+Sample Stadium, Sample City
+1x Mobile Ticket
+View Ticket
+<https://click.example.com/?qs=ccc>
+This email cannot be used for event entry
+
+[image: App ticket screen]
+Your Phone is Your Ticket
+Order Summary
+1x Mobile Ticket
+Standard ticket
+Section
+BLUE29
+Row
+2
+Seat
+13
+BLUE
+
+Payment Summary
+1 x Standard ticket MX$2788.00
+Per Item Fees MX$669.00
+Order Processing Fees MX$50.00
+Total (incl. fee) MX$3507.00
+Purchase Policy
+<https://click.example.com/?qs=ddd>

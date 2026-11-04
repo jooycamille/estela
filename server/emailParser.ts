@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { ActivityGuide, DraftItem, EmailParseResult, Trip } from "../shared/types.ts";
 import { aiEnabled, extract } from "./ai.ts";
 import { parseActivity } from "./activityHeuristics.ts";
+import { parseTransfer } from "./transferHeuristics.ts";
+import { parseEventTicket } from "./eventHeuristics.ts";
 import { findConfirmation, findTotalPrice, parseFlights, parseStay } from "./emailHeuristics.ts";
 import { findLinks } from "./emailLinks.ts";
 
@@ -31,6 +33,8 @@ const ExtractedSchema = z.object({
           donts: z.array(z.string()).nullable().describe("Don'ts and items/behaviour not allowed"),
           beforeYouGo: z.array(z.string()).nullable().describe("Things to do before the day: pay fees in cash, confirm pickup, send details, download tickets"),
           goodToKnow: z.array(z.string()).nullable(),
+          included: z.array(z.string()).nullable().describe("What the price covers, as stated: lunch, pickup, entry fees"),
+          notIncluded: z.array(z.string()).nullable().describe("What isn't covered, as stated: tips, entry fees, optional extras"),
           meetingPoint: z.string().nullable().describe("Meeting point or pickup location and time"),
           endPoint: z.string().nullable(),
           cancellation: z.string().nullable(),
@@ -52,6 +56,9 @@ const ExtractedSchema = z.object({
 
 const SYSTEM = `You extract travel bookings from confirmation emails.
 Return one item per flight segment, per accommodation booking, and per booked activity/tour/restaurant/event.
+Tickets to a concert, show or game are activities: the event's name as the title, its date and start time, and the venue as the address.
+An invoice or payment receipt counts as a booking even when it's all there is: use the date of the activity itself, never the
+invoice, due or payment date; if the activity's date isn't stated, set dateEstimated to true and use the trip's first day.
 Use the local time printed in the email for each place; never convert time zones.
 If the year is missing, infer it from the trip dates provided. If a check-in or check-out time is missing, use 15:00 and 11:00
 in start/end, and leave notes null. Ignore prices of advertised extras; price is the total for the booking itself.
@@ -67,6 +74,9 @@ Add a short warning for anything ambiguous (for example a date you had to infer)
 
 export async function parseEmail(email: string, trip?: Trip): Promise<EmailParseResult> {
   const text = stripEmail(email);
+  // Rides have a set layout, and shouldn't be mistaken for the flight they mention.
+  const ride = parseTransfer(text, trip ? +trip.startDate.slice(0, 4) : new Date().getFullYear());
+  if (ride) return withLinks({ items: [{ kind: "activity", source: "email", ...ride }], parser: "heuristic", warnings: [] }, email);
   if (aiEnabled()) {
     try {
       const context = trip
@@ -212,7 +222,7 @@ function heuristicParse(text: string, raw: string, trip?: Trip): EmailParseResul
 
   // Tours and activities (only when the email isn't a flight or hotel booking)
   if (items.length === 0) {
-    const a = parseActivity(text, year, trip);
+    const a = parseEventTicket(text, year) ?? parseActivity(text, year, trip);
     if (a) {
       items.push({ kind: "activity", source: "email", ...a });
       if (a.dateEstimated) warnings.push(`"${a.title}": the email doesn't give the date, so it was estimated from the cancellation deadline — please confirm it.`);

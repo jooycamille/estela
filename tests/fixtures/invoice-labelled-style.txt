@@ -1,0 +1,12 @@
+Subject: Invoice INV-2041 from Sample Bay Tours
+
+TAX INVOICE
+Invoice number: INV-2041
+Invoice date: 3 Sep 2026
+Due date: 10 Sep 2026
+Billed to: Sam Example
+
+Description: Sunset Sailing Cruise
+Service date: 14 Mar 2028 5:30 pm
+Booking reference: SB48213
+Total due: EUR 90.00

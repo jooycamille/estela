@@ -8,6 +8,8 @@ const WANTED: [RegExp, string][] = [
   [/\bmanage\s+(?:my\s+|your\s+)?(?:booking|reservation|trip)\b/i, "Manage booking"],
   [/\b(?:view|check|see)\s+(?:my\s+|your\s+)?(?:booking|reservation|trip|itinerary|order)(?:\s+details)?\b|\bsee activity details\b|\bbooking details\b/i, "Booking details"],
   [/\bcheck[\s-]?in online\b|\bonline check[\s-]?in\b/i, "Online check-in"],
+  [/\bpick-?up details\b/i, "Pick-up details"],
+  [/\bchange route\b|\bcancel booking\b/i, "Manage booking"],
 ];
 const SKIP = /availability|unsubscribe|privacy|terms|help center|facebook|instagram|linkedin|twitter|app store|google play|go to app|directions/i;
 const REDIRECT_PARAMS = ["adj_fallback", "adj_redirect", "af_web_dp", "af_r", "url", "u", "redirect", "redirect_url", "target", "destination", "dest"];

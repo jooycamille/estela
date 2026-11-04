@@ -1,0 +1,57 @@
+Subject: Fwd: 🚕 Sam, your journey from Sample International Airport (SMP) is confirmed.
+From: sam@example.com
+
+---------- Forwarded message ---------
+From: Sample Rides <noreply@example.com>
+Date: Wed, Oct 14, 2026 at 1:07 AM
+Subject: 🚕 Sam, your journey from Sample International Airport (SMP) is confirmed.
+To: <sam@example.com>
+
+
+[image: Logo] Booking reference: 123456789
+‍
+Thanks Sam – your ride is confirmed
+‍
+Booking reference:
+*123456789*
+Your journey
+
+Wednesday, March 1, 2028, 7:39 PM
+*Sample International Airport (SMP)*
+Wednesday, March 1, 2028
+*Hotel Example, 12 Sample St*
+*Change route <https://rides.example.com/token>*
+‍
+
+*Your flight *
+Flight number: XX123
+*Change details <https://rides.example.com/token>*
+‍
+
+*Flexible pick-up time*
+The driver will track your flight so they know exactly when to get there,
+and they'll wait for 45 minutes after they arrive.
+------------------------------
+*Your vehicle and journey provider*
+Standard
+Provided by: Sample Limo
+Ride ID: 987654321
+‍
+*Go to pick-up details*
+<https://pickup.example.com/link/123456789>
+------------------------------
+Contact details
+
+*Sam Example*
++61 400 000 000
+sam@example.com
+------------------------------
+*Total price* *AUD 41.04*
+Including taxes
+------------------------------
+Cancellation policy
+
+Free cancellation until 7:39 PM, Tuesday, February 29, 2028 (local time in
+Sampleland)
+
+Cancel booking <https://rides.example.com/token>

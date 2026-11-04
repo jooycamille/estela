@@ -36,6 +36,7 @@ export function itemIcon(item: ItineraryItem | DraftItem): string {
     const airbnb = /^HM[A-Z0-9]{8}$/.test(item.confirmationCode ?? "") || item.links?.some((l) => /airbnb\./i.test(l.url));
     return airbnb || HOME.test(`${item.name} ${item.address ?? ""}`) ? "🏠" : KIND_ICON.stay;
   }
+  if (item.category === "transfer") return "🚐";
   const text = `${item.title} ${item.category ?? ""}`;
   return ACTIVITY_ICONS.find(([re]) => re.test(text))?.[1] ?? KIND_ICON.activity;
 }

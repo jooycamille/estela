@@ -81,6 +81,8 @@ export type ListSuggestions = {
   finders: Link[];
   ai: boolean;
   guide?: { restaurants: ListSuggestion[]; food: ListSuggestion[]; activities: ListSuggestion[]; sights: ListSuggestion[] };
+  bookedIdeas?: string[]; // ideas left out because they're on the itinerary already
+  bookedPicks?: { id: string; title: string; bookedAs: string; inTour: boolean }[]; // your saved picks that have since been booked
 };
 export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }>;
 export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price">> & { day?: string | null; price?: PriceLevel | null };

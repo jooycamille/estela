@@ -1,12 +1,160 @@
 import { useState } from "react";
-import type { FlightItem, ItineraryItem } from "../../shared/types.ts";
+import { cancellationOf, type Cancellation } from "../../shared/cancellation.ts";
+import type { ActivityItem, DraftItem, FlightItem, IncludedPlace, ItineraryItem } from "../../shared/types.ts";
 import { api } from "../api.ts";
-import { formatTime, formatTimeOn } from "../format.ts";
+import { formatDay, formatTime, formatTimeOn } from "../format.ts";
 import ItemForm from "./ItemForm.tsx";
+import LodgingField from "./LodgingField.tsx";
 import { formatMoney } from "./PriceField.tsx";
 import ActivityGuidePanel from "./ActivityGuidePanel.tsx";
 import { itemIcon } from "../icons.ts";
 import { attachmentUrl, fileToBase64, formatSize } from "../files.ts";
+
+/** "Free cancellation until Tue, 8 Dec, 7:39 PM", "Non-refundable"… as a tag on the card. */
+function CancelTag({ terms }: { terms?: Cancellation }) {
+  if (!terms) return null;
+  if (terms.kind === "partial") return <span className="cancel-tag partial">Partial refund</span>;
+  if (terms.kind === "nonrefundable") return <span className="cancel-tag closed">Non-refundable</span>;
+  if (!terms.until) return <span className="cancel-tag free">Free cancellation</span>;
+  // The device's clock, near enough for a label: the reminders work from the activity's real time zone.
+  if (terms.until < new Date().toLocaleString("sv").slice(0, 16).replace(" ", "T")) return <span className="cancel-tag closed">Free cancellation ended</span>;
+  return (
+    <span className="cancel-tag free" title="Local time where the activity is">
+      Free cancellation until {formatDay(terms.until.slice(0, 10))}{terms.timed ? `, ${formatTime(terms.until)}` : ""}
+    </span>
+  );
+}
+
+/** The places a tour takes you to, so you know you don't need to see them separately. */
+function IncludedPlaces({ item, onChange }: { item: ActivityItem; onChange: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string>();
+  const places = item.includes ?? [];
+  const save = async (includes: IncludedPlace[]) => {
+    setError(undefined);
+    try {
+      await api.updateItem(item.id, { ...item, includes } as unknown as DraftItem);
+      onChange();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const add = (place: IncludedPlace) => {
+    const title = place.title.trim();
+    if (!title) return;
+    setName("");
+    if (!places.some((p) => p.title.toLowerCase() === title.toLowerCase())) save([...places, { ...place, title }]);
+  };
+  return (
+    <div className="included-places">
+      {places.length > 0 && (
+        <>
+          <b className="small">📍 Places included</b>
+          <ul>
+            {places.map((p) => (
+              <li key={p.title} className="small">
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.lat !== undefined ? `${p.lat},${p.lon}` : p.address ?? p.title)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {p.title}
+                </a>
+                <button type="button" className="chip-x edit-only" aria-label={`Remove ${p.title}`} onClick={() => save(places.filter((x) => x !== p))}>×</button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <button type="button" className="link small edit-only" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>
+        {adding ? "Done adding places" : "+ Add a place this includes"}
+      </button>
+      {adding && (
+        <div className="included-add edit-only">
+          <LodgingField
+            label="Place"
+            value={name}
+            placeholder="A place this visits, e.g. a museum or ruins"
+            search={(q) => api.searchPlaces(q, undefined, item.tripId, item.start.slice(0, 10))}
+            onChange={setName}
+            onPick={(r) => add({ title: r.name ?? name, address: r.address, lat: r.lat, lon: r.lon })}
+          />
+          <button type="button" className="secondary" disabled={!name.trim()} onClick={() => add({ title: name })}>Add</button>
+        </div>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
+
+/** What the price covers and what it doesn't, in view on the card. */
+function CoveredLists({ item, onChange }: { item: ActivityItem; onChange: () => void }) {
+  const [adding, setAdding] = useState<"included" | "notIncluded">();
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string>();
+  const save = async (key: "included" | "notIncluded", next: string[]) => {
+    setError(undefined);
+    try {
+      await api.updateItem(item.id, { ...item, guide: { ...item.guide, [key]: next } } as unknown as DraftItem);
+      onChange();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const add = () => {
+    const value = text.trim();
+    if (!adding || !value) return;
+    setText("");
+    const now = item.guide?.[adding] ?? [];
+    if (!now.some((x) => x.toLowerCase() === value.toLowerCase())) save(adding, [...now, value]);
+  };
+  const groups = [
+    { key: "included", label: "Included", mark: "✓", values: item.guide?.included ?? [] },
+    { key: "notIncluded", label: "Not included", mark: "✕", values: item.guide?.notIncluded ?? [] },
+  ] as const;
+  return (
+    <div className="covered-lists">
+      {groups.map((g) => (
+        <div key={g.key} className={`covered-list ${g.key}`}>
+          {g.values.length > 0 && <b className="small">{g.label}</b>}
+          {g.values.length > 0 && (
+            <ul>
+              {g.values.map((v) => (
+                <li key={v} className="small">
+                  <span aria-hidden="true" className="mark">{g.mark}</span> {v}
+                  <button type="button" className="chip-x edit-only" aria-label={`Remove ${v}`} onClick={() => save(g.key, g.values.filter((x) => x !== v))}>×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button type="button" className="link small edit-only" aria-expanded={adding === g.key} onClick={() => { setAdding(adding === g.key ? undefined : g.key); setText(""); }}>
+            {adding === g.key ? "Done" : `+ ${g.label}`}
+          </button>
+        </div>
+      ))}
+      {adding && (
+        <form
+          className="covered-add edit-only"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
+          <input
+            autoFocus
+            aria-label={adding === "included" ? "What's included" : "What's not included"}
+            value={text}
+            placeholder={adding === "included" ? "e.g. Lunch, hotel pickup, entry fees" : "e.g. Tips, drinks, national park fee"}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button type="submit" className="secondary" disabled={!text.trim()}>Add</button>
+        </form>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
+  );
+}
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Scheduled", on_time: "On time", delayed: "Delayed", boarding: "Boarding", departed: "Departed",
@@ -59,8 +207,12 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
   );
 }
 
-export default function ItemCard({ item, mockFlights, onChange }: { item: ItineraryItem; mockFlights: boolean; onChange: () => void }) {
+export default function ItemCard({ item, mockFlights, onChange, linkedFlight }: { item: ItineraryItem; mockFlights: boolean; onChange: () => void; linkedFlight?: FlightItem }) {
   const [editing, setEditing] = useState(false);
+  // The driver tracks the flight, so a pick-up is when it really lands (demo flight data aside).
+  const landsAt = linkedFlight && item.kind === "activity" && item.transferLeg === "pickup"
+    ? (linkedFlight.live?.provider === "mock" ? undefined : linkedFlight.live?.arrivalTime) ?? linkedFlight.arrivalTime
+    : undefined;
 
   if (editing) {
     return (
@@ -102,12 +254,21 @@ export default function ItemCard({ item, mockFlights, onChange }: { item: Itiner
             <div className="row">
               <strong><span className="item-icon" aria-hidden="true">{itemIcon(item)}</span>{item.title}</strong>
               {item.category && <span className="tag">{item.category}</span>}
+              <CancelTag terms={cancellationOf(item)} />
             </div>
             <div className="row small">
               <span>
-                {formatTime(item.start)}
+                {formatTime(landsAt ?? item.start)}
                 {item.end && ` – ${formatTimeOn(item.end, item.start)}`}
               </span>
+              {linkedFlight && item.transferLeg === "pickup" && (
+                <span className={landsAt && landsAt !== item.start ? "warning" : "muted"}>
+                  {landsAt && landsAt !== item.start ? `${linkedFlight.flightNumber} has changed, booked for ${formatTime(item.start)}` : `Follows ${linkedFlight.flightNumber}`}
+                </span>
+              )}
+              {linkedFlight && item.transferLeg === "dropoff" && (
+                <span className="muted">For {linkedFlight.flightNumber}, departs {formatTime(linkedFlight.live?.provider === "mock" ? linkedFlight.departureTime : linkedFlight.live?.departureTime ?? linkedFlight.departureTime)}</span>
+              )}
               {item.location && <span className="muted">{item.location}</span>}
               {item.location && (
                 <a
@@ -134,7 +295,9 @@ export default function ItemCard({ item, mockFlights, onChange }: { item: Itiner
         </div>
         {item.notes && <div className="row small notes">{item.notes}</div>}
         <Files item={item} onChange={onChange} />
-        {item.kind === "activity" && item.guide && <ActivityGuidePanel guide={item.guide} />}
+        {item.kind === "activity" && item.category !== "transfer" && <CoveredLists item={item} onChange={onChange} />}
+        {item.kind === "activity" && item.category !== "transfer" && <IncludedPlaces item={item} onChange={onChange} />}
+        {item.kind === "activity" && item.guide && <ActivityGuidePanel guide={item.guide} item={item} onChange={onChange} />}
       </div>
       <div className="item-actions edit-only">
         <button className="link" onClick={() => setEditing(true)}>Edit</button>

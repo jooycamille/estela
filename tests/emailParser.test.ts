@@ -195,3 +195,98 @@ test("operator's upsell message still finds the tour, without taking the add-on'
   assert.equal(a.price, undefined);
   assert.equal(a.guide?.meetingPoint, undefined);
 });
+
+const trip = { startDate: "2028-03-01", endDate: "2028-03-20" } as Parameters<typeof parseEmail>[1];
+const receiptFrom = async (name: string) => {
+  const { items } = await parseEmail(fixture(name), trip);
+  const a = items.find((i) => i.kind === "activity");
+  assert.ok(a && a.kind === "activity", `no activity parsed from ${name}`);
+  return a;
+};
+
+test("a payment receipt alone: uses the trip date, not the payment date, and drops who's going", async () => {
+  const a = await receiptFrom("receipt-trip-style.txt");
+  assert.equal(a.title, "Kayak tour");
+  assert.equal(a.start, "2026-12-31T09:00");
+  assert.ok(!a.dateEstimated);
+  assert.deepEqual(a.price, { amount: 77.71, currency: "AUD" });
+  assert.equal(a.confirmationCode, undefined); // a receipt number isn't a booking reference
+  assert.match(a.notes ?? "", /999999999999999000111/);
+  assert.equal(a.guide?.provider, "Sample Bay Tours");
+});
+
+test("a pasted receipt, without the email's own headers, still comes through", async () => {
+  const pasted = fixture("receipt-trip-style.txt").split("\n").slice(3).join("\n");
+  const { items } = await parseEmail(pasted, trip);
+  const a = items[0];
+  assert.ok(a?.kind === "activity");
+  assert.equal(a.title, "Kayak tour");
+  assert.equal(a.start, "2026-12-31T09:00");
+});
+
+test("a receipt with only a payment date is still shown, with its date flagged as a guess", async () => {
+  const a = await receiptFrom("receipt-no-activity-date-style.txt");
+  assert.equal(a.title, "Blue Lagoon Snorkel Adventure");
+  assert.equal(a.start, "2028-03-01T09:00");
+  assert.equal(a.dateEstimated, true);
+  assert.deepEqual(a.price, { amount: 120, currency: "USD" });
+});
+
+test("an invoice: ignores invoice and due dates, reads the service date, reference and total", async () => {
+  const a = await receiptFrom("invoice-labelled-style.txt");
+  assert.equal(a.title, "Sunset Sailing Cruise");
+  assert.equal(a.start, "2028-03-14T17:30");
+  assert.equal(a.confirmationCode, "SB48213");
+  assert.deepEqual(a.price, { amount: 90, currency: "EUR" });
+});
+
+test("an invoice that doesn't say what it's for still shows who it's from", async () => {
+  const { items } = await parseEmail("Subject: Your receipt from Sample Bay Tours\n\nReceipt\nAmount paid $40.00\nDate paid Sep 11, 2026", trip);
+  assert.equal(items[0]?.kind === "activity" && items[0].title, "Sample Bay Tours");
+});
+
+test("receipts for flights, and unrelated emails, don't become activities", async () => {
+  assert.equal((await parseEmail("Subject: Electronic ticket receipt - Sample Air\n\nAmount paid $400.00", trip)).items.length, 0);
+  assert.equal((await parseEmail("Subject: Hello\n\nJust saying hi, see you soon.", trip)).items.length, 0);
+});
+
+test("a concert ticket: name, time, venue, seat, order number and total", async () => {
+  const { items } = await parseEmail(fixture("event-ticket-style.txt"), trip);
+  assert.equal(items.length, 1);
+  const a = items[0];
+  assert.ok(a.kind === "activity");
+  assert.equal(a.title, "SAMPLE BAND - THE SAMPLE TOUR");
+  assert.equal(a.start, "2028-03-11T21:00");
+  assert.equal(a.location, "Sample Stadium, Sample City");
+  assert.equal(a.category, "concert");
+  assert.equal(a.confirmationCode, "12-34567/XYZ");
+  assert.deepEqual(a.price, { amount: 3507, currency: "MXN" });
+  assert.equal(a.notes, "Section BLUE29 · Row 2 · Seat 13");
+  assert.ok(a.links?.some((l) => l.label === "Ticket"));
+  assert.match(JSON.stringify(a.guide?.beforeYouGo), /won't get you in/);
+});
+
+test("the same ticket pasted, and other events' layouts", async () => {
+  const pasted = fixture("event-ticket-style.txt").split("\n").slice(9).join("\n");
+  const { items } = await parseEmail(pasted, trip);
+  assert.equal(items[0]?.kind === "activity" && items[0].start, "2028-03-11T21:00");
+  const game = (await parseEmail("Subject: Your tickets\n\nSample FC vs Example United\nMar 12, 2028 at 7:30 PM\nSample Arena\n2 tickets", trip)).items[0];
+  assert.ok(game?.kind === "activity");
+  assert.equal(game.category, "match");
+  assert.equal(game.start, "2028-03-12T19:30");
+});
+
+test("what's included and not, from headed lists and from sentences", async () => {
+  const { items } = await parseEmail(fixture("tour-included-style.txt"), trip);
+  const a = items[0];
+  assert.ok(a?.kind === "activity");
+  assert.deepEqual(a.guide?.included?.slice(0, 3), ["Hotel pickup", "Snorkel gear", "Lunch"]);
+  assert.ok(a.guide?.included?.includes("Shared pickup is included from downtown hotels."));
+  assert.deepEqual(a.guide?.notIncluded?.slice(0, 2), ["Tips", "National park fee"]);
+  assert.ok(a.guide?.notIncluded?.includes("Pickup from the airport is available for an additional charge."));
+  assert.ok(!JSON.stringify(a.guide?.included).includes("Is lunch included")); // a question isn't a promise
+  const sentence = await parseEmail(fixture("tour-included-style.txt").replace("Shared pickup is included from downtown hotels.", "Pick up and drop off included from all downtown hotels."), trip);
+  assert.ok(sentence.items[0]?.kind === "activity" && sentence.items[0].guide?.included?.includes("Pick up and drop off included from all downtown hotels."));
+  assert.ok(a.guide?.whatToBring?.some((x) => /sunscreen/.test(x)));
+  assert.match(a.guide?.cancellation ?? "", /full refund/);
+});

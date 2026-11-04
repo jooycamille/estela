@@ -64,8 +64,12 @@ export default function GuideView({
   const add = (s: ListSuggestion, section: (typeof SECTIONS)[number]) =>
     act(() => api.addEntry(list.id, { title: s.title, ...section.add, notes: s.detail, links: s.links, price: s.price }));
 
-  const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key) })).filter((s) => s.entries.length);
-  const myAreas = areas.filter((g) => g.entries.some((e) => e.listId === list.id));
+  // Picks you've since booked are on the itinerary, so they're out of the way here (still saved).
+  const booked = new Set(ideas?.bookedPicks?.map((p) => p.id));
+  const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key && !booked.has(e.id)) })).filter((s) => s.entries.length);
+  const myAreas = areas
+    .map((g) => ({ ...g, entries: g.entries.filter((e) => !booked.has(e.id)) }))
+    .filter((g) => g.entries.some((e) => e.listId === list.id));
   const options: AddOption[] = SECTIONS.map((s) => ({
     key: s.key,
     ...s.add,
@@ -103,6 +107,18 @@ export default function GuideView({
       {/* Safety first: emergency number, pharmacies, hospitals, police and ATMs near where you're staying. */}
       <EssentialsCard list={list} />
 
+      {myAreas.length > 0 && (
+        <section className="card areas">
+          <h3>🗺️ Plan by area</h3>
+          <p className="muted small">Your picks that are close together, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.</p>
+          {myAreas.map((g) => (
+            <AreaCard key={g.entries.map((e) => e.id).join()} group={g} listId={list.id} days={days} onPlan={(day) =>
+              act(() => api.planDay(trip.id, day, g.entries.map((e) => ({ listId: e.listId, entryId: e.id }))))
+            } />
+          ))}
+        </section>
+      )}
+
       <section className="card">
         <h3>⭐ Your picks</h3>
         {picks.length === 0 && <p className="muted small">Tap <b>+ Add</b> on anything below to save it here, then tick it off as you go.</p>}
@@ -131,23 +147,20 @@ export default function GuideView({
             </div>
           ))}
         </div>
+        {(ideas?.bookedPicks?.length ?? 0) > 0 && (
+          <p className="muted small booked-picks">
+            🎟️ Booked or part of a tour, so moved off this list:{" "}
+            {ideas!.bookedPicks!.map((p) => (p.inTour ? `${p.title} (in ${p.bookedAs})` : p.title)).join(" · ")}
+          </p>
+        )}
       </section>
 
       {adding && <AddEntry list={list} tripId={trip.id} options={options} onAdd={(body) => act(() => api.addEntry(list.id, body))} />}
 
-      {myAreas.length > 0 && (
-        <section className="card areas">
-          <h3>🗺️ Plan by area</h3>
-          <p className="muted small">Your picks that are close together, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.</p>
-          {myAreas.map((g) => (
-            <AreaCard key={g.entries.map((e) => e.id).join()} group={g} listId={list.id} days={days} onPlan={(day) =>
-              act(() => api.planDay(trip.id, day, g.entries.map((e) => ({ listId: e.listId, entryId: e.id }))))
-            } />
-          ))}
-        </section>
-      )}
-
       {!ideas && <p className="muted">Joy is putting your guide together…</p>}
+      {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
+        <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
+      )}
       {ideas?.guide &&
         SECTIONS.map((s) => {
           // Restaurants can be narrowed by price ($ to $$$).

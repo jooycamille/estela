@@ -352,6 +352,8 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 .add-tile.flight { background: var(--flight-bg); color: var(--flight-text); }
 .add-tile.stay { background: var(--stay-bg); color: var(--stay-text); }
 .add-tile.activity { background: var(--activity-bg); color: var(--activity-text); }
+.add-tile.place { background: var(--accent-soft); color: var(--text); }
+.add-tile.place:hover:not(:disabled) { background: var(--accent-soft); }
 .add-tile.email { background: var(--card); color: var(--text); border-color: var(--border); }
 .add-tile:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(0.97); }
 .add-tile.flight:hover:not(:disabled) { background: var(--flight-bg); }
@@ -360,7 +362,13 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 .add-tile.email:hover:not(:disabled) { background: var(--accent-soft); }
 .add-tile.on { border-color: currentColor; }
 .add-tile.email.on { border-color: var(--accent); }
-@media (max-width: 520px) { .add-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) {
+  .add-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .add-tile.email { grid-column: span 2; }
+}
+.place-added { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); }
+.place-added .chip-x { margin-left: auto; }
+.day { scroll-margin-top: calc(var(--topbar-h, 60px) + 96px); }
 
 /* 3. Filters: a small, neutral segmented switch — "narrow what I see". */
 .list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 14px; }
@@ -626,3 +634,30 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .nothing-yet { margin: 0 0 4px; padding: 6px 14px; }
 .nothing-yet-actions { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
 .map-link { margin-left: 8px; white-space: nowrap; }
+.booked-picks { margin: 10px 0 0; }
+.booked-ideas { margin: 0 0 12px; }
+.cancel-tag { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--border); }
+.cancel-tag.free { background: var(--ok-bg); color: var(--ok); }
+.cancel-tag.partial { background: var(--warn-bg); color: var(--warn); }
+.cancel-tag.closed { background: var(--danger-bg); color: var(--danger); }
+.day-add { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; margin: 6px 0 0; font-size: 0.85rem; }
+.day-add-form { margin-top: 10px; scroll-margin-top: calc(var(--topbar-h, 60px) + 96px); scroll-margin-bottom: 16px; }
+.included-places { margin-top: 6px; }
+.included-places ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 4px; padding: 0; }
+.included-places li { display: inline-flex; align-items: center; gap: 2px; }
+.included-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 6px; }
+.included-add .lodging-field { flex: 1 1 240px; margin: 0; }
+.covered-by { color: var(--ok); }
+.covered-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; margin-top: 8px; }
+.covered-list ul { list-style: none; margin: 2px 0 4px; padding: 0; }
+.covered-list li { display: flex; align-items: baseline; gap: 4px; }
+.covered-list.included .mark { color: var(--ok); }
+.covered-list.notIncluded .mark { color: var(--danger); }
+.covered-add { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 4px; }
+.covered-add input { flex: 1; min-width: 0; }
+.covered-lists > .error { grid-column: 1 / -1; }
+@media (max-width: 520px) { .covered-lists { grid-template-columns: minmax(0, 1fr); } }
+.guide-section ul.bring-checklist { list-style: none; padding: 0; gap: 6px; }
+.bring-checklist label { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; margin: 0; color: var(--text); font-size: 0.85rem; cursor: pointer; }
+.bring-checklist input { width: 16px; height: 16px; margin-top: 2px; flex: none; accent-color: var(--btn-to); }
+.bring-checklist .done span { text-decoration: line-through; color: var(--muted); }

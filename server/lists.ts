@@ -264,15 +264,18 @@ export async function listSuggestions(list: TripList, trip: Trip, items: Itinera
   const theme = listTheme(list.name, list.emoji);
   const taken = new Set([...list.entries.map((e) => fold(e.title)), ...(list.dismissed ?? []).map(fold)]);
   const fresh = (s: ListSuggestion) => !taken.has(fold(s.title));
-  const ai = ((await claudeIdeas(list, trip, items, theme)) ?? []).filter(fresh);
+  const booked = alreadyBooked(list, trip, items);
+  const ai = ((await claudeIdeas(list, trip, items, theme)) ?? []).filter(fresh).filter(booked.unbooked);
   const seen = new Set(ai.map((s) => fold(s.title)));
-  const rules = ruleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !seen.has(fold(s.title)));
+  const rules = ruleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !seen.has(fold(s.title))).filter(booked.unbooked);
   const shown = new Set([...ai, ...rules].map((s) => fold(s.title)));
   return {
     theme,
     suggestions: [...ai, ...rules].slice(0, 16),
     styles: trip.styles,
-    styleIdeas: styleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !shown.has(fold(s.title))).slice(0, 12),
+    styleIdeas: styleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !shown.has(fold(s.title))).filter(booked.unbooked).slice(0, 12),
+    bookedIdeas: [...new Set(booked.hidden)],
+    bookedPicks: booked.bookedPicks,
     finders: finders(theme, listCities(list, trip, items)),
     ai: aiEnabled(),
   };
@@ -357,7 +360,7 @@ export function areaGroups(trip: Trip, items: ItineraryItem[]): AreaGroup[] {
   const busy = new Map<string, number>();
   for (const i of items) {
     const day = itemStart(i).slice(0, 10);
-    busy.set(day, (busy.get(day) ?? 0) + (i.kind === "flight" ? 10 : i.kind === "activity" ? 2 : 0));
+    busy.set(day, (busy.get(day) ?? 0) + (i.kind === "flight" ? 10 : i.kind === "activity" && i.category !== "transfer" ? 2 : 0));
   }
   for (const e of located(trip.id, (e) => !!e.day)) busy.set(e.day!, (busy.get(e.day!) ?? 0) + 1);
 
@@ -450,6 +453,95 @@ const THEME_TO_STYLE: Partial<Record<ListTheme, TravelStyle>> = { food: "food", 
 const styleScore = (trip: Trip, themes: ListTheme[] = [], styles: TravelStyle[] = []) =>
   Number(themes.some((t) => THEME_TO_STYLE[t] && trip.styles.includes(THEME_TO_STYLE[t]!)) || styles.some((s) => trip.styles.includes(s)));
 
+// ---------- Already in the itinerary ----------
+
+// Kinds of activity where one booking covers the idea, whatever each is called ("Mexican cooking class with a market
+// visit" and "Traditional Cooking Class – Hands-On").
+const SAME_KIND_OF_ACTIVITY = [
+  /balloon/, /cooking (?:class|lesson|workshop)/, /lucha libre/, /food (?:walking )?tour/, /e ?bike|bike tour/, /snorkel/, /kayak/, /zip ?lin/,
+  /horse ?back|horse riding/, /rafting/, /surf(?:ing)? (?:class|lesson)/, /scuba|\bdiving\b/, /whale/, /salsa (?:class|lesson)/, /wine tasting/, /temazcal/,
+];
+// Words any two tours might share. What's left names the actual thing (Teotihuacan, Embera, San Blas).
+const ORDINARY_WORDS = new Set(`
+  tour tours trip trips from with over into near around visit visits guided guide small group private shared full half
+  experience adventure excursion activity class lesson workshop cooking culinary traditional local authentic hands recipe
+  city town village center centre historic area community island islands hopping beach river lake park waterfall waterfalls
+  springs caves canal locks market museum night sunset sunrise morning evening sunday rooftop walking bike ride boat rowing
+  picnic ceremony quiet ecological tacos churros tequila mezcal dinner lunch breakfast drinks food street boozy
+  the and for your this that best top must see
+`.split(/\s+/).filter(Boolean));
+
+const titleKey = (t: string) => fold(t).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+// What names the actual thing: not ordinary tour words, nor the trip's own places ("Mexico" also covers "Mexican").
+function distinctiveWords(title: string, placeNames: string[]) {
+  const places = placeNames.flatMap((p) => titleKey(p).split(" ")).filter((w) => w.length >= 4);
+  return titleKey(title).split(" ").filter((w) => w.length >= 4 && !ORDINARY_WORDS.has(w) && !places.some((p) => w.startsWith(p.slice(0, 5))));
+}
+
+/** Is this idea the same thing as something on the itinerary? Pass the trip's own place names, which say nothing. */
+export function sameOuting(idea: string, booked: string, placeNames: string[] = []) {
+  const [a, b] = [titleKey(idea), titleKey(booked)];
+  if (a === b) return true;
+  if (SAME_KIND_OF_ACTIVITY.some((kind) => kind.test(a) && kind.test(b))) return true;
+  const words = new Set(distinctiveWords(booked, placeNames));
+  return distinctiveWords(idea, placeNames).some((w) => words.has(w));
+}
+
+/**
+ * Is this idea a place you've listed as part of a tour? Stricter than sameOuting, because you named the exact place: all
+ * of the shorter name's words must be in the longer ("Museo Frida Kahlo" and "Frida Kahlo Museum", but not
+ * "Chapultepec Castle" and "Bosque de Chapultepec").
+ */
+export function samePlaceName(idea: string, included: string, placeNames: string[] = []) {
+  if (titleKey(idea) === titleKey(included)) return true;
+  const [a, b] = [distinctiveWords(idea, placeNames), distinctiveWords(included, placeNames)];
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length > 0 && short.every((w) => long.includes(w));
+}
+
+/** What's on the itinerary for this list's place: activities, and places from any list that have a day. */
+function bookedHere(list: TripList, trip: Trip, items: ItineraryItem[]) {
+  const stops = tripCities(trip, items).filter((c) =>
+    list.place?.type === "city" ? fold(c.city) === fold(list.place.name) : !list.place || c.countryCode === list.place.countryCode,
+  );
+  // Only while you're in this place: a cooking class in another city doesn't cover this one.
+  const during = (day: string) => stops.length === 0 || stops.some((c) => (!c.from || c.from <= day) && (!c.to || day <= c.to));
+  const activities = items.flatMap((i) => (i.kind === "activity" && i.category !== "transfer" && during(i.start.slice(0, 10)) ? [i.title] : []));
+  const included = items.flatMap((i) =>
+    i.kind === "activity" && during(i.start.slice(0, 10)) ? (i.includes ?? []).map((place) => ({ place: place.title, tour: i.title })) : [],
+  );
+  const planned = tripLists(trip.id).flatMap((l) => l.entries.filter((e) => e.day && e.kind !== "thing" && during(e.day)).map((e) => e.title));
+  const placeNames = [
+    ...tripCities(trip, items).flatMap((c) => [c.city, countryName(c.countryCode)]),
+    ...(trip.places ?? []).flatMap((p) => [p.name, countryName(p.countryCode)]),
+    ...(list.place ? [list.place.name, countryName(list.place.countryCode)] : []),
+  ];
+  return { activities, planned, included, placeNames };
+}
+
+function alreadyBooked(list: TripList, trip: Trip, items: ItineraryItem[]) {
+  const { activities, planned, included, placeNames } = bookedHere(list, trip, items);
+  const covers = (title: string, among: string[]) => among.find((b) => sameOuting(title, b, placeNames));
+  const inTour = (title: string) => included.find((i) => samePlaceName(title, i.place, placeNames))?.tour;
+  const hidden: string[] = [];
+  return {
+    /** Ideas you've booked or planned already. Food is left alone: tacos on a tour doesn't mean you've tried the dish. */
+    unbooked: (s: ListSuggestion) => {
+      if (s.kind === "thing" || !(covers(s.title, [...activities, ...planned]) || inTour(s.title))) return true;
+      hidden.push(s.title);
+      return false;
+    },
+    hidden,
+    /** Your saved picks that have since been booked (the booking is the one on the itinerary). */
+    bookedPicks: list.entries.flatMap((e) => {
+      const tour = e.kind === "thing" ? undefined : inTour(e.title);
+      const as = tour ?? (e.kind === "thing" ? undefined : covers(e.title, activities));
+      return as ? [{ id: e.id, title: e.title, bookedAs: as, inTour: !!tour }] : [];
+    }),
+  };
+}
+
 export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryItem[]) {
   const taken = new Set([...list.entries.map((e) => fold(e.title)), ...(list.dismissed ?? []).map(fold)]);
   const fresh = (s: ListSuggestion) => !taken.has(fold(s.title));
@@ -487,7 +579,8 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     .map(({ s }) => s)
     .filter(fresh);
 
-  const activities = styleIdeas(list, trip, items, "general").filter(fresh);
+  const booked = alreadyBooked(list, trip, items);
+  const activities = styleIdeas(list, trip, items, "general").filter(fresh).filter(booked.unbooked);
 
   // No built-in guide for this country: useful searches rather than empty sections.
   const where = city ?? (cc ? countryName(cc) : trip.destination);
@@ -497,11 +590,14 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     if (!food.length) food.push(search(`Local dishes in ${where}`, "thing", "Search what to try here, then add the dishes you want with + Add your own.", `traditional food in ${where}`, "Search local food"));
     if (!sights.length) sights.push(search(`Top sights in ${where}`, "place", "Opens a map search for the best-known attractions here.", `top attractions in ${where}`, "Search sights"));
   }
+  const visibleSights = sights.filter(booked.unbooked);
   const stays = guideStays(list, trip, items);
   const near = stays.map((s) => ({ label: `Restaurants near ${s.name}`, url: mapsSearch(`restaurants near ${s.address ?? s.name}`) }));
   return {
     theme: "guide",
-    guide: { restaurants: restaurants.slice(0, 10), food: food.slice(0, 12), activities: activities.slice(0, 12), sights: sights.slice(0, 12) },
+    guide: { restaurants: restaurants.slice(0, 10), food: food.slice(0, 12), activities: activities.slice(0, 12), sights: visibleSights.slice(0, 12) },
+    bookedIdeas: [...new Set(booked.hidden)],
+    bookedPicks: booked.bookedPicks,
     suggestions: [],
     styles: trip.styles,
     styleIdeas: [],

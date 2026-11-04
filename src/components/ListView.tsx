@@ -65,7 +65,11 @@ export default function ListView({
   ];
   const done = list.entries.filter((e) => e.done).length;
   // Areas that include something from this list (other lists' places nearby are shown too).
-  const myAreas = areas.filter((g) => g.entries.some((e) => e.listId === list.id));
+  // Your own lists keep everything, but say what's covered already, and leave it out of the day planning.
+  const coveredBy = new Map(ideas?.bookedPicks?.map((p) => [p.id, p.bookedAs]));
+  const myAreas = areas
+    .map((g) => ({ ...g, entries: g.entries.filter((e) => !coveredBy.has(e.id)) }))
+    .filter((g) => g.entries.some((e) => e.listId === list.id));
   const unlocated = places.filter((e) => e.lat === undefined && !e.done);
 
   return (
@@ -102,6 +106,7 @@ export default function ListView({
               {entries.map((e) => (
                 <EntryRow
                   key={e.id}
+                  coveredBy={coveredBy.get(e.id)}
                   entry={e}
                   days={days}
                   doneLabel={labels.done}
@@ -152,6 +157,9 @@ export default function ListView({
       <section className="card list-ideas">
         <h3>✨ Joy's ideas for {list.name}</h3>
         {!ideas && <p className="muted small">Thinking…</p>}
+        {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
+          <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
+        )}
         {ideas && ideas.suggestions.length === 0 && (
           <p className="muted small">No more ideas right now. Try the searches below.</p>
         )}
@@ -215,7 +223,9 @@ export function EntryRow({
   onDelete,
   onAddToItinerary,
   onPrice,
+  coveredBy,
 }: {
+  coveredBy?: string; // the booking or tour that already includes this
   entry: ListEntry;
   days: string[];
   doneLabel: string;
@@ -234,6 +244,7 @@ export function EntryRow({
           {onPrice && <PriceTag level={entry.price} />}
           {entry.area && <span className="muted tiny"> · {entry.area}</span>}
         </div>
+        {coveredBy && <div className="small covered-by">✓ Covered by {coveredBy}</div>}
         {entry.notes && <div className="small muted entry-notes">{entry.notes}</div>}
         <div className="entry-actions edit-only">
           <select
