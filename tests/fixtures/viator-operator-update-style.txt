@@ -1,0 +1,37 @@
+---------- Forwarded message ---------
+From: Sample Tours <
+S-0000+1111111111-abc@expmessaging.tripadvisor.com
+>
+Date: Wed, Aug 26, 2026 at 12:00 AM
+Subject: Your booking 1234567890 - Sam Example
+To: <sam@example.com>
+
+
+##^-Please type your reply above this line-^##
+
+Please see the message below from Sample Tours regarding your booking
+reference 1234567890 <(123)%20456-7890> for Blue Lagoon Hot Springs &
+Waterfalls Small Group Tour on Dec 14, 2026.
+
+Booking Reference: BR-1111111111
+
+Itinerary Reference: IT-2222222222
+
+External Booking Reference: 1234567890 <(123)%20456-7890>
+
+Hi Sam,
+Your booking has been updated!
+Here are your new tour details:
+Booking #: 1111111111
+Date: Dec 14, 2026
+# of Guests: 1 x Adult
+Pickup: Address: 12 Sample St, Sample Town, 00000 Sample City, Mexico || Name: Hotel Example || N/A
+IMPORTANT REMINDER:
+• The venue accepts cash payments only (Mexican pesos).
+• It is mandatory to carry a passport, as passengers may be asked to show
+it at the entrance.
+• We recommend bringing: Towel, Swimsuit, Water shoes & Sunscreen.
+If you have any urgent questions before the tour, feel free to contact us
+at +52 55 0000 0000.
+We're looking forward to seeing you soon!
+- Sample Tours

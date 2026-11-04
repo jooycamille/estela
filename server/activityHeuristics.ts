@@ -101,6 +101,13 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
   let body = (adsAt > 0 ? text.slice(0, adsAt) : text).replace(/^\s*(?:from|date|sent|to|cc|bcc|subject|reply-to):.*$/gim, "");
   // Some emails glue headings together ("Important informationWhat to bring"): split them onto their own lines.
   for (const h of GLUED) body = body.replace(new RegExp(`(\\S)(${h})[ \\t]*(?=\\n|$)`, "g"), "$1\n$2");
+  // A message from the operator via Viator or Tripadvisor names the tour and date only in a (wrapped) sentence:
+  // "regarding your booking reference 123 for Blue Lagoon Tour on Dec 14, 2026." Put each on its own line.
+  const operatorMessage = body.match(/regarding your booking\s+reference\s+\S+(?:\s*<[^>\n]*>)?\s+for\s+([\s\S]{6,200}?)\s+on\s+([A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Z][a-z]{2,8}\.?,?\s+\d{4})/);
+  if (operatorMessage) {
+    const [sentence, name, when] = operatorMessage;
+    body = body.replace(sentence, `\n${name.replace(/\s+/g, " ")}\n${when.replace(/\s+/g, " ")}\n`);
+  }
   const lines = body.split("\n").map(clean).filter(Boolean);
 
   // --- Title: the line above the participants line ("1 Adult (Age 7 - 99) • English • 14 hours"), skipping dates.
@@ -122,6 +129,7 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
   }
   const labeled = body.match(/^\s*(?:activity|tour|experience|product|event|excursion|attraction)(?: name)?\s*:\s*(.+)$/im)?.[1]?.trim();
   if (labeled) title = labeled;
+  if (operatorMessage) title = operatorMessage[1].replace(/\s+/g, " ");
   // Agoda: under "Activity details", "Activity <name>" with no colon (possibly wrapped), then "Date …".
   if (!title && /^\s*activity details\s*$/im.test(body)) {
     const m = body.match(/^\s*Activity\s+(?!details\b|provider\b|voucher\b)([A-Z0-9][\s\S]{6,200}?)\n\s*(?:Date|When)\b/m);
@@ -264,6 +272,14 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
   }
   const action = body.match(/^\W*action (?:needed|required)\s*:\s*([\s\S]{5,400}?)(?:\n\s*\n|\n\W*(?:if you have|we're looking|reply to)\b)/im)?.[1];
   if (action) for (const sentence of sentences(action.replace(/\s+/g, " ").trim())) push(guide, "beforeYouGo", sentence);
+
+  // Their reminders: "IMPORTANT REMINDER:" then bullets (cash only, carry a passport, what to bring).
+  const reminders = body.match(/^\W*important reminders?\s*:\s*\n([\s\S]{5,1500}?)(?:\n\s*\n|\n\W*(?:if you have|we're looking|we are looking)\b)/im)?.[1];
+  if (reminders) {
+    for (const item of reminders.split(/^\s*[•*-]\s*/m)) {
+      for (const sentence of sentences(item.replace(/\s+/g, " ").trim())) push(guide, categorize(sentence), sentence);
+    }
+  }
 
   const location = guide.meetingPoint?.split(" · ")[0];
 

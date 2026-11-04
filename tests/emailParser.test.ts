@@ -178,3 +178,20 @@ test("the same provider message pasted (no image captions) still finds the activ
   assert.equal(a.start, "2027-03-05T04:20");
 });
 
+
+test("message from a tour operator through Viator: tour and date come from the opening sentence", async () => {
+  const a = await activityFrom("viator-operator-update-style.txt");
+  assert.equal(a.title, "Blue Lagoon Hot Springs & Waterfalls Small Group Tour");
+  assert.equal(a.start.slice(0, 10), "2026-12-14");
+  assert.match(a.guide?.meetingPoint ?? "", /^12 Sample St/);
+  assert.ok(JSON.stringify(a.guide).includes("cash payments only"));
+  assert.ok(JSON.stringify(a.guide).includes("carry a passport"));
+});
+
+test("operator's upsell message still finds the tour, without taking the add-on's price or a pickup", async () => {
+  const a = await activityFrom("viator-operator-upsell-style.txt");
+  assert.equal(a.title, "Blue Lagoon Hot Springs & Waterfalls Small Group Tour");
+  assert.equal(a.start.slice(0, 10), "2026-12-14");
+  assert.equal(a.price, undefined);
+  assert.equal(a.guide?.meetingPoint, undefined);
+});

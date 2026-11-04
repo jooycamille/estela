@@ -141,6 +141,8 @@ export async function upsertFromEmail(tripId: string, drafts: DraftItem[], email
       } else if (!input.dateEstimated) {
         existing.dateEstimated = undefined;
       }
+      // A shorter follow-up email mustn't wipe details an earlier one gave (the pickup, what to bring).
+      if (input.guide) defined.guide = { ...existing.guide, ...input.guide };
     }
     if (existing.kind === "flight" && input.kind === "flight" && input.departureTime !== existing.departureTime) {
       existing.changes.push({ at: now(), field: "Departure time (airline email)", from: existing.departureTime, to: input.departureTime, acknowledged: false });
