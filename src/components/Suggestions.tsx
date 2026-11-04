@@ -54,7 +54,7 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
             {s.day && <p className="muted small">{formatDay(s.day)}</p>}
             {s.links && s.links.length > 0 && (
               <div className="book-links">
-                <span className="muted tiny">{s.search?.kind === "stay" ? "Find a stay" : "Find & book"}{s.place ? ` in ${s.place}` : ""}:</span>
+                <span className="muted tiny">{s.search?.kind === "stay" ? "Find a stay" : s.search ? "Find & book" : "Search"}{s.place ? ` in ${s.place}` : ""}:</span>
                 {s.links.map((l) => (
                   <a
                     key={l.label}

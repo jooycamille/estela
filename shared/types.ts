@@ -222,6 +222,8 @@ export interface ActivityItem extends ItemBase {
   kind: "activity";
   title: string;
   location?: string;
+  lat?: number; // from the place lookup (OpenStreetMap), when picked there
+  lon?: number;
   start: string; // YYYY-MM-DDTHH:mm
   end?: string;
   category?: string;

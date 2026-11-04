@@ -12,7 +12,7 @@ import ListView from "./ListView.tsx";
 import PrepareView from "./PrepareView.tsx";
 import SpendSummary from "./SpendSummary.tsx";
 import TravellersPanel from "./TravellersPanel.tsx";
-import { KIND_ICON } from "../icons.ts";
+import { itemIcon, KIND_ICON } from "../icons.ts";
 import { describePart, partOn, partRange, partySummary } from "../parts.ts";
 import Suggestions from "./Suggestions.tsx";
 import TripForm from "./TripForm.tsx";
@@ -23,7 +23,7 @@ const startOf = (i: ItineraryItem) =>
   i.kind === "flight" ? i.live?.departureTime ?? i.departureTime : i.kind === "stay" ? i.checkIn : i.start;
 
 type Panel =
-  | { type: "add"; kind: Kind; initial?: Partial<DraftItem> }
+  | { type: "add"; kind: Kind; initial?: Partial<DraftItem>; date?: string }
   | { type: "email" }
   | { type: "edit-trip" }
   | { type: "new-list" }
@@ -45,6 +45,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const [ideaCount, setIdeaCount] = useState(0);
   // In the Suggestions tab: Joy's tips, or one of the city guides / your lists (by id).
   const [ideaSection, setIdeaSection] = useState<string>("tips");
+  const [emptyDay, setEmptyDay] = useState<string>(); // a day with nothing on it, picked in the date strip
   const [openTodos, setOpenTodos] = useState(0);
 
   const load = useCallback(() => {
@@ -92,21 +93,36 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   }
   // Days with places planned from your lists show up too (in the All view).
   if (category === "all") for (const d of Object.keys(plans)) if (!byDay.has(d)) byDay.set(d, []);
+  // In "All", every day of the trip gets its date, even with nothing on it, so gaps show as you scroll.
+  if (category === "all")
+    for (let d = new Date(`${trip.startDate}T12:00:00Z`); d <= new Date(`${trip.endDate}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+      const day = d.toISOString().slice(0, 10);
+      if (!byDay.has(day)) byDay.set(day, []);
+    }
   const days = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
+  // Where you're sleeping on a night (checked in before, checking out after or on that day).
+  const stayOn = (day: string) =>
+    items.find((i): i is Extract<ItineraryItem, { kind: "stay" }> => i.kind === "stay" && i.checkIn.slice(0, 10) <= day && i.checkOut.slice(0, 10) > day);
+  // Days where only accommodation is booked still need things to do.
+  const addFor = (day: string, kind: Kind) => {
+    setPanel({ type: "add", kind, date: day });
+    setEmptyDay(undefined);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   // Every day of the trip for the date strip (plus any bookings outside the dates), with what's on each.
   const stripDays: DayInfo[] = (() => {
     const all = new Set(days.map(([d]) => d));
     for (let d = new Date(`${trip.startDate}T12:00:00Z`); d <= new Date(`${trip.endDate}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) all.add(d.toISOString().slice(0, 10));
     return [...all].sort().map((day) => {
       const dayItems = byDay.get(day) ?? [];
-      const icons: string[] = [...new Set(dayItems.map((i) => KIND_ICON[i.kind]))];
+      // The same icon as each card: activities by their name ("Museum…" 🏛️, "Dinner…" 🍽️), homes 🏠.
+      const icons: string[] = [...new Set(dayItems.map((i) => itemIcon(i)))];
       if (category === "all" && plans[day]) icons.push("📍");
-      // A night at a booked stay isn't a gap: show the bed, and jump to the stay's check-in.
-      const stay = !byDay.has(day) && (category === "all" || category === "stay")
-        ? items.find((i): i is Extract<ItineraryItem, { kind: "stay" }> => i.kind === "stay" && i.checkIn.slice(0, 10) < day && i.checkOut.slice(0, 10) >= day)
-        : undefined;
+      // A night at a booked stay isn't a gap (🛏️), but nothing may be planned: tapping it offers to add something.
+      const planned = dayItems.length > 0 || (category === "all" && !!plans[day]);
+      const stay = !planned && (category === "all" || category === "stay") ? stayOn(day) : undefined;
       if (stay) icons.push("🛏️");
-      return { day, icons, hasContent: byDay.has(day), target: stay?.checkIn.slice(0, 10) };
+      return { day, icons, hasContent: byDay.has(day), planned, staying: !!stay };
     });
   })();
   const openList = ideaSection !== "tips" ? lists.find((l) => l.id === ideaSection) : undefined;
@@ -276,11 +292,11 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <div className="card">
             <h3>Add {KIND_LABEL[panel.kind].toLowerCase()}</h3>
             <ItemForm
-              key={`${panel.kind}:${(panel.initial as { title?: string } | undefined)?.title ?? ""}`} /* a fresh form when switching Flight / Accommodation / Activity */
+              key={`${panel.kind}:${(panel.initial as { title?: string } | undefined)?.title ?? ""}:${panel.date ?? ""}`} /* a fresh form when switching Flight / Accommodation / Activity */
               kind={panel.kind}
               initial={panel.initial}
               tripId={trip.id}
-              defaultDate={trip.startDate}
+              defaultDate={panel.date ?? trip.startDate}
               submitLabel="Add"
               onCancel={() => setPanel(null)}
               onSubmit={async (d) => {
@@ -295,11 +311,6 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <EmailImport tripId={trip.id} onCancel={() => setPanel(null)} onDone={() => { setPanel(null); load(); }} onItemsChanged={load} />
         )}
 
-        {items.length === 0 && !panel && (
-          <div className="card empty">
-            <p>Nothing here yet. Add a flight, stay or activity — or forward a booking email and Joy will sort it out.</p>
-          </div>
-        )}
 
         {items.length > 0 && (
           <div className="list-bar">
@@ -339,7 +350,40 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           </div>
         )}
 
-        {days.length > 1 && <DayStrip days={stripDays} />}
+        {/* Always the trip's dates, even before anything's booked. */}
+        {stripDays.length > 0 && (
+          <DayStrip
+            days={stripDays}
+            onEmptyDay={(day) => {
+              setEmptyDay(day);
+              requestAnimationFrame(() => document.getElementById("empty-day")?.scrollIntoView({ block: "nearest" }));
+            }}
+          />
+        )}
+        {emptyDay && (
+          <div className="card empty-day" id="empty-day">
+            <div className="empty-day-head">
+              <b>📅 {formatDay(emptyDay)}</b>
+              <button type="button" className="chip-x" aria-label="Close" onClick={() => setEmptyDay(undefined)}>×</button>
+            </div>
+            {stayOn(emptyDay) && <p className="small staying">🛏️ Staying at <b>{stayOn(emptyDay)!.name}</b></p>}
+            <p className="muted small">{stayOn(emptyDay) ? "No activities planned yet" : "Nothing planned yet"}{canEditTrip ? ". Add something for this day:" : "."}</p>
+            {canEditTrip && (
+              <div className="actions left">
+                {(stayOn(emptyDay) ? (["activity", "flight"] as Kind[]) : (["activity", "stay", "flight"] as Kind[])).map((k) => (
+                  <button key={k} type="button" className={`secondary add-for-day ${k}`} onClick={() => addFor(emptyDay, k)}>
+                    {KIND_ICON[k]} {KIND_LABEL[k]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {items.length === 0 && !panel && (
+          <div className="card empty">
+            <p>Nothing booked yet. Tap a date above, or add a flight, stay or activity, or forward a booking email and Joy will sort it out.</p>
+          </div>
+        )}
 
         {days.map(([day, dayItems], i) => {
           // A header where a new part of the trip begins.
@@ -361,6 +405,27 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             {dayItems.map((item) => (
               <ItemCard key={item.id} item={item} mockFlights={mockFlights} onChange={load} />
             ))}
+            {category === "all" && dayItems.length === 0 && !plans[day] && (
+              // Nothing on this day yet: say so (and where you're sleeping), with quick ways to add something.
+              <div className="no-activities nothing-yet">
+                {stayOn(day) ? (
+                  <span className="small">🛏️ Staying at <b>{stayOn(day)!.name}</b> · <span className="muted">no activities planned yet</span></span>
+                ) : (
+                  <span className="muted small">Nothing planned yet</span>
+                )}
+                <span className="nothing-yet-actions edit-only">
+                  <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Activity</button>
+                  {!stayOn(day) && <button type="button" className="link" onClick={() => addFor(day, "stay")}>+ Accommodation</button>}
+                  {!stayOn(day) && <button type="button" className="link" onClick={() => addFor(day, "flight")}>+ Flight</button>}
+                </span>
+              </div>
+            )}
+            {category === "all" && dayItems.length > 0 && dayItems.every((i) => i.kind === "stay") && !plans[day] && (
+              <p className="no-activities">
+                <span className="muted small">No activities planned yet</span>
+                <button type="button" className="link edit-only" onClick={() => addFor(day, "activity")}>+ Add activity</button>
+              </p>
+            )}
             {category === "all" && plans[day] && (
               <div className="day-plan">
                 <div className="day-plan-head">

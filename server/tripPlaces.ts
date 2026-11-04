@@ -1,6 +1,6 @@
-import type { FlightItem, ItineraryItem, Trip } from "../shared/types.ts";
+import type { FlightItem, ItineraryItem, StayItem, Trip } from "../shared/types.ts";
 import { getAirport, type Airport } from "./airports.ts";
-import { countryName } from "./places.ts";
+import { cityInAddress, countryName, mainCity, nearestCity } from "./places.ts";
 
 // Where the traveller actually is during a trip, worked out from the flights.
 
@@ -31,6 +31,31 @@ export function distanceKm(a: Pick<Airport, "lat" | "lon">, b: Pick<Airport, "la
     Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 +
     Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lon - a.lon) * rad) / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+function stopsFromStays(trip: Trip, items: ItineraryItem[]): Stop[] {
+  const countries = [...new Set((trip.places ?? []).map((p) => p.countryCode))];
+  if (!countries.length) return [];
+  const stops: Stop[] = [];
+  const stays = items.filter((i): i is StayItem => i.kind === "stay").sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+  for (const s of stays) {
+    const c = (s.address && cityInAddress(s.address, countries)) || (s.lat !== undefined && s.lon !== undefined ? nearestCity(s.lat, s.lon, countries) : undefined);
+    if (!c) continue;
+    const last = stops.at(-1);
+    if (last?.city === c.city) continue;
+    if (last) last.to = s.checkIn.slice(0, 10);
+    stops.push({ city: c.city, country: countryName(c.countryCode), countryCode: c.countryCode, lat: c.lat, lon: c.lon, from: stops.length ? s.checkIn.slice(0, 10) : trip.startDate, to: trip.endDate });
+  }
+  return stops;
+}
+
+/** Only countries or regions chosen, no cities or stays: each country's largest city, for typical weather. */
+export function assumedStops(trip: Trip): (Stop & { assumed: true })[] {
+  const countries = [...new Set((trip.places ?? []).map((p) => p.countryCode))].slice(0, 4);
+  return countries.flatMap((cc) => {
+    const c = mainCity(cc);
+    return c ? [{ city: c.city, country: countryName(cc), countryCode: cc, lat: c.lat, lon: c.lon, from: trip.startDate, to: trip.endDate, assumed: true as const }] : [];
+  });
 }
 
 /**
@@ -71,8 +96,10 @@ export function tripPlaces(trip: Trip, items: ItineraryItem[]) {
       });
   });
 
-  // No flights yet: use the chosen destinations — cities get weather (they have coordinates), all give countries.
-  if (!flights.length) {
+  // No flights yet: where you're staying says where you'll be (each stay until the next, covering the whole trip).
+  if (!flights.length) stops.push(...stopsFromStays(trip, items));
+  // Nothing to go on but the chosen destinations: cities get weather (they have coordinates), all give countries.
+  if (!stops.length && !flights.length) {
     for (const p of trip.places ?? []) {
       if (p.type === "city" && p.lat !== undefined && p.lon !== undefined) {
         stops.push({ city: p.name, country: countryName(p.countryCode), countryCode: p.countryCode, lat: p.lat, lon: p.lon, from: trip.startDate, to: trip.endDate });

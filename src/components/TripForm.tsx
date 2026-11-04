@@ -50,8 +50,27 @@ export default function TripForm({
         <div className="span2">
           <PlaceSelect value={form.places ?? []} onChange={(places) => set("places", places)} />
         </div>
-        <label>Start<input required type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} /></label>
-        <label>End<input required type="date" value={form.endDate} onChange={(e) => set("endDate", e.target.value)} /></label>
+        <label>
+          Start
+          <input
+            required
+            type="date"
+            value={form.startDate}
+            onChange={(e) => {
+              const start = e.target.value;
+              set("startDate", start);
+              // A start after the end moves the end along, keeping the trip's length.
+              if (start && form.endDate && form.startDate && form.endDate < start) {
+                const days = Math.max(0, (Date.parse(form.endDate) - Date.parse(form.startDate)) / 86_400_000);
+                set("endDate", new Date(Date.parse(start) + days * 86_400_000).toISOString().slice(0, 10));
+              }
+            }}
+          />
+        </label>
+        <label>
+          End
+          <input required type="date" min={form.startDate || undefined} value={form.endDate} onChange={(e) => set("endDate", e.target.value)} />
+        </label>
       </div>
 
       <fieldset>

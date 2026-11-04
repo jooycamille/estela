@@ -66,3 +66,17 @@ export function searchAirports(query: string, limit = 12): Airport[] {
   }
   return scored.sort((a, b) => b.score - a.score || a.r[0].localeCompare(b.r[0])).slice(0, limit).map((s) => toAirport(s.r));
 }
+
+/** The biggest airport near a place (within about 150 km): where you'd fly to for it. */
+export function nearestMajorAirport(lat: number, lon: number): Airport | undefined {
+  let best: Row | undefined;
+  let bestScore = -Infinity;
+  for (const r of rows) {
+    const d2 = (r[6] - lat) ** 2 + (r[7] - lon) ** 2;
+    if (d2 > 1.4 ** 2) continue;
+    // Size matters most; distance breaks ties between similar airports.
+    const score = r[5] * 10 - Math.sqrt(d2);
+    if (score > bestScore) [best, bestScore] = [r, score];
+  }
+  return best && toAirport(best);
+}

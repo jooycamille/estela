@@ -80,6 +80,14 @@ async function cityPosition(stop: Stop) {
   return placeCache.get(key)!;
 }
 
+/** The 3 most recent years whose same dates have already happened (a trip next-next December can't use next December). */
+export function typicalYears(tripEnd: string, today: string) {
+  const lastDone = iso(new Date(Date.parse(`${today}T00:00:00Z`) - 7 * DAY)); // the archive runs a few days behind
+  let back = 1;
+  while (shiftYears(tripEnd, -back) > lastDone) back++;
+  return [-back, -back - 1, -back - 2];
+}
+
 export async function stopWeather(stop: Stop): Promise<StopWeather> {
   const pos = await cityPosition(stop);
   const today = iso(new Date());
@@ -101,7 +109,7 @@ export async function stopWeather(stop: Stop): Promise<StopWeather> {
     lows = d.temperature_2m_min.filter((x): x is number => x !== null);
     wet = d.precipitation_probability_max.map((p, i) => (p ?? 0) >= 50 || (d.precipitation_sum[i] ?? 0) >= 1);
   } else {
-    for (const years of [-1, -2, -3]) {
+    for (const years of typicalYears(stop.to, today)) {
       const d = await daily(
         `https://archive-api.open-meteo.com/v1/archive?${loc}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&start_date=${shiftYears(stop.from, years)}&end_date=${shiftYears(stop.to, years)}`,
       );

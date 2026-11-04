@@ -17,7 +17,7 @@ import type { UserRecord } from "./db.ts";
 import { essentialsFor } from "./essentials.ts";
 import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
-import { tripPlaces } from "./tripPlaces.ts";
+import { assumedStops, tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
 import { AirLabsError } from "./airlabs.ts";
 import { AviationstackError } from "./aviationstack.ts";
@@ -572,8 +572,10 @@ app.get("/api/trips/:id/prep", async (req, res) => {
   if (!trip) return void res.status(404).json({ error: "Trip not found" });
   const items = tripItems(trip.id);
   const places = tripPlaces(trip, items);
+  // No city known yet: typical weather for the country's largest city (the page says so).
+  const weatherStops = places.stops.length ? places.stops : assumedStops(trip);
   const weather = await Promise.all(
-    places.stops.map((s) =>
+    weatherStops.map((s) =>
       stopWeather(s).catch((err) => {
         console.warn(`Weather for ${s.city} unavailable:`, (err as Error).message);
         return null;
@@ -586,7 +588,7 @@ app.get("/api/trips/:id/prep", async (req, res) => {
   const home = user.homeCountry ?? (user.isAdmin ? settings.homeCountry : undefined);
   const { todo, packing } = buildPrep(trip, items, places, ok, home ?? places.homeCountry, countryName);
   res.json({
-    stops: places.stops.map((s, i) => ({ ...s, weather: weather[i] })),
+    stops: weatherStops.map((s, i) => ({ ...s, weather: weather[i] })),
     transits: places.transits,
     homeCountry: home ?? null,
     homeCountryGuess: places.homeCountry ?? null,

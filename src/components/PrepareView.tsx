@@ -85,7 +85,10 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
 
       {data.stops.length > 0 && (
         <section className="card">
-          <h3>Weather where you're staying</h3>
+          <h3>{data.stops.some((s) => s.assumed) ? "Typical weather" : "Weather where you're staying"}</h3>
+          {data.stops.some((s) => s.assumed) && (
+            <p className="muted small">No city yet, so this is for the country's largest city. Add where you're staying or a flight for your own area.</p>
+          )}
           <div className="weather-grid">
             {data.stops.map((s) => (
               <div key={`${s.city}-${s.from}`} className="weather">

@@ -53,7 +53,7 @@ export type StopWeather = {
   icon: string;
 };
 export type PrepData = {
-  stops: { city: string; country: string; countryCode: string; from: string; to: string; weather: StopWeather | null }[];
+  stops: { city: string; country: string; countryCode: string; from: string; to: string; assumed?: boolean; weather: StopWeather | null }[];
   transits: { iata: string; city: string; country: string; countryCode: string; date: string }[];
   homeCountry: string | null;
   homeCountryGuess: string | null;
@@ -71,7 +71,7 @@ export type InviteLink = { name: string; url: string; expiresInDays: number };
 export type Travellers = { travellers: TravellerView[]; contacts: { id: string; name: string }[] };
 export type Alert = { tripId: string; itemId: string; flightNumber: string; changes: FlightChange[] };
 
-export type LodgingResult = { name?: string; address: string; lat: number; lon: number; kind: "property" | "address"; area?: string };
+export type LodgingResult = { name?: string; address: string; lat: number; lon: number; kind: "property" | "address"; area?: string; source?: "google" };
 
 export type ListSuggestions = {
   theme: string;
@@ -101,8 +101,10 @@ export const api = {
   dayPlans: (tripId: string) => request<DayPlans>(`/trips/${tripId}/day-plans`),
   planDay: (tripId: string, day: string | null, entries: { listId: string; entryId: string }[]) =>
     request<void>(`/trips/${tripId}/plan-day`, json("POST", { day, entries })),
-  searchPlaces: (q: string, near?: { lat: number; lon: number }, tripId?: string) =>
-    request<LodgingResult[]>(`/lodging/search?${new URLSearchParams({ q, scope: "any", ...(near ? { lat: String(near.lat), lon: String(near.lon) } : {}), ...(tripId ? { tripId } : {}) })}`),
+  searchPlaces: (q: string, near?: { lat: number; lon: number }, tripId?: string, date?: string) =>
+    request<LodgingResult[]>(
+      `/lodging/search?${new URLSearchParams({ q, scope: "any", ...(near ? { lat: String(near.lat), lon: String(near.lon) } : {}), ...(tripId ? { tripId } : {}), ...(date ? { date } : {}) })}`,
+    ),
   searchLodging: (q: string, tripId?: string, date?: string) =>
     request<LodgingResult[]>(`/lodging/search?${new URLSearchParams({ q, ...(tripId ? { tripId } : {}), ...(date ? { date } : {}) })}`),
   lodgingAt: (lat: number, lon: number, address?: string) =>

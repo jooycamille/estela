@@ -109,6 +109,16 @@ export default function ItemCard({ item, mockFlights, onChange }: { item: Itiner
                 {item.end && ` – ${formatTimeOn(item.end, item.start)}`}
               </span>
               {item.location && <span className="muted">{item.location}</span>}
+              {item.location && (
+                <a
+                  className="small map-link"
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.lat !== undefined ? `${item.lat},${item.lon}` : item.location)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Map ↗
+                </a>
+              )}
             </div>
             {item.dateEstimated && (
               <p className="warning small estimate">

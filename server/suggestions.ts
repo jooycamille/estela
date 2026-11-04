@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { type FlightItem, type ItineraryItem, type StayItem, type Suggestion, type Trip, type TripPart, type TravelStyle } from "../shared/types.ts";
 import { aiEnabled, extract } from "./ai.ts";
-import { getAirport } from "./airports.ts";
-import { itemStart } from "./db.ts";
+import { getAirport, nearestMajorAirport } from "./airports.ts";
+import { assumedStops, tripPlaces } from "./tripPlaces.ts";
+import { db, itemStart } from "./db.ts";
 
 const hours = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 3600_000;
 const day = (t: string) => t.slice(0, 10);
@@ -51,6 +52,12 @@ const countryName = (cc?: string) => {
   }
 };
 
+/** Without flights, the stop (from your stays or chosen city) that covers a day. */
+const stopOn = (dayIso: string, trip: Trip, items: ItineraryItem[]) => {
+  const stops = tripPlaces(trip, items).stops;
+  return stops.find((s) => s.from <= dayIso && dayIso <= s.to) ?? stops[0];
+};
+
 /** The country you're in on a given day: where your latest flight landed, else the trip's first destination country. */
 function countryOn(dayIso: string, trip: Trip, items: ItineraryItem[]) {
   const landed = items
@@ -58,7 +65,7 @@ function countryOn(dayIso: string, trip: Trip, items: ItineraryItem[]) {
     .filter((f) => (f.arrivalTime ?? f.departureTime).slice(0, 10) <= dayIso)
     .sort((a, b) => (a.arrivalTime ?? a.departureTime).localeCompare(b.arrivalTime ?? b.departureTime))
     .at(-1);
-  return (landed && getAirport(landed.to)?.countryCode) || trip.places?.[0]?.countryCode;
+  return (landed && getAirport(landed.to)?.countryCode) || stopOn(dayIso, trip, items)?.countryCode || trip.places?.[0]?.countryCode;
 }
 
 /** The city you're in on a given day: where your latest flight landed, else the trip destination. */
@@ -68,7 +75,45 @@ export function cityOn(dayIso: string, trip: Trip, items: ItineraryItem[]) {
     .filter((f) => (f.arrivalTime ?? f.departureTime).slice(0, 10) <= dayIso)
     .sort((a, b) => (a.arrivalTime ?? a.departureTime).localeCompare(b.arrivalTime ?? b.departureTime))
     .at(-1);
-  return (landed && (getAirport(landed.to)?.city ?? landed.to)) || trip.destination;
+  return (landed && (getAirport(landed.to)?.city ?? landed.to)) || stopOn(dayIso, trip, items)?.city || trip.destination;
+}
+
+/** Where this person flies from: the first airport of their most recent other trip with flights. */
+function usualAirport(trip: Trip) {
+  const others = db.trips.filter((x) => x.ownerId === trip.ownerId && x.id !== trip.id).sort((a, b) => b.startDate.localeCompare(a.startDate));
+  for (const t of others) {
+    const first = db.items.filter((i): i is FlightItem => i.tripId === t.id && i.kind === "flight").sort((a, b) => a.departureTime.localeCompare(b.departureTime))[0];
+    if (first) return first.from;
+  }
+  return undefined;
+}
+
+/**
+ * "Find flights to Manila (MNL)": searches on flight sites with the trip's dates. These are links only: showing live
+ * fares would need a paid fare data service.
+ */
+function findFlights(trip: Trip, items: ItineraryItem[]): Omit<Suggestion, "source"> | undefined {
+  const stop = tripPlaces(trip, items).stops[0] ?? assumedStops(trip)[0];
+  const to = stop && nearestMajorAirport(stop.lat, stop.lon);
+  if (!to) return undefined;
+  const from = usualAirport(trip);
+  const compact = (d: string) => d.slice(2).replace(/-/g, "");
+  const pretty = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const q = encodeURIComponent(`Flights to ${to.iata}${from ? ` from ${from}` : ""} on ${trip.startDate} through ${trip.endDate}`);
+  const links = [{ label: "Google Flights", url: `https://www.google.com/travel/flights?q=${q}` }];
+  if (from) {
+    links.push(
+      { label: "Skyscanner", url: `https://www.skyscanner.com/transport/flights/${from.toLowerCase()}/${to.iata.toLowerCase()}/${compact(trip.startDate)}/${compact(trip.endDate)}/` },
+      { label: "Kayak", url: `https://www.kayak.com/flights/${from}-${to.iata}/${trip.startDate}/${trip.endDate}` },
+    );
+  }
+  return {
+    title: `Find flights to ${to.city} (${to.iata})`,
+    description: `${from ? `From ${from}, ` : ""}${pretty(trip.startDate)} to ${pretty(trip.endDate)}. These open flight sites with your dates, where you can compare prices. Once booked, add the flight and Joy keeps it up to date.`,
+    category: "logistics",
+    day: trip.startDate,
+    links,
+  };
 }
 
 /** Deterministic tips derived from the trip profile and gaps/conflicts in the itinerary. */
@@ -78,6 +123,12 @@ export function ruleSuggestions(trip: Trip, items: ItineraryItem[]): Suggestion[
   const sorted = [...items].sort((a, b) => itemStart(a).localeCompare(itemStart(b)));
   const flights = sorted.filter((i): i is FlightItem => i.kind === "flight");
   const stays = sorted.filter((i): i is StayItem => i.kind === "stay");
+
+  // No flights yet: help find them.
+  if (!flights.length) {
+    const find = findFlights(trip, items);
+    if (find) add(find);
+  }
 
   // Itinerary checks (apply to every trip)
   const uncovered = eachNight(trip.startDate, trip.endDate).filter(

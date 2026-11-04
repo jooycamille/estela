@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EssentialKind, EssentialPlace, Essentials, StayEssentials, StayItem } from "../shared/types.ts";
 import { DATA_DIR } from "./db.ts";
+import { googleEnabled } from "./googlePlaces.ts";
 import { nominatim, searchLodging, viewbox, type NominatimPlace } from "./lodging.ts";
 import { decodePlusCode, PLUS_CODE } from "./pluscode.ts";
 import { distanceKm } from "./tripPlaces.ts";
@@ -22,6 +23,8 @@ const KINDS: { kind: EssentialKind; query: string; types: RegExp }[] = [
 ];
 // Map entries that are tagged as health places or ATMs but aren't useful in an emergency.
 const NOT_REALLY = /bitcoin|cripto|crypto|\bEPS\b|consultor|seguros?\b|insurance|veterinar/i;
+// Words in a stay's name that don't identify a particular place.
+const GENERIC_STAY_WORDS = new Set(["home", "house", "hotel", "hostel", "apartment", "apartamento", "the", "and", "with", "near", "family", "villa", "casa", "room", "stay", "condo", "unit", "inn"]);
 const REAL_CARE = /hospital|cl[ií]nica|clinic|sanatorio|m[eé]dic|policl|salud|urgenc|emergenc/i;
 
 // National emergency numbers for the countries Joy knows well (112 also works from most mobiles worldwide).
@@ -51,13 +54,14 @@ async function locateStay(stay: StayItem, near: LatLon): Promise<{ at: LatLon; h
   const address = stay.address ?? "";
   const close = (p: LatLon) => distanceKm(p, near) < 150;
   // 1. The property by name ("Ph Bay Tower" is on the map even when its street, "Calle 5", is ambiguous).
-  const words = stay.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\W+/).filter((w) => w.length >= 4);
+  // Every distinctive word must match: "Home in Antipolo" says nothing a hotel called "Antipolo …" could confirm.
+  const plain = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const addressWords = new Set(plain(address).split(/\W+/));
+  const words = plain(stay.name).split(/\W+/).filter((w) => w.length >= 3 && !GENERIC_STAY_WORDS.has(w) && !addressWords.has(w));
   // Also without short prefixes ("Ph Bay Tower" → "Bay Tower"; PH = a Panamanian building prefix).
   const names = [...new Set([stay.name, stay.name.split(/\s+/).filter((w) => w.length > 2).join(" ")])];
-  for (const n of names) {
-    const byName = (await searchLodging(n, near).catch(() => [])).find(
-      (r) => r.kind === "property" && close(r) && words.some((w) => r.name!.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(w)),
-    );
+  for (const n of words.length ? names : []) {
+    const byName = (await searchLodging(n, near).catch(() => [])).find((r) => r.kind === "property" && close(r) && words.every((w) => plain(r.name!).includes(w)));
     if (byName) return { at: byName, how: "exact" };
   }
   // 2. A Plus Code.
@@ -70,10 +74,13 @@ async function locateStay(stay: StayItem, near: LatLon): Promise<{ at: LatLon; h
     if (at && close(at)) return { at, how: "exact" };
   }
   // 3. The street address: close, but only as exact as the map's house numbers.
-  const q = address.replace(PLUS_CODE, "").trim();
-  if (q.replace(/[\s,]/g, "").length >= 4) {
+  // A long address may not be on the map whole, so try dropping details from the front ("Unit 2, Sample St, …").
+  const parts = address.replace(PLUS_CODE, "").split(",").map((p) => p.trim()).filter(Boolean);
+  for (let drop = 0; drop < Math.min(parts.length - 1, 4); drop++) {
+    const q = parts.slice(drop).join(", ");
+    if (q.replace(/[\s,]/g, "").length < 4) continue;
     const hit = (await searchLodging(q, near).catch(() => [])).find(close);
-    if (hit) return { at: hit, how: hit.kind === "property" ? "exact" : "approximate" };
+    if (hit) return { at: hit, how: drop === 0 && (hit.kind === "property" || hit.precise) ? "exact" : "approximate" };
   }
   return undefined;
 }
@@ -114,7 +121,7 @@ async function nearby(at: LatLon, k: (typeof KINDS)[number]): Promise<EssentialP
 }
 
 export async function stayEssentials(stay: StayItem, near: LatLon): Promise<StayEssentials> {
-  const key = `${stay.id}|${stay.address ?? ""}|${stay.lat ?? ""},${stay.lon ?? ""}`;
+  const key = `v2|${googleEnabled() ? "g" : "o"}|${stay.id}|${stay.name}|${stay.address ?? ""}|${stay.lat ?? ""},${stay.lon ?? ""}`;
   const hit = cache[key];
   if (hit && Date.now() - hit.at < WEEK) return { ...hit.value, stayName: stay.name };
   const empty = Object.fromEntries(KINDS.map((k) => [k.kind, []])) as unknown as StayEssentials["places"];

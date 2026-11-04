@@ -77,6 +77,13 @@ function themeMatches(idea: Idea, theme: ListTheme) {
 }
 
 /** Where a list's ideas apply: its countries and cities, and the months you're in each country. */
+/** Does a city-specific idea apply? It's one of the list's cities, or close by (Manila ideas for a stay in Antipolo). */
+function nearScope(city: string, cc: string, cities: LatLon[], cityKeys: Set<string>) {
+  if (!cityKeys.size || cityKeys.has(fold(city))) return true;
+  const at = cityCentre(city, cc);
+  return !!at && cities.some((c) => distanceKm(c, at) < 60);
+}
+
 function ideaScope(list: TripList, trip: Trip, items: ItineraryItem[]) {
   const cities = listCities(list, trip, items);
   const stays = tripCities(trip, items);
@@ -125,7 +132,7 @@ function styleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: L
       const style = idea.styles.find((st) => styles.includes(st));
       if (!style) continue;
       if (idea.months && !idea.months.some((m) => months.has(m))) continue;
-      if (idea.city && cityKeys.size && !cityKeys.has(fold(idea.city))) continue;
+      if (idea.city && !nearScope(idea.city, cc, cities, cityKeys)) continue;
       add(idea, style, idea.city ?? where);
     }
   }
@@ -152,7 +159,7 @@ function ruleIdeas(list: TripList, trip: Trip, items: ItineraryItem[], theme: Li
       if (!themeMatches(idea, theme)) continue;
       if (idea.months && !idea.months.some((m) => months.has(m))) continue;
       // City-specific ideas only for the cities you're going to (when we know them).
-      if (idea.city && cityKeys.size && !cityKeys.has(fold(idea.city))) continue;
+      if (idea.city && !nearScope(idea.city, cc, cities, cityKeys)) continue;
       const where = idea.city ?? firstCity ?? countryName(cc);
       const links: Link[] =
         idea.kind === "place"
@@ -450,7 +457,15 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
   const ideaThemes = new Map((IDEAS[list.place?.countryCode ?? ""] ?? []).map((i) => [i.title, i.themes]));
 
   // Restaurants: well-known places for the city, then food markets and halls from the guide.
-  const curated = (city ? Object.entries(RESTAURANTS).find(([k]) => fold(k) === fold(city))?.[1] ?? [] : [])
+  const cc = list.place?.countryCode ?? "";
+  const here = list.place?.lat !== undefined && list.place.lon !== undefined ? { lat: list.place.lat, lon: list.place.lon } : undefined;
+  // Restaurants for the city, or nearby (Manila's for a stay in Antipolo); for a whole country, its main listing.
+  const curated = Object.entries(RESTAURANTS)
+    .filter(([k]) => {
+      const at = cityCentre(k, cc);
+      return !!at && (!here || distanceKm(at, here) < 60);
+    })
+    .flatMap(([, list]) => list)
     .map((r, i) => ({ r, i, score: styleScore(trip, [], r.styles) - (r.styles?.includes("luxury") && trip.styles.includes("budget") ? 2 : 0) }))
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map(({ r }): ListSuggestion => ({
@@ -473,6 +488,15 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     .filter(fresh);
 
   const activities = styleIdeas(list, trip, items, "general").filter(fresh);
+
+  // No built-in guide for this country: useful searches rather than empty sections.
+  const where = city ?? (cc ? countryName(cc) : trip.destination);
+  const search = (title: string, kind: ListSuggestion["kind"], detail: string, query: string, label: string): ListSuggestion => ({ title, kind, detail, source: "rules", links: [{ label, url: mapsSearch(query) }] });
+  if (!IDEAS[cc]) {
+    if (!restaurants.length) restaurants.push(search(`Top-rated restaurants in ${where}`, "place", "Opens a map search so you can compare ratings, photos and prices, then add your favourites.", `best restaurants in ${where}`, "Search restaurants"));
+    if (!food.length) food.push(search(`Local dishes in ${where}`, "thing", "Search what to try here, then add the dishes you want with + Add your own.", `traditional food in ${where}`, "Search local food"));
+    if (!sights.length) sights.push(search(`Top sights in ${where}`, "place", "Opens a map search for the best-known attractions here.", `top attractions in ${where}`, "Search sights"));
+  }
   const stays = guideStays(list, trip, items);
   const near = stays.map((s) => ({ label: `Restaurants near ${s.name}`, url: mapsSearch(`restaurants near ${s.address ?? s.name}`) }));
   return {

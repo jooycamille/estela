@@ -8,9 +8,14 @@ export const KIND_ICON = { flight: "✈️", stay: "🏨", activity: "🎟️" }
 const HOME = /\b(?:apartment|apartamento|apto|loft|home|house|casa|villa|condo|studio|flat|cabin|cottage|airbnb|vrbo|entire)\b/i;
 
 const ACTIVITY_ICONS: [RegExp, string][] = [
+  // Specific first: a "Lucha Libre, Tacos & Mezcal tour" is a lucha libre night, a "Salsa class" is dancing.
+  [/\b(?:lucha libre|wrestling)\b/i, "🤼"],
+  [/\b(?:paraglid\w*|skydiv\w*|hot-air balloon|balloon ride|zip-?lin\w*|canopy tour)\b/i, "🪂"],
+  [/\b(?:salsa|bachata|tango|dance|dancing)\b/i, "💃"],
+  [/\b(?:coffee|café|cafe|cupping)\b/i, "☕"],
   [/\b(?:meeting|conference|workshop with|client|office|interview|presentation)\b/i, "💼"],
   [/\b(?:cooking|baking|culinary)\b/i, "🍳"],
-  [/\b(?:island|beach|snorkel|diving|dive|surf|boat|catamaran|kayak)\b/i, "🏝️"],
+  [/\b(?:islands?|beach\w*|snorkel\w*|diving|dive|surf\w*|boat\w*|catamaran|kayak\w*)\b/i, "🏝️"],
   [/\b(?:cruise|ferry|sailing)\b/i, "🛳️"],
   [/\b(?:hike|hiking|trek|waterfall|volcano|jungle|national park|nature|safari|wildlife|sloth|monkey)\b/i, "🥾"],
   [/\b(?:museum|gallery|heritage|pyramid|ruins|temple|cathedral|palace|castle|historic)\b/i, "🏛️"],

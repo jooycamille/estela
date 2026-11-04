@@ -90,7 +90,11 @@ export default function LodgingField({
               </button>
             </li>
           ))}
-          <li className="muted tiny none">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors</li>
+          {results[0]?.source === "google" ? (
+            <li className="muted tiny none">Results from Google Maps</li>
+          ) : (
+            <li className="muted tiny none">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors</li>
+          )}
         </ul>
       )}
     </label>

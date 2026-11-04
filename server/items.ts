@@ -55,13 +55,21 @@ export const ItemInput = z.discriminatedUnion("kind", [
     ...common,
     title: z.string().trim().min(1),
     location: opt,
+    lat: z.number().min(-90).max(90).optional(),
+    lon: z.number().min(-180).max(180).optional(),
     start: dateTime,
     end: dateTime.optional().or(z.literal("").transform(() => undefined)),
     category: opt,
     guide: GuideInput,
     dateEstimated: z.boolean().optional().transform((b) => b || undefined),
   }),
-]);
+]).superRefine((v, ctx) => {
+  // Ends can't come before starts (flights are left alone: arrivals are local times and can look "earlier").
+  if (v.kind === "activity" && v.end && v.end.slice(0, 16) < v.start.slice(0, 16))
+    ctx.addIssue({ code: "custom", path: ["end"], message: "The end must be after the start" });
+  if (v.kind === "stay" && v.checkOut.slice(0, 16) <= v.checkIn.slice(0, 16))
+    ctx.addIssue({ code: "custom", path: ["checkOut"], message: "Check-out must be after check-in" });
+});
 export type ItemInputT = z.infer<typeof ItemInput>;
 
 export function createItem(tripId: string, input: ItemInputT): ItineraryItem {

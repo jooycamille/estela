@@ -123,6 +123,11 @@ Searches are centred on where you'll be on the check-in date: the city you last 
 
 The data comes from OpenStreetMap's [Nominatim](https://nominatim.org/) (© OpenStreetMap contributors, ODbL; the credit is shown in the app). Nominatim's usage policy applies: requests are spaced at least 1 second apart, cached for a day, and only sent when you press Find, never as you type. Coverage follows OSM: most hotels are on it, but some guest houses and private homes aren't, and you can always type the details yourself. See `server/lodging.ts`.
 
+
+**Using Google Maps instead:** OpenStreetMap misses many homes and small places. Set `GOOGLE_MAPS_API_KEY` in `.env` (with Places API (New) enabled in Google Cloud) and restart, and every 🔍 Find, plus locating stays for nearby essentials, searches Google first. Hey Joy falls back to OpenStreetMap if Google fails, finds nothing, or `GOOGLE_MAPS_MONTHLY_LIMIT` (default 1,000 searches) is reached; the count is in `data/google-usage.json`. Addresses you search are sent to Google. Before deploying this publicly, read [Google's Places policies](https://developers.google.com/maps/documentation/places/web-service/policies): they limit storing results, including latitude and longitude for more than 30 days, and Hey Joy saves map positions with your bookings. Pharmacies, hospitals and the like still come from OpenStreetMap. See `server/googlePlaces.ts`.
+
+**Activities too:** the activity form's **Where** field has the same **🔍 Find**. Search a place or an address, and matches near where you'll be that day appear. Picking one fills in the name and full address and saves its map position. The activity's card then gets a **Map ↗** link.
+
 ## Destination guides
 
 Joy makes a guide for every city you stay in, worked out from your flights (or your chosen destinations if there are no flights yet). The guides are in the trip's **✨ Suggestions** tab, next to Joy's tips and your own lists (e.g. 💡 Tips · 🇲🇽 Mexico City · 🇵🇦 Panama City · 🇨🇴 Medellín). The itinerary's **Show** switch only filters bookings. Each guide has:
@@ -149,7 +154,7 @@ See `server/lists.ts`.
 
 ## Trip view and totals
 
-- **Jump to a day:** a strip of the trip's days stays at the top while you scroll the itinerary. Tap a day to jump to it. The day you're on is highlighted, and on phones the strip slides to keep it in view. Small icons show what's on each day (✈️ 🏨 🎟️, 📍 for planned places, 🛏️ for nights at a booked stay; a night jumps to its check-in). Days with nothing at all are greyed out, so gaps stand out. **Today** appears while you're travelling.
+- **Jump to a day:** a strip of the trip's days stays at the top while you scroll the itinerary. Tap a day to jump to it. The day you're on is highlighted, and on phones the strip slides to keep it in view. Small icons show what's on each day (✈️ 🏨 🎟️, 📍 for planned places, 🛏️ for nights at a booked stay). In **All**, every day of the trip has its date in the itinerary, even with nothing on it ("Nothing planned yet", or "Staying at …, no activities planned yet" on hotel nights), with quick **+ Activity** links; filtered views only show matching days. Accommodation doesn't count as plans: tapping a hotel night shows "Staying at …, no activities planned yet" with **+ Activity**, and a check-in day with only the hotel says the same under it. Days with nothing at all are greyed out, so gaps stand out. Tapping one shows "Nothing planned yet" with **+ Activity / Accommodation / Flight** buttons that open the form with that date filled in. The strip always shows the trip's dates, even before anything's booked. **Today** appears while you're travelling.
 - **Back to top:** a round ↑ button at the bottom right. It appears once you've scrolled down, hides while you're scrolling, and comes back a moment after you stop.
 
 Tabs above the itinerary filter it to **Flights**, **Accommodation** or **Activities**, each with a count.
@@ -173,6 +178,15 @@ Tour and activity confirmations (GetYourGuide, Viator, Klook, operators) become 
 - **An activity guide:** before you go, itinerary, what to bring, what to wear, do's, don'ts and not allowed, good to know, meeting point or pickup, end point, cancellation policy, and provider contact. You can edit it in the item form.
 
 Ticket and itinerary attachments (PDFs, ticket images) from forwarded or uploaded emails are stored under `data/attachments/` and shown on each booking. You can attach your own files with **+ Attach file**. Only PDFs and images open in the browser; other files download.
+
+## Trips without flights
+
+Suggestions and weather don't need flights. Without any, Joy works out where you'll be from your **stays** (their address, or their map position if you used Find), then from the cities you chose.
+
+- **Weather:** comes from those places. If you've only picked a country, it shows typical weather for the country's largest city and says so.
+- **Guides, essentials and tips:** follow the same places. A guide also includes ideas from nearby cities, so a stay in Antipolo gets Manila's sights and restaurants.
+- **Find flights:** Tips suggests flights to the nearest major airport, with your dates and your usual departure airport, and links to Google Flights, Skyscanner and Kayak. These are searches, not live fares, which would need a paid fare data service.
+- **Countries without a built-in guide:** the built-in guide covers Mexico, Panama, Colombia, the Philippines and Singapore. Elsewhere, guide sections offer map searches, and connecting Claude adds specific suggestions.
 
 ## Reminders (notifications)
 
@@ -272,6 +286,7 @@ server/essentials.ts   pharmacies, hospitals/clinics, police and ATMs near each 
 server/pluscode.ts     decodes Google Plus Codes in addresses
 server/arrivalForms.ts immigration and customs forms for each border crossed
 server/auth.ts         accounts (sign up/in, passwords, one-time links), sessions, and who can see or change which trip
+server/googlePlaces.ts optional Google address search, with a monthly limit
 server/mailer.ts       sends password-reset emails (Resend), or prints them when no email service is set
 server/push.ts         reminder notifications (web push) and the once-a-minute reminder check
 server/time.ts         airport time zones, and converting local flight times to exact moments

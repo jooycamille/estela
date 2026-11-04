@@ -1,5 +1,6 @@
 import type { FlightItem, ItineraryItem, Trip } from "../shared/types.ts";
 import { getAirport } from "./airports.ts";
+import { googleSearch } from "./googlePlaces.ts";
 import { cityCentre } from "./places.ts";
 
 // Property ↔ address lookup for stays, via OpenStreetMap's Nominatim (data © OpenStreetMap contributors, ODbL).
@@ -14,6 +15,8 @@ export interface LodgingResult {
   lon: number;
   kind: "property" | "address";
   area?: string; // neighbourhood or suburb
+  source?: "google"; // otherwise OpenStreetMap
+  precise?: boolean; // pinpointed to a building (known for Google results)
 }
 
 export interface NominatimPlace {
@@ -123,6 +126,14 @@ export const viewbox = (lat: number, lon: number, d: number) => `${lon - d},${la
  * just confuse (e.g. streets in Spain for a Colombian address).
  */
 export async function searchLodging(query: string, near?: { lat: number; lon: number }, scope: "lodging" | "any" = "lodging"): Promise<LodgingResult[]> {
+  // Google, when a key is set; OpenStreetMap otherwise, or if Google fails or finds nothing.
+  if (query.trim().length >= 3) {
+    const google = await googleSearch(query.trim(), near).catch((err) => {
+      console.warn("Google address search failed, using OpenStreetMap:", (err as Error).message);
+      return null;
+    });
+    if (google?.length) return google;
+  }
   const q = expandStreet(query.trim());
   if (q.length < 3) return [];
   const search = async (text: string) => {

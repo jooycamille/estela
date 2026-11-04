@@ -96,3 +96,33 @@ export function cityCentre(name: string, countryCode: string): { lat: number; lo
   const c = data.cities.find((r) => r[2] === countryCode && (fold(r[0]) === key || fold(r[1] || r[0]) === key));
   return c ? { lat: c[5], lon: c[6] } : undefined; // cities are sorted by population, so the first match is the main one
 }
+
+type CityMatch = { city: string; countryCode: string; lat: number; lon: number };
+const cityMatch = (c: CityRow): CityMatch => ({ city: c[0], countryCode: c[2], lat: c[5], lon: c[6] });
+
+/** The city in an address ("…, Antipolo, Calabarzon 1870, Philippines"), checking from the country end. */
+export function cityInAddress(address: string, countryCodes: string[]): CityMatch | undefined {
+  const parts = address.split(",").map((p) => fold(p.replace(/[\d.]/g, ""))).filter((p) => p.length >= 3).reverse();
+  for (const part of parts) {
+    const c = data.cities.find((r) => countryCodes.includes(r[2]) && (fold(r[0]) === part || fold(r[1] || r[0]) === part));
+    if (c) return cityMatch(c);
+  }
+  return undefined;
+}
+
+/** The nearest city to a map position, within about 50 km. */
+export function nearestCity(lat: number, lon: number, countryCodes: string[]): CityMatch | undefined {
+  let best: CityRow | undefined, bestD = 0.45 ** 2; // degrees², roughly 50 km
+  for (const c of data.cities) {
+    if (!countryCodes.includes(c[2])) continue;
+    const d = (c[5] - lat) ** 2 + (c[6] - lon) ** 2;
+    if (d < bestD) [best, bestD] = [c, d];
+  }
+  return best && cityMatch(best);
+}
+
+/** A country's largest city (cities are sorted by population). */
+export function mainCity(countryCode: string): CityMatch | undefined {
+  const c = data.cities.find((r) => r[2] === countryCode);
+  return c && cityMatch(c);
+}

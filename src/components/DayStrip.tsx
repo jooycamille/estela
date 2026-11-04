@@ -7,8 +7,9 @@ import { useEffect, useRef, useState } from "react";
 export type DayInfo = {
   day: string;
   icons: string[];
-  hasContent: boolean; // something to show on this day itself
-  target?: string; // where to jump instead (e.g. a night at a hotel → its check-in day)
+  hasContent: boolean; // a section for this day in the itinerary to jump to
+  planned?: boolean; // bookings or planned places on this day (greyed out without, unless you're staying somewhere)
+  staying?: boolean; // a night at a booked stay (not a gap, though nothing may be planned)
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -16,7 +17,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const parse = (d: string) => new Date(`${d}T12:00:00Z`);
 export const dayId = (day: string) => `day-${day}`;
 
-export default function DayStrip({ days }: { days: DayInfo[] }) {
+export default function DayStrip({ days, onEmptyDay }: { days: DayInfo[]; onEmptyDay?: (day: string) => void }) {
   const [active, setActive] = useState<string>();
   const strip = useRef<HTMLDivElement>(null);
   const today = new Date().toLocaleDateString("en-CA");
@@ -42,7 +43,7 @@ export default function DayStrip({ days }: { days: DayInfo[] }) {
         const el = document.getElementById(dayId(d.day));
         if (el && el.getBoundingClientRect().top <= offset) current = d.day;
       }
-      setActive(current ?? days.find((d) => d.hasContent)?.day);
+      setActive((a) => current ?? (a && !days.find((d) => d.day === a)?.hasContent ? a : days[0]?.day));
     };
     onScroll();
     addEventListener("scroll", onScroll, { passive: true });
@@ -59,9 +60,13 @@ export default function DayStrip({ days }: { days: DayInfo[] }) {
   }, [active]);
 
   const jump = (day: string) => {
-    // A night at a hotel goes to its check-in; a day with nothing on it, to the next day that has something.
+    // A day with nothing of its own (even a night at your hotel) offers to add something for that day.
     const info = days.find((d) => d.day === day);
-    const target = info?.hasContent ? day : info?.target ?? days.find((d) => d.day >= day && d.hasContent)?.day ?? day;
+    if (!info?.hasContent && onEmptyDay) {
+      setActive(day);
+      return onEmptyDay(day);
+    }
+    const target = info?.hasContent ? day : days.find((d) => d.day >= day && d.hasContent)?.day ?? day;
     // Scroll the page itself, landing just below the header and this strip (an element's scrollIntoView gets
     // cancelled when the strip re-renders mid-scroll).
     const el = document.getElementById(dayId(target));
@@ -89,7 +94,7 @@ export default function DayStrip({ days }: { days: DayInfo[] }) {
               data-day={d.day}
               aria-selected={active === d.day}
               aria-label={`${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}${d.hasContent ? "" : ", nothing planned"}`}
-              className={`day-chip ${active === d.day ? "on" : ""} ${d.hasContent || d.target ? "" : "empty"} ${d.day === today ? "today" : ""}`}
+              className={`day-chip ${active === d.day ? "on" : ""} ${(d.planned ?? d.hasContent) || d.staying ? "" : "empty"} ${d.day === today ? "today" : ""}`}
               onClick={() => jump(d.day)}
             >
               <span className="day-chip-month">{newMonth ? MONTHS[date.getUTCMonth()] : " "}</span>

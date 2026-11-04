@@ -113,6 +113,40 @@ export const IDEAS: Record<string, Idea[]> = {
     { title: "Museo del Oro", kind: "place", themes: S, city: "Bogotá", detail: "World-class pre-Columbian gold collection." },
     { title: "Walled city of Cartagena", kind: "place", themes: S, city: "Cartagena", detail: "Colourful colonial streets, plazas and city walls. Go in the evening when it's cooler." },
   ],
+  PH: [
+    { title: "Adobo", kind: "thing", themes: F, detail: "The national favourite: chicken or pork braised in vinegar, soy, garlic and bay. Every family has its own version." },
+    { title: "Sinigang", kind: "thing", themes: F, detail: "A sour tamarind soup with pork, shrimp or fish and vegetables, comfort food served with rice." },
+    { title: "Lechon", kind: "thing", themes: F, tag: "Celebrations", detail: "Whole roast pig with crackling skin, the centrepiece of Filipino parties, weddings and Christmas." },
+    { title: "Kare-kare", kind: "thing", themes: F, detail: "Oxtail and vegetables in a rich peanut sauce, served with salty bagoong (shrimp paste)." },
+    { title: "Sisig", kind: "thing", themes: F, detail: "Sizzling chopped pork with calamansi and chilli, from Pampanga. A favourite with cold beer." },
+    { title: "Pancit", kind: "thing", themes: F, detail: "Stir-fried noodles, served at birthdays and gatherings for long life. Try pancit canton or bihon." },
+    { title: "Tapsilog", kind: "thing", themes: F, detail: "The classic breakfast: cured beef, garlic rice and a fried egg. Longsilog and tocilog are its cousins." },
+    { title: "Halo-halo", kind: "thing", themes: F, detail: "Shaved ice with milk, sweet beans, fruit, leche flan and purple ube. Perfect for a hot afternoon." },
+    { title: "Kinilaw", kind: "thing", themes: F, detail: "Filipino ceviche: fresh fish cured in vinegar or calamansi with ginger and chilli." },
+    { title: "Bibingka & puto bumbong", kind: "thing", themes: F, tag: "Christmas", months: [12], detail: "Rice cakes and purple sticky rice sold outside churches around Simbang Gabi, the dawn Masses before Christmas." },
+    { title: "Noche Buena spread", kind: "thing", themes: F, tag: "Christmas", months: [12], detail: "The Christmas Eve feast after midnight Mass: glazed ham, queso de bola, fruit salad and spaghetti Filipino-style." },
+    { title: "Suman and kasoy", kind: "thing", themes: F, city: "Antipolo", detail: "Antipolo's famous sticky rice cakes and roasted cashews, sold around the cathedral. Good to bring home." },
+    { title: "Kapeng barako", kind: "thing", themes: D, detail: "Strong, bold Liberica coffee from Batangas, often drunk black." },
+    { title: "Calamansi juice", kind: "thing", themes: D, detail: "Sweet-sour Philippine lime juice, served hot or cold everywhere." },
+    { title: "San Miguel beer", kind: "thing", themes: D, detail: "The local classic, ice-cold with sisig or anything grilled." },
+    { title: "Binondo food crawl", kind: "place", themes: [...F, "sights"], price: 1, city: "Manila", detail: "The world's oldest Chinatown: dumplings, hopia and noodles, stall by stall. Go hungry, and go in daylight." },
+    { title: "Intramuros", kind: "place", themes: S, city: "Manila", detail: "The Spanish walled city, with cobbled streets, cannons and old churches. Hire a bamboo bike or a kalesa." },
+    { title: "San Agustin Church", kind: "place", themes: S, city: "Manila", detail: "A UNESCO-listed baroque church from the 1600s inside Intramuros, with a museum alongside." },
+    { title: "Fort Santiago", kind: "place", themes: S, city: "Manila", detail: "Spanish-era fort in Intramuros and a memorial to national hero José Rizal, who was held here." },
+    { title: "National Museum of the Philippines", kind: "place", themes: S, city: "Manila", detail: "Fine arts, anthropology and natural history in grand buildings near Rizal Park. Check opening days before going." },
+    { title: "Rizal Park", kind: "place", themes: N, city: "Manila", detail: "Manila's central park, with the Rizal Monument and gardens. Nicest in the late afternoon." },
+    { title: "Antipolo Cathedral", kind: "place", themes: S, city: "Antipolo", detail: "The pilgrimage church of Our Lady of Peace and Good Voyage. Very busy around the holidays." },
+    { title: "Pinto Art Museum", kind: "place", themes: S, city: "Antipolo", detail: "Contemporary Filipino art in white Mediterranean-style buildings and gardens on a hillside. Great for photos." },
+    { title: "Hinulugang Taktak", kind: "place", themes: N, city: "Antipolo", detail: "Antipolo's well-known waterfall and protected park, an easy short outing with family." },
+    { title: "Masungi Georeserve", kind: "place", themes: N, city: "Antipolo", tag: "Book well ahead", detail: "Rope courses, hanging bridges and limestone views in the Rizal mountains. Visits are by reservation only." },
+    { title: "Tagaytay and Taal Lake view", kind: "place", themes: N, city: "Manila", tag: "Day trip", detail: "Cool hilltop town with a view of Taal Volcano and lake, about two hours from Manila. Famous for bulalo beef soup." },
+    { title: "Palawan: El Nido or Coron", kind: "place", themes: N, tag: "Fly from Manila", detail: "Limestone cliffs, lagoons and island-hopping boats. Allow several nights; book flights early for the holidays." },
+    { title: "Boracay", kind: "place", themes: N, tag: "Fly from Manila", detail: "The famous White Beach, with calm water and sunsets. December and January are peak season." },
+    { title: "Bohol's Chocolate Hills", kind: "place", themes: N, tag: "Fly from Manila", detail: "Hundreds of rounded hills, plus tiny tarsier primates and river cruises. Combine with Panglao's beaches." },
+    { title: "Simbang Gabi", kind: "place", themes: S, tag: "Christmas", months: [12], detail: "Nine dawn Masses from 16 to 24 December at parish churches, with food stalls outside afterwards." },
+    { title: "Divisoria markets", kind: "place", themes: ["shopping"], price: 1, city: "Manila", detail: "Huge, cheap and hectic bargain markets, especially at Christmas. Keep valuables close." },
+    { title: "Poblacion, Makati", kind: "place", themes: ["nightlife", "food"], city: "Manila", detail: "Manila's lively bar and food neighbourhood. Best from Thursday to Saturday nights." },
+  ],
   SG: [
     { title: "Hainanese chicken rice", kind: "thing", themes: F, detail: "Poached chicken, fragrant rice and chilli sauce. Order it at a hawker centre." },
     { title: "Chilli crab", kind: "thing", themes: F, detail: "Mud crab in a sweet-spicy tomato chilli sauce, mopped up with fried mantou buns." },
@@ -141,6 +175,20 @@ export interface StyleIdea {
 }
 
 export const STYLE_IDEAS: Record<string, StyleIdea[]> = {
+  PH: [
+    { title: "Daranak Falls day out", styles: ["nature", "relaxation"], city: "Antipolo", search: "Daranak Falls Tanay", detail: "Swim in cool pools below a waterfall in Tanay, Rizal, about an hour from Antipolo. Go on a weekday to avoid crowds." },
+    { title: "Masungi Georeserve trail", styles: ["adventure", "nature"], city: "Antipolo", tag: "Book well ahead", search: "Masungi Georeserve", detail: "Rope walkways and limestone peaks in the Rizal mountains, on guided, reservation-only visits." },
+    { title: "Pagsanjan Falls by canoe", styles: ["adventure", "nature"], city: "Manila", tag: "Day trip", search: "Pagsanjan Falls", detail: "Boatmen paddle you up a gorge to a big waterfall, then a raft goes behind the falls. You will get wet." },
+    { title: "Island hopping", styles: ["adventure", "nature", "relaxation"], tag: "Fly from Manila", search: "Philippines island hopping", detail: "The classic Philippine day out: a bangka boat, lagoons, snorkelling and a beach lunch, from El Nido, Coron or Bohol." },
+    { title: "Intramuros walking tour", styles: ["culture"], city: "Manila", search: "Intramuros walking tour", detail: "Learn Manila's Spanish and wartime history with a guide, on foot or by bamboo bike." },
+    { title: "Art and views at Pinto Art Museum", styles: ["culture", "relaxation"], city: "Antipolo", search: "Pinto Art Museum", detail: "An unhurried few hours among Filipino art and gardens. Go on a weekday if you can." },
+    { title: "Binondo guided food walk", styles: ["food", "culture"], city: "Manila", search: "Binondo food tour", detail: "The stalls and old restaurants of Manila's Chinatown with someone who knows what to order." },
+    { title: "Filipino cooking class", styles: ["food"], city: "Manila", search: "Filipino cooking class Manila", detail: "Learn adobo, lumpia and sinigang to make again at home." },
+    { title: "Crater views and bulalo in Tagaytay", styles: ["food", "nature", "relaxation"], city: "Manila", tag: "Day trip", search: "Tagaytay day tour", detail: "Cooler air, Taal Volcano views, and a big bowl of beef bulalo soup. Leave early to beat the traffic." },
+    { title: "Hilot massage", styles: ["relaxation"], search: "hilot massage", detail: "The traditional Filipino massage, using warm banana leaves and oils. Great value, and easy to find at city spas." },
+    { title: "Rooftop drinks in Makati", styles: ["nightlife", "luxury"], city: "Manila", search: "Makati rooftop bar", detail: "Skyline views from Makati or Bonifacio Global City, then on to Poblacion's bars." },
+    { title: "Weekend market at Salcedo or Legazpi", styles: ["shopping", "food"], city: "Manila", tag: "Weekends", search: "Salcedo Saturday Market", detail: "Makati's popular weekend markets for local food and crafts. Salcedo is Saturdays and Legazpi is Sundays." },
+  ],
   MX: [
     { title: "Hot-air balloon over Teotihuacan", styles: ["adventure", "luxury"], city: "Mexico City", tag: "Book ahead", search: "Teotihuacan hot air balloon", detail: "Sunrise flight over the pyramids, usually with breakfast after. Hotel pick-up is very early (around 4–5 am)." },
     { title: "Hike the Nevado de Toluca crater", styles: ["adventure", "nature"], city: "Mexico City", tag: "Day trip", search: "Nevado de Toluca hike", detail: "Walk down to two crater lakes on a volcano over 4,000 m. Go with a guide, take it slowly at that altitude, and bring warm layers." },
@@ -217,6 +265,16 @@ export interface RestaurantIdea {
 }
 
 export const RESTAURANTS: Record<string, RestaurantIdea[]> = {
+  manila: [
+    { title: "Crescent Moon Cafe", price: 2, detail: "A garden restaurant and pottery studio in Antipolo, with Filipino set meals. Book ahead.", styles: ["food", "relaxation", "culture"], tag: "Book ahead" },
+    { title: "Sentro 1771", price: 2, detail: "Modern Filipino dishes, famous for its sinigang na corned beef. A good place to try the classics.", styles: ["food"] },
+    { title: "Manam", price: 2, detail: "Filipino comfort food in small or large portions, so a family can try a lot. Several branches.", styles: ["food", "budget"] },
+    { title: "Max's Restaurant", price: 2, detail: "\"The house that fried chicken built\", since 1945. A family-gathering classic with branches everywhere.", styles: ["food", "budget"] },
+    { title: "Aristocrat", price: 2, detail: "A Manila institution since 1936, known for chicken barbecue with java rice.", styles: ["food", "culture"] },
+    { title: "Jollibee", price: 1, detail: "The country's beloved fast food: Chickenjoy and sweet spaghetti. Try it at least once.", styles: ["budget"] },
+    { title: "Toyo Eatery", price: 3, detail: "Modern Filipino tasting menus in Makati, widely ranked among Asia's best. Book well ahead.", styles: ["luxury", "food"], tag: "Splurge · book ahead" },
+    { title: "Antonio's Tagaytay", price: 3, detail: "A beloved fine-dining garden restaurant in Tagaytay, about two hours from Manila. Make a day of it.", styles: ["luxury", "food"], tag: "Book ahead" },
+  ],
   "mexico city": [
     { title: "Contramar", price: 3, detail: "Roma's famous seafood lunch spot. Order the tuna tostadas and the pescado a la talla (half red, half green). Lunch only; book ahead.", styles: ["food"], tag: "Book ahead" },
     { title: "El Cardenal", price: 2, detail: "A Centro institution for classic Mexican breakfasts: hot chocolate, conchas with cream, and seasonal dishes.", styles: ["food", "culture"] },

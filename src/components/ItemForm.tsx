@@ -28,6 +28,14 @@ const FIELDS: Record<Exclude<Kind, "flight">, Field[]> = {
   ],
 };
 
+// Start and end fields that go together (an end can't be before its start).
+const END_OF: Record<string, string> = { end: "start", checkOut: "checkIn" };
+const START_OF: Record<string, string> = { start: "end", checkIn: "checkOut" };
+const toMs = (t: string) => Date.parse(`${t.slice(0, 16)}:00Z`);
+const minutesBetween = (a: string, b: string) => Math.round((toMs(b) - toMs(a)) / 60_000);
+/** "2026-12-11T09:00" + 60 → "2026-12-11T10:00" (wall-clock times, no time zones involved). */
+const addMinutes = (t: string, minutes: number) => new Date(toMs(t) + minutes * 60_000).toISOString().slice(0, 16);
+
 export const KIND_LABEL: Record<Kind, string> = { flight: "Flight", stay: "Accommodation", activity: "Activity" };
 
 export default function ItemForm(props: Parameters<typeof GenericItemForm>[0]) {
@@ -67,7 +75,9 @@ function GenericItemForm({
     for (const f of FIELDS[kind as Exclude<Kind, "flight">]) {
       const init = (initial as Record<string, unknown> | undefined)?.[f.key];
       v[f.key] = typeof init === "string" ? init.slice(0, f.type === "datetime-local" ? 16 : undefined) : "";
-      if (!v[f.key] && f.required && f.type === "datetime-local" && defaultDate) v[f.key] = `${defaultDate}T09:00`;
+      // New stays: check in at 3 pm, check out at 11 am the next day; other times start at 9 am.
+      if (!v[f.key] && f.required && f.type === "datetime-local" && defaultDate)
+        v[f.key] = f.key === "checkIn" ? `${defaultDate}T15:00` : f.key === "checkOut" ? `${addMinutes(`${defaultDate}T11:00`, 24 * 60)}` : `${defaultDate}T09:00`;
     }
     v.notes = (initial?.notes as string) ?? "";
     return v;
@@ -129,7 +139,7 @@ function GenericItemForm({
             links,
             ...(initial?.attachments ? { attachments: initial.attachments } : {}),
             // Saving an activity confirms its date (it may have been estimated from the email).
-            ...(kind === "stay" ? { lat: coords?.lat, lon: coords?.lon } : {}),
+            ...(kind === "stay" || kind === "activity" ? { lat: coords?.lat, lon: coords?.lon } : {}),
             ...(kind === "activity" ? { guide: buildGuide(), dateEstimated: false } : {}),
           } as unknown as DraftItem);
         } catch (err) {
@@ -141,7 +151,26 @@ function GenericItemForm({
     >
       <div className="grid2">
         {FIELDS[kind as Exclude<Kind, "flight">].map((f) =>
-          kind === "stay" && (f.key === "name" || f.key === "address") ? (
+          kind === "activity" && f.key === "location" ? (
+            // Where: look up a place or address near where you'll be that day.
+            <LodgingField
+              key={f.key}
+              label={f.label}
+              value={values.location}
+              placeholder="A place or address. Find shows where it is"
+              search={(q) => api.searchPlaces(q, undefined, tripId, values.start?.slice(0, 10))}
+              onChange={(val) => {
+                setValues((v) => ({ ...v, location: val }));
+                setCoords(undefined);
+              }}
+              onPick={(r) => {
+                // "Museo Frida Kahlo, Londres 247, Del Carmen, Mexico City…" (the name, then where it is)
+                const address = r.name && !r.address.startsWith(r.name) ? `${r.name}, ${r.address}` : r.address;
+                setValues((v) => ({ ...v, location: address }));
+                setCoords({ lat: r.lat, lon: r.lon });
+              }}
+            />
+          ) : kind === "stay" && (f.key === "name" || f.key === "address") ? (
             <div key={f.key}>
               <LodgingField
                 label={f.label}
@@ -184,7 +213,26 @@ function GenericItemForm({
               required={f.required}
               placeholder={f.placeholder}
               value={values[f.key]}
-              onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+              // An end can't be before its start, so its picker starts from the start.
+              min={END_OF[f.key] ? values[END_OF[f.key]] || undefined : undefined}
+              onFocus={() => {
+                // Tapping an empty end: fill it from the start (an hour later), so the picker opens on the right day.
+                const startKey = END_OF[f.key];
+                if (startKey && !values[f.key] && values[startKey]) setValues((v) => ({ ...v, [f.key]: addMinutes(v[startKey], 60) }));
+              }}
+              onChange={(e) => {
+                const value = e.target.value;
+                setValues((v) => {
+                  const next = { ...v, [f.key]: value };
+                  // Moving the start keeps the length: the end moves with it (if it would end up before the start).
+                  const endKey = START_OF[f.key];
+                  if (endKey && v[endKey] && v[f.key] && value && v[endKey] <= value) {
+                    const length = Math.max(60, minutesBetween(v[f.key], v[endKey]));
+                    next[endKey] = addMinutes(value, length);
+                  }
+                  return next;
+                });
+              }}
             />
           </label>
           ),
