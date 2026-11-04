@@ -1,0 +1,31 @@
+---------- Forwarded message ---------
+From: Sample Tours via GetYourGuide <reply@example.com>
+Date: Wed, Jan 13, 2027 at 12:45 AM
+Subject: Booking Updated ABC123 - Sunrise Balloon Flight
+To: Alex via GetYourGuide <alex@example.com>
+
+[image: logo]
+Your activity provider sent you a message
+[image: From Sample City: Hot Air Balloon Ride and Guided Visits to the
+Old Ruins]
+From Sample City: Hot Air Balloon Ride and Guided Visits to the
+Old Ruins
+Booking reference
+GYGSAMPLE123
+Date
+5 March 2027, 4:20 am
+Our activity providers will never request payment in the following message
+Hi Alex,
+Your booking has been updated!
+Here are your new tour details:
+📋 Booking #: ABC123XY
+📅 Date: Mar 5, 2027
+👪 # of Guests: 1 x Adult
+🛻 Pickup: Address: 12 Sample Street, Old Town, 10000 Sample
+City, Samplestan || Name: Hotel Example || N/A
+
+ACTION NEEDED: Please provide your weight so that we could arrange your
+flight. In addition, each extra kilo over 100 incurs a charge.
+
+📞 If you have any urgent questions before the tour, contact us.
+We're looking forward to seeing you soon!

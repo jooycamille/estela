@@ -262,6 +262,16 @@ Everyone has their own account (name, email, password) and sees **only their own
 - **Your data:** keep `data/` on persistent storage. It holds `db.json` with accounts and trips, plus uploaded tickets.
 - **Claiming it:** at first start, open the owner link from the log to claim it.
 
+## Keeping private data out of this repo
+
+This repo is public, so a check runs by itself before every commit and push and blocks private data (`scripts/privacy/`). It looks for:
+
+- **Files that must never be committed:** `data/`, `.env`, `.private-terms`, keys, saved emails.
+- **Secrets by their shape:** API keys, tokens, Tailscale addresses.
+- **Your real details:** stay names and addresses, booking references, emails and attachment names from `data/`, key values from `.env`, and anything in `.private-terms` (one term per line; `!term` marks something as fine to publish). These lists stay on your own machine and are never committed.
+
+Run `npm run privacy` to check all files and all past commits; add `-- --all --show` to see what matched, in your own terminal only. The check is switched on by `npm install` (`prepare` script). Test emails in `tests/fixtures` must use made-up details only. `git commit --no-verify` skips the commit check, so don't use it here.
+
 ## Tests
 
 ```bash

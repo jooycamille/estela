@@ -13,7 +13,9 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "brand": "node scripts/brand/build.mjs",
     "airports": "node scripts/airports/build.mjs",
-    "places": "node scripts/places/build.mjs"
+    "places": "node scripts/places/build.mjs",
+    "privacy": "node scripts/privacy/check.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

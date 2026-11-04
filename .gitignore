@@ -7,3 +7,5 @@ data/
 .DS_Store
 .claude/
 *.log
+.private-terms
+*.eml

@@ -152,3 +152,29 @@ test("airline e-ticket with labelled Departure/Arrival sections (Copa-style PDF)
   );
   assert.deepEqual(f.price, { amount: 197.75, currency: "USD" });
 });
+
+test("Agoda activity (no colons, wrapped name): date, price and booking ID", async () => {
+  const a = await activityFrom("agoda-activity-style.txt");
+  assert.equal(a.title, "Sample City Bike Tour – Street Food and Sweets Experience");
+  assert.equal(a.start, "2027-03-06T09:30");
+  assert.deepEqual(a.price, { amount: 90, currency: "AUD" });
+  assert.equal(a.confirmationCode, "1000000002");
+});
+
+test("message from a GetYourGuide provider: name from the caption, pickup and action needed", async () => {
+  const a = await activityFrom("gyg-provider-message-style.txt");
+  assert.equal(a.title, "From Sample City: Hot Air Balloon Ride and Guided Visits to the Old Ruins");
+  assert.equal(a.start, "2027-03-05T04:20");
+  assert.equal(a.confirmationCode, "GYGSAMPLE123");
+  assert.equal(a.location, "12 Sample Street, Old Town, 10000 Sample City, Samplestan");
+  assert.ok(a.guide?.beforeYouGo?.some((s) => /provide your weight/.test(s)), JSON.stringify(a.guide));
+});
+
+test("the same provider message pasted (no image captions) still finds the activity", async () => {
+  const { items } = await parseEmail(fixture("gyg-provider-message-style.txt").replace(/\[image:[^\]]*\]\n?/g, ""));
+  const a = items.find((i) => i.kind === "activity");
+  assert.ok(a && a.kind === "activity");
+  assert.equal(a.title, "From Sample City: Hot Air Balloon Ride and Guided Visits to the Old Ruins");
+  assert.equal(a.start, "2027-03-05T04:20");
+});
+

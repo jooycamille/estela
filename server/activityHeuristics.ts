@@ -122,7 +122,27 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
   }
   const labeled = body.match(/^\s*(?:activity|tour|experience|product|event|excursion|attraction)(?: name)?\s*:\s*(.+)$/im)?.[1]?.trim();
   if (labeled) title = labeled;
+  // Agoda: under "Activity details", "Activity <name>" with no colon (possibly wrapped), then "Date …".
+  if (!title && /^\s*activity details\s*$/im.test(body)) {
+    const m = body.match(/^\s*Activity\s+(?!details\b|provider\b|voucher\b)([A-Z0-9][\s\S]{6,200}?)\n\s*(?:Date|When)\b/m);
+    if (m) title = clean(m[1].replace(/\s+/g, " "));
+  }
+  // A message from the provider (GetYourGuide): the name is in the image caption above "Booking reference".
+  if (!title) {
+    const at = body.search(/^\s*booking reference\s*$/im);
+    const captions = at > 0 ? [...body.slice(0, at).matchAll(/\[image:\s*([^\]]+)\]/g)].map((c) => c[1].replace(/\s+/g, " ").trim()) : [];
+    title = captions.filter((c) => c.length >= 12 && !/\b(?:logo|icon)\b/i.test(c)).at(-1);
+    // Pasted emails lose captions: then it's the text just above "Booking reference" (it may wrap over lines).
+    if (!title && at > 0) {
+      const above = body.slice(0, at).split("\n").map(clean).filter(Boolean);
+      const start = above.reduce((last, l, i) => (/[.!?]$|sent you a message|^\W*$/i.test(l) ? i : last), -1);
+      const name = above.slice(start + 1).join(" ");
+      if (name.length >= 8 && name.length <= 200) title = name;
+    }
+  }
   if (!title) return;
+  // Where the name appears, so the date and price are looked for around it.
+  if (titleIdx < 0) titleIdx = lines.findIndex((l) => l.includes(title!.slice(0, 25)));
 
   // --- Date and time. In "rescheduled" emails the new slot is labelled "New" (old one is struck through in HTML).
   let start: string | undefined;
@@ -237,6 +257,14 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
   if (dateEstimated) push(guide, "beforeYouGo", "Confirm the date and start time in your booking — the email didn't state it, so it was estimated from the cancellation deadline.");
 
   const category = title.match(/\b(class|cruise|tour|show|tasting|museum|workshop|hike|safari|concert|ticket|excursion|dinner|lesson)\b/i)?.[1]?.toLowerCase();
+  // Messages from providers: "Pickup: Address: 12 Main St, City || Name: Hotel" and "ACTION NEEDED: Please send…".
+  if (!guide.meetingPoint) {
+    const pickup = body.match(/^\W*pick-?up\s*:\s*(?:address\s*:\s*)?([\s\S]{5,250}?)(?:\|\||\n\s*\n|\n\s*[A-Z ]{6,}:)/im)?.[1];
+    if (pickup) guide.meetingPoint = pickup.replace(/\s+/g, " ").trim();
+  }
+  const action = body.match(/^\W*action (?:needed|required)\s*:\s*([\s\S]{5,400}?)(?:\n\s*\n|\n\W*(?:if you have|we're looking|reply to)\b)/im)?.[1];
+  if (action) for (const sentence of sentences(action.replace(/\s+/g, " ").trim())) push(guide, "beforeYouGo", sentence);
+
   const location = guide.meetingPoint?.split(" · ")[0];
 
   return { title, start, end, dateEstimated, location, category, confirmationCode: findConfirmation(body), price, guide };
