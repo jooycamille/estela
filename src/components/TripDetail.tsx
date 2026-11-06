@@ -117,6 +117,12 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
     if (inline) requestAnimationFrame(() => document.getElementById("day-add-form")?.scrollIntoView({ block: "nearest" }));
     else window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  // From a guide: over to that day in the itinerary.
+  const showDay = (day: string) => {
+    setView("itinerary");
+    setCategory("all");
+    setTimeout(() => document.getElementById(dayId(day))?.scrollIntoView(), 100);
+  };
   // The Add form for whatever's open: at the top of the page, or inside the day it was opened from.
   const addForm = () => {
     if (panel?.type === "place") {
@@ -283,7 +289,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 }}
               />
             )}
-            {openList?.auto && <GuideView key={openList.id} trip={trip} list={openList} onChanged={load} onAddToItinerary={addToItinerary} />}
+            {openList?.auto && <GuideView key={openList.id} trip={trip} list={openList} onChanged={load} onAddToItinerary={addToItinerary} onShowDay={showDay} />}
             {openList && !openList.auto && (
               <ListView
                 key={openList.id}
@@ -496,7 +502,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 </div>
                 <ol>
                   {plans[day].entries.map((e) => (
-                    <li key={e.id} className={e.done ? "done" : ""}>
+                    <li key={e.id}>
                       <button type="button" className="link plain" onClick={() => openIdeas(e.listId)} title={`Open ${e.listName}`}>
                         <span aria-hidden="true">{e.listEmoji}</span> {e.title}
                       </button>

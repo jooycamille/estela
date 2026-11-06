@@ -1,3 +1,4 @@
+import { formatDay } from "../format.ts";
 import { useCallback, useEffect, useState } from "react";
 import { STYLE_LABELS } from "../../shared/lists.ts";
 import type { AreaGroup, EssentialKind, Essentials, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
@@ -26,16 +27,20 @@ const ESSENTIALS: { kind: EssentialKind; icon: string; title: string }[] = [
   { kind: "atm", icon: "🏧", title: "ATMs & banks" },
 ];
 
+const ROW_PLACES = 3; // places shown for each tour before "+N more"
+
 export default function GuideView({
   trip,
   list,
   onChanged,
   onAddToItinerary,
+  onShowDay,
 }: {
   trip: Trip;
   list: TripList;
   onChanged: () => void;
   onAddToItinerary: (entry: ListEntry) => void;
+  onShowDay: (day: string) => void;
 }) {
   const days = tripDays(trip);
   const [ideas, setIdeas] = useState<ListSuggestions>();
@@ -43,9 +48,10 @@ export default function GuideView({
   const [error, setError] = useState<string>();
   const [expanded, setExpanded] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [adding, setAdding] = useState(false);
+  const [openRows, setOpenRows] = useState<Set<string>>(new Set()); // tours showing all their places
   const [priceFilter, setPriceFilter] = useState<PriceLevel | "any">("any");
 
-  const signature = list.entries.map((e) => `${e.id}${e.done}${e.day}${e.lat}`).join("|") + (list.dismissed ?? []).length;
+  const signature = list.entries.map((e) => `${e.id}${e.day}${e.lat}`).join("|") + (list.dismissed ?? []).length;
   const refresh = useCallback(() => {
     api.listSuggestions(list.id).then(setIdeas).catch(() => setIdeas(undefined));
     api.areas(trip.id).then(setAreas).catch(() => setAreas([]));
@@ -65,8 +71,15 @@ export default function GuideView({
     act(() => api.addEntry(list.id, { title: s.title, ...section.add, notes: s.detail, links: s.links, price: s.price }));
 
   // Picks you've since booked are on the itinerary, so they're out of the way here (still saved).
-  const booked = new Set(ideas?.bookedPicks?.map((p) => p.id));
+  const booked = new Set([...(ideas?.bookedPicks?.map((p) => p.id) ?? []), ...(ideas?.hiddenPicks ?? [])]);
   const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key && !booked.has(e.id)) })).filter((s) => s.entries.length);
+  // Places in your tours, a column for each tour's date (the server sends them in date order).
+  const tourDays = (ideas?.inItinerary ?? []).reduce<{ day: string; tour: string; places: NonNullable<ListSuggestions["inItinerary"]> }[]>((days, p) => {
+    const same = days.find((d) => d.day === p.day && d.tour === p.tour);
+    if (same) same.places.push(p);
+    else days.push({ day: p.day, tour: p.tour, places: [p] });
+    return days;
+  }, []);
   const myAreas = areas
     .map((g) => ({ ...g, entries: g.entries.filter((e) => !booked.has(e.id)) }))
     .filter((g) => g.entries.some((e) => e.listId === list.id));
@@ -119,9 +132,53 @@ export default function GuideView({
         </section>
       )}
 
+      {tourDays.length > 0 && (
+        <section className="card areas by-date">
+          <h3>📅 Your places by date</h3>
+          <p className="muted small">Part of your tours, so there's no need to plan them separately.</p>
+          {tourDays.map((d) => {
+            const key = `${d.day}|${d.tour}`;
+            const open = openRows.has(key);
+            return (
+              <div key={key} className="area by-date-card">
+                <div className="area-head">
+                  <button type="button" className="link plain by-date-day" title="Show this day in your itinerary" onClick={() => onShowDay(d.day)}><b>{formatDay(d.day)}</b></button>
+                  <span className="muted small"> · {d.tour} · {d.places.length} place{d.places.length === 1 ? "" : "s"}</span>
+                </div>
+                <ol className="by-date-places">
+                  {(open ? d.places : d.places.slice(0, ROW_PLACES)).map((p) => (
+                    <li key={p.title} className="small">
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.lat !== undefined ? `${p.lat},${p.lon}` : p.address ?? `${p.title}, ${list.name}`)}`} target="_blank" rel="noopener noreferrer" title="Open in Maps">
+                        <span aria-hidden="true">📍</span> {p.title}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+                {d.places.length > ROW_PLACES && (
+                  <button
+                    type="button"
+                    className="link tiny by-date-more"
+                    aria-expanded={open}
+                    onClick={() =>
+                      setOpenRows((rows) => {
+                        const next = new Set(rows);
+                        if (!next.delete(key)) next.add(key);
+                        return next;
+                      })
+                    }
+                  >
+                    {open ? "Show less" : `+${d.places.length - ROW_PLACES} more`}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
+
       <section className="card">
         <h3>⭐ Your picks</h3>
-        {picks.length === 0 && <p className="muted small">Tap <b>+ Add</b> on anything below to save it here, then tick it off as you go.</p>}
+        {picks.length === 0 && <p className="muted small">Tap <b>+ Add</b> on anything below to save it here.</p>}
         <button type="button" className="link add-own edit-only" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
           {adding ? "Close" : "+ Add your own"}
         </button>
@@ -135,8 +192,6 @@ export default function GuideView({
                     key={e.id}
                     entry={e}
                     days={days}
-                    doneLabel="done"
-                    onToggle={(on) => act(() => api.updateEntry(list.id, e.id, { done: on }))}
                     onDay={(day) => act(() => api.updateEntry(list.id, e.id, { day }))}
                     onDelete={() => act(() => api.deleteEntry(list.id, e.id))}
                     onAddToItinerary={() => onAddToItinerary(e)}
@@ -149,8 +204,8 @@ export default function GuideView({
         </div>
         {(ideas?.bookedPicks?.length ?? 0) > 0 && (
           <p className="muted small booked-picks">
-            🎟️ Booked or part of a tour, so moved off this list:{" "}
-            {ideas!.bookedPicks!.map((p) => (p.inTour ? `${p.title} (in ${p.bookedAs})` : p.title)).join(" · ")}
+            🎟️ Already booked, so moved off this list:{" "}
+            {ideas!.bookedPicks!.map((p) => p.title).join(" · ")}
           </p>
         )}
       </section>
@@ -159,7 +214,7 @@ export default function GuideView({
 
       {!ideas && <p className="muted">Joy is putting your guide together…</p>}
       {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
-        <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
+        <p className="muted small booked-ideas">✓ Left out because they're booked or planned: {ideas!.bookedIdeas!.join(" · ")}</p>
       )}
       {ideas?.guide &&
         SECTIONS.map((s) => {

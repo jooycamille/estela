@@ -1,14 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Trip, TripList } from "../../shared/types.ts";
 import { api, type LodgingResult } from "../api.ts";
 import { formatDay } from "../format.ts";
 import LodgingField from "./LodgingField.tsx";
 
-// A place you want to see on this trip (no booking or set time). It's saved in one of your lists, and shows on the
+// A place you want to see on this trip (no booking or set time). It's saved in the guide for its city, and shows on the
 // itinerary once it has a day.
-
-export const MY_PLACES = "My places";
-const NEW_LIST = "new";
 
 export type AddedPlace = { title: string; day?: string; listId: string; listName: string };
 
@@ -33,14 +30,30 @@ export default function PlaceForm({
   onCancel: () => void;
   onAdded: (place: AddedPlace) => void;
 }) {
-  const mine = lists.find((l) => !l.auto && l.name === MY_PLACES);
-  const others = lists.filter((l) => l !== mine);
+  // City guides first, then any lists you've made.
+  const choices = [...lists.filter((l) => l.auto), ...lists.filter((l) => !l.auto)];
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
   const [picked, setPicked] = useState<Partial<Pick<LodgingResult, "area" | "lat" | "lon">>>({});
   const [day, setDay] = useState(date ?? "");
   const [notes, setNotes] = useState("");
-  const [listId, setListId] = useState(mine?.id ?? NEW_LIST);
+  const [chosenList, setChosenList] = useState<string>(); // once you pick one, it's left as you set it
+  const [guideDays, setGuideDays] = useState<{ listId: string; from?: string; to?: string }[]>([]);
+  useEffect(() => {
+    api.guideDays(trip.id).then(setGuideDays).catch(() => setGuideDays([]));
+  }, [trip.id]);
+  // Where it's most likely to belong: the nearest city if it's on the map, else where you are that day.
+  const suggestedList = () => {
+    const guides = choices.filter((l) => l.auto);
+    if (picked.lat !== undefined && picked.lon !== undefined) {
+      const away = (l: TripList) => (l.place?.lat === undefined || l.place.lon === undefined ? Infinity : (l.place.lat - picked.lat!) ** 2 + (l.place.lon - picked.lon!) ** 2);
+      const nearest = [...guides].sort((a, b) => away(a) - away(b))[0];
+      if (nearest && away(nearest) !== Infinity) return nearest.id;
+    }
+    const onDay = day ? guideDays.find((g) => (!g.from || g.from <= day) && (!g.to || day <= g.to))?.listId : undefined;
+    return onDay ?? choices[0]?.id ?? "";
+  };
+  const listId = chosenList ?? suggestedList();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -48,7 +61,8 @@ export default function PlaceForm({
     setBusy(true);
     setError(undefined);
     try {
-      const list = listId === NEW_LIST ? await api.createList(trip.id, { name: MY_PLACES, emoji: "📍", place: null }) : lists.find((l) => l.id === listId)!;
+      const list = lists.find((l) => l.id === listId);
+      if (!list) throw new Error("Add a destination to this trip first, so there's a city guide to save this in.");
       await api.addEntry(list.id, {
         title: title.trim(),
         kind: "place",
@@ -107,9 +121,9 @@ export default function PlaceForm({
         </label>
         <label>
           Save in
-          <select value={listId} onChange={(e) => setListId(e.target.value)}>
-            {mine ? <option value={mine.id}>📍 {MY_PLACES}</option> : <option value={NEW_LIST}>📍 {MY_PLACES}</option>}
-            {others.map((l) => (
+          <select value={listId} disabled={!choices.length} onChange={(e) => setChosenList(e.target.value)}>
+            {choices.length === 0 && <option value="">No city guide yet</option>}
+            {choices.map((l) => (
               <option key={l.id} value={l.id}>{l.emoji} {l.name}</option>
             ))}
           </select>
@@ -119,10 +133,11 @@ export default function PlaceForm({
           <input value={notes} placeholder="Why, who recommended it, opening hours…" onChange={(e) => setNotes(e.target.value)} />
         </label>
       </div>
+      {!choices.length && <p className="muted small">Add a destination to this trip first, so there's a city guide to save this in.</p>}
       {error && <p className="error small">{error}</p>}
       <div className="actions">
         <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
-        <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Add"}</button>
+        <button type="submit" disabled={busy || !title.trim() || !choices.length}>{busy ? "Adding…" : "Add"}</button>
       </div>
     </form>
   );

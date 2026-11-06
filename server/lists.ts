@@ -274,7 +274,7 @@ export async function listSuggestions(list: TripList, trip: Trip, items: Itinera
     suggestions: [...ai, ...rules].slice(0, 16),
     styles: trip.styles,
     styleIdeas: styleIdeas(list, trip, items, theme).filter((s) => fresh(s) && !shown.has(fold(s.title))).filter(booked.unbooked).slice(0, 12),
-    bookedIdeas: [...new Set(booked.hidden)],
+    bookedIdeas: [...new Set([...booked.hidden, ...booked.hiddenInTour])],
     bookedPicks: booked.bookedPicks,
     finders: finders(theme, listCities(list, trip, items)),
     ai: aiEnabled(),
@@ -365,7 +365,7 @@ export function areaGroups(trip: Trip, items: ItineraryItem[]): AreaGroup[] {
   for (const e of located(trip.id, (e) => !!e.day)) busy.set(e.day!, (busy.get(e.day!) ?? 0) + 1);
 
   // Biggest groups pick their days first; each suggestion makes that day a little less attractive for the next group.
-  return cluster(located(trip.id, (e) => !e.done && !e.day))
+  return cluster(located(trip.id, (e) => !e.day))
     .sort((a, b) => b.length - a.length)
     .map((entries): AreaGroup => {
       const centre = { lat: entries.reduce((s, p) => s + p.lat, 0) / entries.length, lon: entries.reduce((s, p) => s + p.lon, 0) / entries.length };
@@ -456,7 +456,7 @@ const styleScore = (trip: Trip, themes: ListTheme[] = [], styles: TravelStyle[] 
 // ---------- Already in the itinerary ----------
 
 // Kinds of activity where one booking covers the idea, whatever each is called ("Mexican cooking class with a market
-// visit" and "Traditional Cooking Class – Hands-On").
+// visit" and "Home Cooking Class").
 const SAME_KIND_OF_ACTIVITY = [
   /balloon/, /cooking (?:class|lesson|workshop)/, /lucha libre/, /food (?:walking )?tour/, /e ?bike|bike tour/, /snorkel/, /kayak/, /zip ?lin/,
   /horse ?back|horse riding/, /rafting/, /surf(?:ing)? (?:class|lesson)/, /scuba|\bdiving\b/, /whale/, /salsa (?:class|lesson)/, /wine tasting/, /temazcal/,
@@ -468,7 +468,7 @@ const ORDINARY_WORDS = new Set(`
   city town village center centre historic area community island islands hopping beach river lake park waterfall waterfalls
   springs caves canal locks market museum night sunset sunrise morning evening sunday rooftop walking bike ride boat rowing
   picnic ceremony quiet ecological tacos churros tequila mezcal dinner lunch breakfast drinks food street boozy
-  the and for your this that best top must see
+  the and for your this that best top must see viejo vieja nuevo nueva santa santo gran grand great
 `.split(/\s+/).filter(Boolean));
 
 const titleKey = (t: string) => fold(t).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -525,14 +525,19 @@ function alreadyBooked(list: TripList, trip: Trip, items: ItineraryItem[]) {
   const covers = (title: string, among: string[]) => among.find((b) => sameOuting(title, b, placeNames));
   const inTour = (title: string) => included.find((i) => samePlaceName(title, i.place, placeNames))?.tour;
   const hidden: string[] = [];
+  const hiddenInTour: string[] = []; // a guide lists these in "Already on your itinerary" instead
   return {
     /** Ideas you've booked or planned already. Food is left alone: tacos on a tour doesn't mean you've tried the dish. */
     unbooked: (s: ListSuggestion) => {
-      if (s.kind === "thing" || !(covers(s.title, [...activities, ...planned]) || inTour(s.title))) return true;
-      hidden.push(s.title);
+      if (s.kind === "thing") return true;
+      if (inTour(s.title)) hiddenInTour.push(s.title);
+      // A place you've planned is named exactly, so it gets the strict match: a booking's title only roughly says.
+      else if (covers(s.title, activities) || planned.some((p) => samePlaceName(s.title, p, placeNames))) hidden.push(s.title);
+      else return true;
       return false;
     },
     hidden,
+    hiddenInTour,
     /** Your saved picks that have since been booked (the booking is the one on the itinerary). */
     bookedPicks: list.entries.flatMap((e) => {
       const tour = e.kind === "thing" ? undefined : inTour(e.title);
@@ -540,6 +545,36 @@ function alreadyBooked(list: TripList, trip: Trip, items: ItineraryItem[]) {
       return as ? [{ id: e.id, title: e.title, bookedAs: as, inTour: !!tour }] : [];
     }),
   };
+}
+
+/**
+ * The places your tours include that belong in this guide. A place on the map goes to the nearest city on your trip
+ * (a day trip can go a long way); one with only a name goes by the tour's date.
+ */
+function placesInTours(list: TripList, trip: Trip, items: ItineraryItem[]) {
+  const stops = guideDestinations(trip, items);
+  const stopFor = (place: { lat?: number; lon?: number }, day: string) => {
+    if (place.lat !== undefined && place.lon !== undefined) {
+      const here = { lat: place.lat, lon: place.lon };
+      const mapped = stops.filter((s): s is typeof s & { lat: number; lon: number } => s.lat !== undefined && s.lon !== undefined);
+      if (mapped.length) return mapped.reduce((best, s) => (distanceKm(s, here) < distanceKm(best, here) ? s : best));
+    }
+    return stops.find((s) => (!s.from || s.from <= day) && (!s.to || day <= s.to)) ?? stops[0];
+  };
+  return items
+    .flatMap((i) => (i.kind === "activity" ? (i.includes ?? []).map((place) => ({ place, tour: i })) : []))
+    .filter(({ place, tour }) => samePlace(stopFor(place, tour.start.slice(0, 10)), list.place))
+    .sort((a, b) => a.tour.start.localeCompare(b.tour.start))
+    .map(({ place, tour }) => ({ ...place, tour: tour.title, day: tour.start.slice(0, 10) }));
+}
+
+/** Which guide covers which dates, for choosing where a new place goes. */
+export function guideDays(trip: Trip, items: ItineraryItem[]) {
+  const stops = guideDestinations(trip, items);
+  return tripLists(trip.id).flatMap((l) => {
+    const stop = l.auto ? stops.find((s) => samePlace(s, l.place)) : undefined;
+    return stop ? [{ listId: l.id, from: stop.from, to: stop.to }] : [];
+  });
 }
 
 export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryItem[]) {
@@ -597,7 +632,9 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     theme: "guide",
     guide: { restaurants: restaurants.slice(0, 10), food: food.slice(0, 12), activities: activities.slice(0, 12), sights: visibleSights.slice(0, 12) },
     bookedIdeas: [...new Set(booked.hidden)],
-    bookedPicks: booked.bookedPicks,
+    bookedPicks: booked.bookedPicks.filter((p) => !p.inTour),
+    hiddenPicks: booked.bookedPicks.filter((p) => p.inTour).map((p) => p.id),
+    inItinerary: placesInTours(list, trip, items),
     suggestions: [],
     styles: trip.styles,
     styleIdeas: [],

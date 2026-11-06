@@ -81,6 +81,8 @@ export type ListSuggestions = {
   finders: Link[];
   ai: boolean;
   guide?: { restaurants: ListSuggestion[]; food: ListSuggestion[]; activities: ListSuggestion[]; sights: ListSuggestion[] };
+  inItinerary?: { title: string; address?: string; lat?: number; lon?: number; tour: string; day: string }[]; // places your tours include
+  hiddenPicks?: string[]; // your picks that are listed in inItinerary instead
   bookedIdeas?: string[]; // ideas left out because they're on the itinerary already
   bookedPicks?: { id: string; title: string; bookedAs: string; inTour: boolean }[]; // your saved picks that have since been booked
 };
@@ -88,6 +90,7 @@ export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?
 export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price">> & { day?: string | null; price?: PriceLevel | null };
 
 export const api = {
+  guideDays: (tripId: string) => request<{ listId: string; from?: string; to?: string }[]>(`/trips/${tripId}/guide-days`),
   lists: (tripId: string) => request<TripList[]>(`/trips/${tripId}/lists`),
   createList: (tripId: string, body: { name: string; emoji: string; place: TripPlace | null }) => request<TripList>(`/trips/${tripId}/lists`, json("POST", body)),
   updateList: (id: string, body: { name?: string; emoji?: string; place?: TripPlace | null }) => request<TripList>(`/lists/${id}`, json("PATCH", body)),
@@ -97,6 +100,8 @@ export const api = {
   deleteEntry: (listId: string, entryId: string) => request<void>(`/lists/${listId}/entries/${entryId}`, json("DELETE")),
   dismissSuggestion: (listId: string, title: string) => request<void>(`/lists/${listId}/dismiss`, json("POST", { title })),
   essentials: (listId: string) => request<Essentials>(`/lists/${listId}/essentials`),
+  describeEntry: (listId: string, q: string) =>
+    request<{ text?: string; source?: "guide" | "wikipedia"; url?: string }>(`/lists/${listId}/describe?${new URLSearchParams({ q })}`),
   listSuggestions: (listId: string) => request<ListSuggestions>(`/lists/${listId}/suggestions`),
   listPlaces: (tripId: string) => request<TripPlace[]>(`/trips/${tripId}/list-places`),
   areas: (tripId: string) => request<AreaGroup[]>(`/trips/${tripId}/areas`),

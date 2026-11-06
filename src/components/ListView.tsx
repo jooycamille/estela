@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState , useRef } from "react";
 import { activitiesMerged, listTheme, STYLE_LABELS, THEME_LABELS } from "../../shared/lists.ts";
 import type { AreaGroup, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
 import { api, type EntryInput, type ListSuggestions } from "../api.ts";
@@ -42,7 +42,7 @@ export default function ListView({
     api.areas(trip.id).then(setAreas).catch(() => setAreas([]));
   }, [list.id, trip.id]);
   // Ideas and areas change with what's on the list.
-  const signature = list.entries.map((e) => `${e.id}${e.done}${e.day}${e.lat}`).join("|") + (list.dismissed ?? []).length + list.name + list.place?.name;
+  const signature = list.entries.map((e) => `${e.id}${e.day}${e.lat}`).join("|") + (list.dismissed ?? []).length + list.name + list.place?.name;
   useEffect(refreshExtras, [refreshExtras, signature]);
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -63,14 +63,13 @@ export default function ListView({
     ["thing", things, labels.thing],
     ...(activities.length ? [["activity", activities, "Things to do"] as ["activity", ListEntry[], string]] : []),
   ];
-  const done = list.entries.filter((e) => e.done).length;
   // Areas that include something from this list (other lists' places nearby are shown too).
   // Your own lists keep everything, but say what's covered already, and leave it out of the day planning.
   const coveredBy = new Map(ideas?.bookedPicks?.map((p) => [p.id, p.bookedAs]));
   const myAreas = areas
     .map((g) => ({ ...g, entries: g.entries.filter((e) => !coveredBy.has(e.id)) }))
     .filter((g) => g.entries.some((e) => e.listId === list.id));
-  const unlocated = places.filter((e) => e.lat === undefined && !e.done);
+  const unlocated = places.filter((e) => e.lat === undefined);
 
   return (
     <div className="list-view">
@@ -79,7 +78,7 @@ export default function ListView({
           <h2><span aria-hidden="true">{list.emoji}</span> {list.name}</h2>
           <p className="muted small">
             {list.place ? <>{flag(list.place.countryCode)} {list.place.name} · </> : "Anywhere on this trip · "}
-            {list.entries.length ? `${done} of ${list.entries.length} ${labels.done}` : "Nothing on it yet"}
+            {list.entries.length ? `${list.entries.length} saved` : "Nothing on it yet"}
           </p>
         </div>
         <div className="list-head-actions edit-only">
@@ -109,8 +108,6 @@ export default function ListView({
                   coveredBy={coveredBy.get(e.id)}
                   entry={e}
                   days={days}
-                  doneLabel={labels.done}
-                  onToggle={(on) => act(() => api.updateEntry(list.id, e.id, { done: on }))}
                   onDay={(day) => act(() => api.updateEntry(list.id, e.id, { day }))}
                   onDelete={() => act(() => api.deleteEntry(list.id, e.id))}
                   onAddToItinerary={() => onAddToItinerary(e)}
@@ -217,8 +214,6 @@ export default function ListView({
 export function EntryRow({
   entry,
   days,
-  doneLabel,
-  onToggle,
   onDay,
   onDelete,
   onAddToItinerary,
@@ -228,16 +223,13 @@ export function EntryRow({
   coveredBy?: string; // the booking or tour that already includes this
   entry: ListEntry;
   days: string[];
-  doneLabel: string;
-  onToggle: (on: boolean) => void;
   onDay: (day: string | null) => void;
   onDelete: () => void;
   onAddToItinerary: () => void;
   onPrice?: (level: PriceLevel | null) => void; // restaurants: rate $ to $$$
 }) {
   return (
-    <li className={`entry ${entry.done ? "done" : ""}`}>
-      <input className="edit-lock" type="checkbox" checked={entry.done} onChange={(e) => onToggle(e.target.checked)} aria-label={`Mark ${entry.title} as ${doneLabel}`} />
+    <li className="entry">
       <div className="entry-body">
         <div className="entry-title">
           <b>{entry.title}</b>
@@ -299,14 +291,61 @@ export function AddEntry({
   const [busy, setBusy] = useState(false);
   const near = list.place?.lat !== undefined && list.place.lon !== undefined ? { lat: list.place.lat, lon: list.place.lon } : undefined;
 
+  // Food and things to do: look up a description as you type. It's yours to change, and once you've edited the notes
+  // (or cleared them) they're left alone.
+  const describes = kind !== "place";
+  const [notesEdited, setNotesEdited] = useState(false);
+  const [lookup, setLookup] = useState<{ state: "idle" | "looking" | "none" } | { state: "found"; source: "guide" | "wikipedia"; url?: string }>({ state: "idle" });
+  // The lookup for the name as it is now: a save waits for this, so it can't pick up the last name's description.
+  type Found = Awaited<ReturnType<typeof api.describeEntry>>;
+  const autoNotes = useRef("");
+  const pending = useRef<Promise<Found | undefined>>(Promise.resolve(undefined));
+  useEffect(() => {
+    const name = title.trim();
+    // The old description was for the old name. Only ever clear what was filled in automatically.
+    const stale = autoNotes.current;
+    autoNotes.current = "";
+    if (stale) setNotes((current) => (current === stale ? "" : current));
+    if (!describes || notesEdited || name.length < 3) {
+      pending.current = Promise.resolve(undefined);
+      setLookup({ state: "idle" });
+      return;
+    }
+    setLookup({ state: "looking" });
+    let cancelled = false;
+    let finish: (found: Found | undefined) => void = () => undefined;
+    pending.current = new Promise((resolve) => (finish = resolve));
+    const timer = setTimeout(() => {
+      api
+        .describeEntry(list.id, name)
+        .catch(() => ({}) as Found)
+        .then((d) => {
+          finish(d);
+          if (cancelled) return;
+          autoNotes.current = d.text ?? "";
+          if (d.text) setNotes(d.text);
+          setLookup(d.text && d.source ? { state: "found", source: d.source, url: d.url } : { state: "none" });
+        });
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      finish(undefined);
+    };
+  }, [title, describes, notesEdited, list.id]);
+
   const submit = async () => {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await onAdd({ title: title.trim(), kind, section: option.section, notes: notes.trim() || undefined, ...(kind === "place" ? picked : {}), ...(option.priced && price ? { price } : {}) });
+      const found = describes && !notesEdited ? await pending.current : undefined;
+      const text = describes && !notesEdited ? found?.text ?? "" : notes;
+      const source = found?.source === "wikipedia" ? found.url : undefined;
+      await onAdd({ title: title.trim(), kind, section: option.section, notes: text.trim() || undefined, ...(source ? { links: [{ label: "Wikipedia", url: source }] } : {}), ...(kind === "place" ? picked : {}), ...(option.priced && price ? { price } : {}) });
       setPrice(null);
       setTitle("");
       setNotes("");
+      setNotesEdited(false);
       setPicked({});
     } finally {
       setBusy(false);
@@ -353,7 +392,27 @@ export function AddEntry({
         )}
         <label>
           Notes
-          <input value={notes} placeholder="Why, who recommended it, what to order…" onChange={(e) => setNotes(e.target.value)} />
+          {describes ? (
+            <textarea
+              rows={3}
+              value={notes}
+              placeholder="A description appears here as you type the name. Add your own notes too."
+              onChange={(e) => {
+                setNotes(e.target.value);
+                setNotesEdited(true);
+                setLookup({ state: "idle" });
+              }}
+            />
+          ) : (
+            <input value={notes} placeholder="Why, who recommended it, what to order…" onChange={(e) => setNotes(e.target.value)} />
+          )}
+          {describes && lookup.state === "looking" && <span className="muted tiny">Looking that up…</span>}
+          {describes && lookup.state === "none" && <span className="muted tiny">No description found. You can write your own.</span>}
+          {describes && lookup.state === "found" && (
+            <span className="muted tiny">
+              {lookup.source === "guide" ? "From Joy's guide" : <>From <a href={lookup.url} target="_blank" rel="noopener noreferrer">Wikipedia</a></>}, so check it fits. You can edit it.
+            </span>
+          )}
         </label>
       </div>
       {kind === "place" && picked.address && <p className="muted tiny">📍 {picked.address}</p>}

@@ -410,8 +410,6 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 .entries { list-style: none; margin: 0; padding: 0; }
 .entry { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--border); }
 .entry:first-child { border-top: none; }
-.entry input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--btn-to); flex: none; }
-.entry.done .entry-title b { text-decoration: line-through; color: var(--muted); }
 .entry-body { flex: 1; min-width: 0; }
 .entry-notes { margin-top: 2px; overflow-wrap: anywhere; }
 .entry-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-top: 4px; }
@@ -442,7 +440,6 @@ button.link.muted-link { color: var(--muted); font-size: 0.78rem; margin-left: a
 .day-plan { border: 1px dashed var(--border); border-radius: var(--radius); padding: 8px 14px; margin-bottom: 8px; background: var(--card); }
 .day-plan-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 0.9rem; }
 .day-plan ol { margin: 4px 0 2px; padding-left: 22px; font-size: 0.9rem; }
-.day-plan li.done button { text-decoration: line-through; color: var(--muted); }
 button.link.plain { color: var(--text); font-size: inherit; font-weight: 500; text-align: left; }
 .style-ideas { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 .style-ideas h4 { margin: 0 0 4px; font-size: 0.95rem; }
@@ -661,3 +658,8 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .bring-checklist label { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; margin: 0; color: var(--text); font-size: 0.85rem; cursor: pointer; }
 .bring-checklist input { width: 16px; height: 16px; margin-top: 2px; flex: none; accent-color: var(--btn-to); }
 .bring-checklist .done span { text-decoration: line-through; color: var(--muted); }
+.by-date-card .by-date-day { padding: 0; }
+.by-date-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 3px 24px; margin: 6px 0 2px; padding-left: 22px; }
+.by-date-places a { color: var(--text); text-decoration: none; }
+.by-date-places a:hover { text-decoration: underline; }
+.by-date-more { padding: 0; margin-left: 22px; }

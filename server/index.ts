@@ -10,12 +10,13 @@ import { getAirport, searchAirports } from "./airports.ts";
 import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
 import { buildPrep } from "./prep.ts";
+import { describe } from "./describe.ts";
 import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signOut, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
 import { emailConfigured, sendEmail } from "./mailer.ts";
 import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
 import type { UserRecord } from "./db.ts";
 import { essentialsFor } from "./essentials.ts";
-import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
+import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideDays, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { assumedStops, tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
@@ -752,6 +753,12 @@ app.get("/api/trips/:id/lists", (req, res) => {
   res.json(db.lists.filter((l) => l.tripId === req.params.id));
 });
 
+app.get("/api/trips/:id/guide-days", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  res.json(guideDays(trip, tripItems(trip.id)));
+});
+
 app.post("/api/trips/:id/lists", (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return res.status(404).json({ error: "Trip not found" });
@@ -787,7 +794,8 @@ app.post("/api/lists/:id/entries", async (req, res) => {
   // Find it on the map (for grouping nearby places) unless it was picked there already.
   entry = await locateEntry(entry, list, trip, tripItems(trip.id)).catch(() => entry);
   // Keep the idea's links ("Where to try it", tours, map); make them for things you typed yourself.
-  if (!entry.links?.length) entry.links = entryLinks(entry, list, trip, tripItems(trip.id));
+  // A link to where the description came from doesn't count: you still want those.
+  if (!entry.links?.some((l) => l.label !== "Wikipedia")) entry.links = [...(entryLinks(entry, list, trip, tripItems(trip.id)) ?? []), ...(entry.links ?? [])];
   list.entries.push(entry);
   save();
   res.status(201).json(entry);
@@ -825,6 +833,15 @@ app.post("/api/lists/:id/dismiss", (req, res) => {
   list.dismissed = [...new Set([...(list.dismissed ?? []), title])];
   save();
   res.status(204).end();
+});
+
+// A description for something being typed into a list. Nothing found isn't an error.
+app.get("/api/lists/:id/describe", async (req, res) => {
+  const list = getList(req.params.id);
+  if (!list) return void res.status(404).json({ error: "List not found" });
+  const q = z.string().trim().min(1).max(160).safeParse(req.query.q);
+  if (!q.success) return void res.json({});
+  res.json((await describe(q.data, list.place?.countryCode).catch(() => undefined)) ?? {});
 });
 
 app.get("/api/lists/:id/suggestions", async (req, res) => {
