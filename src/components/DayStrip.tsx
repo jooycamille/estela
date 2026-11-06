@@ -17,13 +17,8 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const parse = (d: string) => new Date(`${d}T12:00:00Z`);
 export const dayId = (day: string) => `day-${day}`;
 
-export default function DayStrip({ days, onEmptyDay }: { days: DayInfo[]; onEmptyDay?: (day: string) => void }) {
-  const [active, setActive] = useState<string>();
-  const strip = useRef<HTMLDivElement>(null);
-  const today = new Date().toLocaleDateString("en-CA");
-  const onTrip = days.some((d) => d.day === today);
-
-  // Stick just below the header (its height differs between phone and computer).
+/** Stick just below the header (its height differs between phone and computer). */
+export function useStickBelowHeader() {
   useEffect(() => {
     const place = () => {
       const h = document.querySelector(".topbar")?.getBoundingClientRect().height ?? 60;
@@ -33,6 +28,15 @@ export default function DayStrip({ days, onEmptyDay }: { days: DayInfo[]; onEmpt
     addEventListener("resize", place);
     return () => removeEventListener("resize", place);
   }, []);
+}
+
+export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]; onEmptyDay?: (day: string) => void; onJump?: (day: string) => void }) {
+  const [active, setActive] = useState<string>();
+  const strip = useRef<HTMLDivElement>(null);
+  const today = new Date().toLocaleDateString("en-CA");
+  const onTrip = days.some((d) => d.day === today);
+
+  useStickBelowHeader();
 
   // Highlight the day whose section is nearest the top of the screen.
   useEffect(() => {
@@ -67,6 +71,7 @@ export default function DayStrip({ days, onEmptyDay }: { days: DayInfo[]; onEmpt
       return onEmptyDay(day);
     }
     const target = info?.hasContent ? day : days.find((d) => d.day >= day && d.hasContent)?.day ?? day;
+    onJump?.(target);
     // Scroll the page itself, landing just below the header and this strip (an element's scrollIntoView gets
     // cancelled when the strip re-renders mid-scroll).
     const el = document.getElementById(dayId(target));

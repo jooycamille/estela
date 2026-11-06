@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PrepItem } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import Fold from "./Fold.tsx";
 
 // Turning on reminders (push notifications) for this device, and the next few that are coming up. Browsers only allow
 // notifications from an installed or secure app: on iPhone, from the Home Screen app (iOS 16.4+).
@@ -23,7 +24,7 @@ async function registration() {
 const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
-export default function RemindersCard({ items, checked }: { items: PrepItem[]; checked: Set<string> }) {
+export default function RemindersCard({ tripId, items, checked }: { tripId: string; items: PrepItem[]; checked: Set<string> }) {
   const [state, setState] = useState<State>("checking");
   const [message, setMessage] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -80,10 +81,8 @@ export default function RemindersCard({ items, checked }: { items: PrepItem[]; c
 
   return (
     <section className="card reminders">
-      <div className="reminders-head">
-        <h3>🔔 Reminders</h3>
-        {state === "on" && <span className="reminders-on">On for this device</span>}
-      </div>
+      <Fold id={`${tripId}:reminders`} title="🔔 Reminders" summary={state === "on" ? <span className="reminders-on">On for this device</span> : undefined}>
+      {state === "on" && <p className="reminders-status"><span className="reminders-on">On for this device</span></p>}
       {state === "off" && (
         <>
           <p className="muted small">Get a notification on this device when it's time: Check-MIG opening (and a last call before it closes), other online border forms, and online check-in.</p>
@@ -122,6 +121,7 @@ export default function RemindersCard({ items, checked }: { items: PrepItem[]; c
         </ul>
       )}
       <p className="muted tiny">Reminders come from your Mac, so it needs to be on. Ticked items aren't reminded.</p>
+      </Fold>
     </section>
   );
 }

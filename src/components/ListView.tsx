@@ -3,6 +3,7 @@ import { activitiesMerged, listTheme, STYLE_LABELS, THEME_LABELS } from "../../s
 import type { AreaGroup, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
 import { api, type EntryInput, type ListSuggestions } from "../api.ts";
 import { formatDay } from "../format.ts";
+import Fold, { FoldAll } from "./Fold.tsx";
 import LodgingField from "./LodgingField.tsx";
 import { PricePicker, PriceTag } from "./Price.tsx";
 import { flag } from "./PlaceSelect.tsx";
@@ -80,6 +81,7 @@ export default function ListView({
             {list.place ? <>{flag(list.place.countryCode)} {list.place.name} · </> : "Anywhere on this trip · "}
             {list.entries.length ? `${list.entries.length} saved` : "Nothing on it yet"}
           </p>
+          <FoldAll ids={[...columns.map(([kind]) => kind), ...(myAreas.length ? ["areas"] : []), "ideas"].map((key) => `${list.id}:${key}`)} />
         </div>
         <div className="list-head-actions edit-only">
           <button className="link" onClick={onEdit}>Edit</button>
@@ -99,7 +101,7 @@ export default function ListView({
       <div className="list-columns">
         {columns.map(([kind, entries, heading]) => (
           <section key={kind} className="card list-col">
-            <h3>{heading} <span className="muted small">{entries.length || ""}</span></h3>
+            <Fold id={`${list.id}:${kind}`} title={<>{heading} <span className="muted small">{entries.length || ""}</span></>}>
             {entries.length === 0 && <p className="muted small">None yet. Add your own below, or pick from Joy's ideas.</p>}
             <ul className="entries">
               {entries.map((e) => (
@@ -115,6 +117,7 @@ export default function ListView({
                 />
               ))}
             </ul>
+            </Fold>
           </section>
         ))}
       </div>
@@ -123,7 +126,7 @@ export default function ListView({
         list={list}
         tripId={trip.id}
         options={[
-          { key: "place", kind: "place", label: `📍 ${labels.placeOne}`, priced: theme === "food" || theme === "drinks" },
+          { key: "place", kind: "place", label: `📍 ${labels.placeOne}` },
           { key: "thing", kind: "thing", label: `✨ ${labels.thingOne}`, placeholder: labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night" },
           ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: "🎯 Thing to do", placeholder: "e.g. Salsa class" }]),
         ]}
@@ -132,7 +135,7 @@ export default function ListView({
 
       {(myAreas.length > 0 || unlocated.length > 0) && (
         <section className="card areas">
-          <h3>🗺️ Plan by area</h3>
+          <Fold id={`${list.id}:areas`} title="🗺️ Plan by area" summary={myAreas.length}>
           <p className="muted small">
             Places close together, including ones from your other lists, so one day covers them. Pick a day and they'll show
             up in your itinerary in walking order.
@@ -148,11 +151,12 @@ export default function ListView({
               the 📅 menu.
             </p>
           )}
+          </Fold>
         </section>
       )}
 
       <section className="card list-ideas">
-        <h3>✨ Joy's ideas for {list.name}</h3>
+        <Fold id={`${list.id}:ideas`} title={<>✨ Joy's ideas for {list.name}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
         {!ideas && <p className="muted small">Thinking…</p>}
         {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
           <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
@@ -206,6 +210,7 @@ export default function ListView({
             specific restaurants and spots.
           </p>
         )}
+        </Fold>
       </section>
     </div>
   );
@@ -268,7 +273,7 @@ export function EntryRow({
   );
 }
 
-export type AddOption = { key: string; kind: ListEntry["kind"]; section?: ListEntry["section"]; label: string; placeholder?: string; priced?: boolean };
+export type AddOption = { key: string; kind: ListEntry["kind"]; section?: ListEntry["section"]; label: string; placeholder?: string };
 
 export function AddEntry({
   list,
@@ -287,7 +292,6 @@ export function AddEntry({
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [picked, setPicked] = useState<Pick<ListEntry, "address" | "area" | "lat" | "lon">>({});
-  const [price, setPrice] = useState<PriceLevel | null>(null);
   const [busy, setBusy] = useState(false);
   const near = list.place?.lat !== undefined && list.place.lon !== undefined ? { lat: list.place.lat, lon: list.place.lon } : undefined;
 
@@ -296,10 +300,7 @@ export function AddEntry({
   const describes = kind !== "place";
   const [notesEdited, setNotesEdited] = useState(false);
   const [lookup, setLookup] = useState<{ state: "idle" | "looking" | "none" } | { state: "found"; source: "guide" | "wikipedia"; url?: string }>({ state: "idle" });
-  // The lookup for the name as it is now: a save waits for this, so it can't pick up the last name's description.
-  type Found = Awaited<ReturnType<typeof api.describeEntry>>;
   const autoNotes = useRef("");
-  const pending = useRef<Promise<Found | undefined>>(Promise.resolve(undefined));
   useEffect(() => {
     const name = title.trim();
     // The old description was for the old name. Only ever clear what was filled in automatically.
@@ -307,20 +308,16 @@ export function AddEntry({
     autoNotes.current = "";
     if (stale) setNotes((current) => (current === stale ? "" : current));
     if (!describes || notesEdited || name.length < 3) {
-      pending.current = Promise.resolve(undefined);
       setLookup({ state: "idle" });
       return;
     }
     setLookup({ state: "looking" });
     let cancelled = false;
-    let finish: (found: Found | undefined) => void = () => undefined;
-    pending.current = new Promise((resolve) => (finish = resolve));
     const timer = setTimeout(() => {
       api
-        .describeEntry(list.id, name)
-        .catch(() => ({}) as Found)
+        .describeEntry(list.id, name, kind)
+        .catch(() => ({}) as Awaited<ReturnType<typeof api.describeEntry>>)
         .then((d) => {
-          finish(d);
           if (cancelled) return;
           autoNotes.current = d.text ?? "";
           if (d.text) setNotes(d.text);
@@ -330,19 +327,16 @@ export function AddEntry({
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      finish(undefined);
     };
-  }, [title, describes, notesEdited, list.id]);
+  }, [title, describes, notesEdited, list.id, kind]);
 
   const submit = async () => {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      const found = describes && !notesEdited ? await pending.current : undefined;
-      const text = describes && !notesEdited ? found?.text ?? "" : notes;
-      const source = found?.source === "wikipedia" ? found.url : undefined;
-      await onAdd({ title: title.trim(), kind, section: option.section, notes: text.trim() || undefined, ...(source ? { links: [{ label: "Wikipedia", url: source }] } : {}), ...(kind === "place" ? picked : {}), ...(option.priced && price ? { price } : {}) });
-      setPrice(null);
+      // Unless you've written your own, the server adds the description as it saves (so it always matches the name).
+      const auto = describes && !notesEdited;
+      await onAdd({ title: title.trim(), kind, section: option.section, notes: auto ? undefined : notes.trim() || undefined, ...(describes && notesEdited && !notes.trim() ? { autoDescribe: false } : {}), ...(kind === "place" ? picked : {}), });
       setTitle("");
       setNotes("");
       setNotesEdited(false);
@@ -416,12 +410,6 @@ export function AddEntry({
         </label>
       </div>
       {kind === "place" && picked.address && <p className="muted tiny">📍 {picked.address}</p>}
-      {option.priced && (
-        <p className="small price-row">
-          <span className="muted">Price:</span> <PricePicker value={price ?? undefined} onChange={setPrice} />
-          <span className="muted tiny">$ cheap eats · $$ mid-range · $$$ splurge</span>
-        </p>
-      )}
       <div className="actions">
         <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Save"}</button>
       </div>
@@ -448,7 +436,7 @@ export function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; li
         ))}
       </ol>
       <div className="area-days edit-only">
-        <span className="muted small">Good days:</span>
+        <span className="muted small">{group.suggestedDays.length ? "Good days:" : "Your days look full. Pick one:"}</span>
         {group.suggestedDays.map((d) => (
           <button key={d} type="button" className="day-chip" onClick={() => onPlan(d)}>{formatDay(d)}</button>
         ))}

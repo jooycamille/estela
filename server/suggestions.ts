@@ -3,6 +3,7 @@ import { type FlightItem, type ItineraryItem, type StayItem, type Suggestion, ty
 import { aiEnabled, extract } from "./ai.ts";
 import { getAirport, nearestMajorAirport } from "./airports.ts";
 import { assumedStops, tripPlaces } from "./tripPlaces.ts";
+import { activityDays } from "../shared/days.ts";
 import { db, itemStart } from "./db.ts";
 
 const hours = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 3600_000;
@@ -181,7 +182,7 @@ export function ruleSuggestions(trip: Trip, items: ItineraryItem[]): Suggestion[
     }
   }
 
-  const busyDays = new Set(sorted.filter((i) => i.kind !== "stay").map((i) => day(itemStart(i))));
+  const busyDays = new Set(sorted.flatMap((i) => (i.kind === "stay" ? [] : i.kind === "activity" ? activityDays(i) : [day(itemStart(i))])));
   const freeDays = eachNight(trip.startDate, trip.endDate).slice(1).filter((d) => !busyDays.has(d));
 
   // Purpose-specific

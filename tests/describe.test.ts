@@ -33,3 +33,30 @@ test("tidies Wikipedia's opening", () => {
   const long = tidyExtract(`${"A very long opening sentence about this thing goes on. ".repeat(10)}`);
   assert.ok(long.length <= 240);
 });
+
+test("food: 'Tacos de X' can use an article on X, and it must be about food", () => {
+  const carnitas = page("Carnitas", "Carnitas, in Mexican cuisine, is a dish of braised pork.");
+  const stand = page("Taco stand", "A taco stand is a food stall.", 2);
+  assert.equal(pickPage("Tacos de carnitas", [carnitas, stand], true)?.title, "Carnitas");
+  assert.equal(pickPage("Tacos de carnitas", [carnitas, stand]), undefined); // only for food
+  assert.equal(pickPage("Tacos de carnitas", [stand], true), undefined);
+  // A dish called after a thing shouldn't get that thing's article.
+  assert.equal(pickPage("Cafe de olla", [page("Olla", "An olla is a clay pot.")], true), undefined);
+  const grape = page("Corvina", "Corvina is an Italian wine grape variety grown near Verona.");
+  assert.equal(pickPage("Corvina", [grape], true), undefined);
+  assert.equal(pickPage("Corvina", [grape])?.title, "Corvina");
+  assert.equal(pickPage("Sancocho", [page("Sancocho", "Sancocho is a traditional stew in several Caribbean countries.")], true)?.title, "Sancocho");
+});
+
+test("an article with exactly the name wins, in food", () => {
+  const birria = page("Birria", "Birria is a regional variation of barbacoa from western Mexico, a stewed meat dish.", 1);
+  const barbacoa = page("Barbacoa", "Barbacoa is the indigenous variation of a method of cooking meat over an open fire.", 2);
+  assert.equal(pickPage("Barbacoa", [birria, barbacoa], true)?.title, "Barbacoa");
+  assert.equal(pickPage("Tacos de Barbacoa", [birria, barbacoa], true)?.title, "Barbacoa");
+});
+
+test("'may refer to' only rules out an article when it opens with it", () => {
+  const good = page("Barbacoa", "Barbacoa is a method of cooking meat in a pit, usually over a long time and on special occasions in many regions of the country. The word may refer to the meal too.");
+  assert.equal(pickPage("Barbacoa", [good], true)?.title, "Barbacoa");
+  assert.equal(pickPage("Barbacoa", [page("Barbacoa", "Barbacoa may refer to a cooked food or a town.")], true), undefined);
+});

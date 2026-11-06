@@ -127,6 +127,8 @@ textarea { resize: vertical; }
 .item.activity { border-left-color: var(--activity); }
 .item > .item-form { flex: 1; }
 .item-time { font-weight: 700; min-width: 48px; font-variant-numeric: tabular-nums; }
+.item-time.later-day { max-width: 52px; }
+.tag.day-of { text-transform: none; }
 .item-body { flex: 1; min-width: 0; }
 .item-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-bottom: 4px; }
@@ -449,8 +451,12 @@ button.link.plain { color: var(--text); font-size: inherit; font-weight: 500; te
 .category.new-list { color: var(--accent); font-weight: 600; }
 .category.new-list:hover:not(:disabled) { color: var(--accent); text-decoration: underline; }
 .guide-head h2 { margin-bottom: 4px; }
-.guide-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.guide-nav button { font-size: 0.8rem; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+.guide-bar { position: sticky; top: var(--topbar-h, 60px); z-index: 1; display: flex; align-items: center; gap: 12px; background: var(--bg); margin: 0 -4px 12px; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.guide-nav { display: flex; flex: 1; min-width: 0; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.guide-nav::-webkit-scrollbar { display: none; }
+.guide-bar .fold-all { flex-shrink: 0; white-space: nowrap; }
+.guide-nav button { flex-shrink: 0; white-space: nowrap; font-size: 0.8rem; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+.guide-nav button.on, .guide-nav button.on:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .guide-nav button:hover:not(:disabled) { background: var(--accent-soft); }
 .guide-section, .essentials { scroll-margin-top: 70px; }
 .list-col h4 { margin: 0 0 4px; font-size: 0.9rem; }
@@ -663,3 +669,30 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .by-date-places a { color: var(--text); text-decoration: none; }
 .by-date-places a:hover { text-decoration: underline; }
 .by-date-more { padding: 0; margin-left: 22px; }
+
+/* Sections you can minimize */
+button.fold-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 0; background: none; border: none; border-radius: 4px; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; }
+button.fold-toggle:hover:not(:disabled) { background: none; }
+.fold-title { flex: 1; min-width: 0; }
+.fold-summary { flex-shrink: 0; color: var(--muted); font-size: 0.78rem; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.fold-chevron { flex-shrink: 0; color: var(--muted); transition: transform 0.15s; }
+.fold-toggle[aria-expanded="false"] .fold-chevron { transform: rotate(-90deg); }
+.fold-head:has(.fold-toggle[aria-expanded="false"]) { margin-bottom: 0; }
+.fold-body[hidden] { display: none; }
+button.link.fold-all { color: var(--muted); font-size: 0.78rem; }
+.list-bar .fold-all, .prep-controls .fold-all { margin-left: auto; }
+.prep-controls .checkbox { margin-left: auto; }
+.prep-controls .checkbox + .fold-all { margin-left: 0; }
+.list-head .fold-all { display: block; margin-top: 8px; }
+.reminders-status { margin: 0 0 6px; }
+.card .add-entry { margin: 10px 0 14px; padding: 14px; box-shadow: none; }
+
+/* Plan by date: what's close by to add */
+.by-date-picks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.by-date-picks li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
+.by-date-picks li button { flex-shrink: 0; margin-left: auto; }
+.by-date-full { margin: 8px 0 0; }
+.by-date-nearby { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.by-date-nearby-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.areas-left { margin-top: 16px; }
+.areas-left h4 { margin: 0 0 2px; font-size: 0.9rem; }

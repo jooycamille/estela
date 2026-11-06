@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PrepItem } from "../../shared/types.ts";
 import { api, type PrepData } from "../api.ts";
 import { formatDay } from "../format.ts";
+import Fold, { FoldAll } from "./Fold.tsx";
 import RemindersCard from "./RemindersCard.tsx";
 
 // Every region code the browser can name (for the home-country picker).
@@ -31,10 +32,26 @@ function dueLabel(item: PrepItem) {
   return `By ${day}`;
 }
 
-export default function PrepareView({ tripId, onCounts }: { tripId: string; onCounts?: (open: number) => void }) {
+const HIDE_DONE = "joy-prepare-hide-done";
+
+export default function PrepareView({ tripId, version, onCounts }: { tripId: string; version?: number; onCounts?: (open: number) => void }) {
   const [data, setData] = useState<PrepData>();
   const [error, setError] = useState<string>();
-  const [hideDone, setHideDone] = useState(false);
+  // Stays as you left it, on this device, until you change it.
+  const [hideDone, setHideDone] = useState(() => {
+    try {
+      return localStorage.getItem(HIDE_DONE) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIDE_DONE, hideDone ? "1" : "0");
+    } catch {
+      // Private browsing can refuse this: it just won't be remembered.
+    }
+  }, [hideDone]);
   const [home, setHome] = useState("");
 
   const load = useCallback(() => {
@@ -43,7 +60,7 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
       setHome((h) => h || d.homeCountry || d.homeCountryGuess || "");
     }).catch((e) => setError((e as Error).message));
   }, [tripId]);
-  useEffect(load, [load]);
+  useEffect(load, [load, version]); // refreshes in place when the trip changes, keeping your spot on the page
 
   const checked = useMemo(() => new Set(data?.checked ?? []), [data]);
   const all = useMemo(() => (data ? [...data.todo, ...data.packing, ...data.custom] : []), [data]);
@@ -85,7 +102,7 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
 
       {data.stops.length > 0 && (
         <section className="card">
-          <h3>{data.stops.some((s) => s.assumed) ? "Typical weather" : "Weather where you're staying"}</h3>
+          <Fold id={`${tripId}:weather`} title={data.stops.some((s) => s.assumed) ? "Typical weather" : "Weather where you're staying"}>
           {data.stops.some((s) => s.assumed) && (
             <p className="muted small">No city yet, so this is for the country's largest city. Add where you're staying or a flight for your own area.</p>
           )}
@@ -123,10 +140,11 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
           <p className="muted tiny">
             Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo.com</a>. “Typical” uses the same dates over the last 3 years; it switches to the forecast about 2 weeks out.
           </p>
+          </Fold>
         </section>
       )}
 
-      <RemindersCard items={data.todo} checked={checked} />
+      <RemindersCard tripId={tripId} items={data.todo} checked={checked} />
 
       <div className="prep-controls">
         <span className="small">To-do <b>{todo.done}/{todo.total}</b> · Packed <b>{packed.done}/{packed.total}</b></span>
@@ -134,9 +152,11 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
           <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
           <span>Hide done</span>
         </label>
+        <FoldAll ids={[...(data.stops.length ? ["weather"] : []), "reminders", "todo", "packing"].map((key) => `${tripId}:${key}`)} />
       </div>
 
       <PrepSection
+        foldId={`${tripId}:todo`}
         title="Before you go"
         items={section("todo")}
         checked={checked}
@@ -146,6 +166,7 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
         onDelete={(id) => api.deletePrep(tripId, id).then(load)}
       />
       <PrepSection
+        foldId={`${tripId}:packing`}
         title="Packing list"
         items={section("packing")}
         checked={checked}
@@ -159,6 +180,7 @@ export default function PrepareView({ tripId, onCounts }: { tripId: string; onCo
 }
 
 function PrepSection({
+  foldId,
   title,
   items,
   checked,
@@ -167,6 +189,7 @@ function PrepSection({
   onAdd,
   onDelete,
 }: {
+  foldId: string;
   title: string;
   items: PrepItem[];
   checked: Set<string>;
@@ -180,13 +203,13 @@ function PrepSection({
   const groups = [...new Set(items.map((i) => i.group))];
   return (
     <section className="card prep-section">
-      <h3>{title}</h3>
+      <Fold id={foldId} title={title} summary={`${items.filter((i) => checked.has(i.id)).length}/${items.length} done`}>
       {groups.map((g) => {
         const shown = items.filter((i) => i.group === g && !(hideDone && checked.has(i.id)));
         if (!shown.length) return null;
         return (
           <div key={g} className="prep-group">
-            <h5>{g}</h5>
+            <Fold id={`${foldId}:${g}`} heading="h5" title={g} summary={`${shown.filter((i) => !checked.has(i.id)).length} to do`}>
             <ul>
               {shown.map((i) => {
                 const done = checked.has(i.id);
@@ -222,6 +245,7 @@ function PrepSection({
                 );
               })}
             </ul>
+            </Fold>
           </div>
         );
       })}
@@ -237,6 +261,7 @@ function PrepSection({
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Add to ${title.toLowerCase()}…`} aria-label={`Add to ${title}`} />
         <button type="submit" className="secondary" disabled={!text.trim()}>Add</button>
       </form>
+      </Fold>
     </section>
   );
 }

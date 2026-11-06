@@ -1,4 +1,4 @@
-import type { PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import type { DateCard, PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
 /** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
 export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
@@ -82,12 +82,14 @@ export type ListSuggestions = {
   ai: boolean;
   guide?: { restaurants: ListSuggestion[]; food: ListSuggestion[]; activities: ListSuggestion[]; sights: ListSuggestion[] };
   inItinerary?: { title: string; address?: string; lat?: number; lon?: number; tour: string; day: string }[]; // places your tours include
+  byDate?: DateCard[]; // each date: its tour, picks planned for it, and picks close enough to add
+  areasLeft?: AreaGroup[]; // picks that aren't near a tour, grouped by area
   hiddenPicks?: string[]; // your picks that are listed in inItinerary instead
   bookedIdeas?: string[]; // ideas left out because they're on the itinerary already
   bookedPicks?: { id: string; title: string; bookedAs: string; inTour: boolean }[]; // your saved picks that have since been booked
 };
 export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }>;
-export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price">> & { day?: string | null; price?: PriceLevel | null };
+export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price" | "noDescription" | "priceChecked">> & { autoDescribe?: boolean; day?: string | null; price?: PriceLevel | null };
 
 export const api = {
   guideDays: (tripId: string) => request<{ listId: string; from?: string; to?: string }[]>(`/trips/${tripId}/guide-days`),
@@ -100,8 +102,8 @@ export const api = {
   deleteEntry: (listId: string, entryId: string) => request<void>(`/lists/${listId}/entries/${entryId}`, json("DELETE")),
   dismissSuggestion: (listId: string, title: string) => request<void>(`/lists/${listId}/dismiss`, json("POST", { title })),
   essentials: (listId: string) => request<Essentials>(`/lists/${listId}/essentials`),
-  describeEntry: (listId: string, q: string) =>
-    request<{ text?: string; source?: "guide" | "wikipedia"; url?: string }>(`/lists/${listId}/describe?${new URLSearchParams({ q })}`),
+  describeEntry: (listId: string, q: string, kind: ListEntry["kind"]) =>
+    request<{ text?: string; source?: "guide" | "wikipedia"; url?: string }>(`/lists/${listId}/describe?${new URLSearchParams({ q, kind })}`),
   listSuggestions: (listId: string) => request<ListSuggestions>(`/lists/${listId}/suggestions`),
   listPlaces: (tripId: string) => request<TripPlace[]>(`/trips/${tripId}/list-places`),
   areas: (tripId: string) => request<AreaGroup[]>(`/trips/${tripId}/areas`),

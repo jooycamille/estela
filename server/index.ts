@@ -4,19 +4,20 @@ import { fileURLToPath } from "node:url";
 import "./env.ts";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type TravellerView, type Trip, type User } from "../shared/types.ts";
+import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
+import { listTheme } from "../shared/lists.ts";
 import { aiEnabled } from "./ai.ts";
 import { getAirport, searchAirports } from "./airports.ts";
 import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
 import { buildPrep } from "./prep.ts";
-import { describe } from "./describe.ts";
+import { describe, describeEntry } from "./describe.ts";
 import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signOut, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
 import { emailConfigured, sendEmail } from "./mailer.ts";
 import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
 import type { UserRecord } from "./db.ts";
 import { essentialsFor } from "./essentials.ts";
-import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideDays, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, locateEntry } from "./lists.ts";
+import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideDays, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, fillPrice, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { assumedStops, tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
@@ -744,6 +745,26 @@ const EntryInput = z.object({
 
 const getList = (id: string) => db.lists.find((l) => l.id === id);
 
+/** Is this a dish or drink, so that a description must be about food? */
+const isFood = (list: TripList, kind: ListEntry["kind"]) => {
+  if (kind !== "thing") return false;
+  const theme = listTheme(list.name, list.emoji);
+  return !!list.auto || theme === "food" || theme === "drinks";
+};
+
+/** Food entries saved with no description, for instance when Wikipedia couldn't be reached at the time. */
+async function fillMissingDescriptions() {
+  for (const list of db.lists) {
+    for (const entry of list.entries) {
+      if (entry.kind === "thing" && !entry.notes && !entry.noDescription) {
+        await describeEntry(entry, list.place?.countryCode, isFood(list, entry.kind)).then(save).catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // go gently on a free service
+      }
+      await fillPrice(entry, list).then(save).catch((e) => console.warn(`Couldn't look up a restaurant's price: ${(e as Error).message}`));
+    }
+  }
+}
+
 app.get("/api/trips/:id/lists", (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return res.status(404).json({ error: "Trip not found" });
@@ -789,7 +810,7 @@ app.post("/api/lists/:id/entries", async (req, res) => {
   const list = getList(req.params.id);
   const trip = list && getTrip(list.tripId);
   if (!list || !trip) return res.status(404).json({ error: "List not found" });
-  const input = EntryInput.parse(req.body);
+  const { autoDescribe, ...input } = EntryInput.extend({ autoDescribe: z.boolean().optional() }).parse(req.body); // false: you cleared it yourself
   let entry: ListEntry = { ...input, day: input.day ?? undefined, price: input.price ?? undefined, id: newId(), done: input.done ?? false, addedAt: now() };
   // Find it on the map (for grouping nearby places) unless it was picked there already.
   entry = await locateEntry(entry, list, trip, tripItems(trip.id)).catch(() => entry);
@@ -798,6 +819,15 @@ app.post("/api/lists/:id/entries", async (req, res) => {
   if (!entry.links?.some((l) => l.label !== "Wikipedia")) entry.links = [...(entryLinks(entry, list, trip, tripItems(trip.id)) ?? []), ...(entry.links ?? [])];
   list.entries.push(entry);
   save();
+  // Comes with a description unless you wrote your own, and a restaurant with its price. If that's slow, it arrives
+  // with the next refresh.
+  const added = entry;
+  const lookups: Promise<unknown>[] = [fillPrice(added, list).then(save).catch((e) => console.warn(`Couldn't look up a restaurant's price: ${(e as Error).message}`))];
+  if (added.kind !== "place" && !added.notes) {
+    if (autoDescribe === false) added.noDescription = true;
+    else lookups.push(describeEntry(added, list.place?.countryCode, isFood(list, added.kind)).then(save).catch(() => undefined));
+  }
+  await Promise.race([Promise.all(lookups), new Promise((resolve) => setTimeout(resolve, 3000))]);
   res.status(201).json(entry);
 });
 
@@ -809,11 +839,16 @@ app.patch("/api/lists/:id/entries/:entryId", async (req, res) => {
   const input = EntryInput.partial().parse(req.body);
   const moved = input.title !== undefined && input.title !== entry.title && input.lat === undefined;
   Object.assign(entry, { ...input, day: input.day === undefined ? entry.day : input.day ?? undefined, price: input.price === undefined ? entry.price : input.price ?? undefined });
+  if ("notes" in req.body) entry.noDescription = !entry.notes; // cleared by you stays cleared
+  if ("price" in req.body) entry.priceChecked = true; // likewise
   // Renamed or changed to a place without picking it on the map: look it up again.
   if (moved || (input.kind === "place" && entry.lat === undefined)) {
     Object.assign(entry, { lat: undefined, lon: undefined, area: undefined });
     Object.assign(entry, await locateEntry(entry, list, trip, tripItems(trip.id)).catch(() => entry));
   }
+  // Renamed: it's a different place now, so its price is too.
+  if (moved && !("price" in req.body)) Object.assign(entry, { price: undefined, priceChecked: undefined });
+  await fillPrice(entry, list).catch(() => undefined);
   save();
   res.json(entry);
 });
@@ -841,7 +876,8 @@ app.get("/api/lists/:id/describe", async (req, res) => {
   if (!list) return void res.status(404).json({ error: "List not found" });
   const q = z.string().trim().min(1).max(160).safeParse(req.query.q);
   if (!q.success) return void res.json({});
-  res.json((await describe(q.data, list.place?.countryCode).catch(() => undefined)) ?? {});
+  const kind = req.query.kind === "thing" ? "thing" : "activity";
+  res.json((await describe(q.data, list.place?.countryCode, isFood(list, kind)).catch(() => undefined)) ?? {});
 });
 
 app.get("/api/lists/:id/suggestions", async (req, res) => {
@@ -1161,4 +1197,6 @@ app.listen(port, host, (err?: Error) => {
   startFlightPoller();
   startReminderLoop(checklistFor);
   startInboxPoller();
+  fillMissingDescriptions();
+  setInterval(fillMissingDescriptions, 30 * 60_000);
 });

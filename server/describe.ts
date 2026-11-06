@@ -1,3 +1,4 @@
+import type { ListEntry } from "../shared/types.ts";
 import { IDEAS } from "./listIdeas.ts";
 
 // A short description for something you typed into a list: Joy's own guide first, then Wikipedia (free, no key). A wrong
@@ -10,6 +11,13 @@ const stem = (w: string) => (w.length > 4 ? w.replace(/(?:es|s)$/, "") : w);
 const words = (s: string) => fold(s).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2).map(stem);
 const FILLER = new Set(["the", "and", "with", "for", "from", "try", "visit", "tour", "class", "lesson", "tasting", "experience", "trip", "day", "local", "best", "ride", "walk", "de", "la", "el", "los", "las", "en", "al"].map(stem));
 const meaningful = (s: string) => words(s).filter((w) => !FILLER.has(w));
+
+// What an article about something to eat or drink says near the start. "Corvina" is a fish on a Panama menu, but
+// Wikipedia's page is a wine grape, so "wine" alone doesn't count.
+const FOOD_WORDS = new Set(
+  ["food", "dish", "cuisine", "stew", "soup", "meat", "beef", "pork", "chicken", "seafood", "bread", "pastry", "dessert", "snack", "sauce", "tortilla", "taco", "corn", "maize", "rice", "bean", "cheese", "noodle", "dumpling", "cake", "candy", "fritter", "sandwich", "drink", "beverage", "coffee", "cocktail", "beer", "liquor", "spirit", "cooked", "fried", "grilled", "baked", "braised", "roasted", "steamed", "stewed", "marinated", "barbecue", "cooking", "eaten", "culinary", "recipe", "ingredient"].map(stem),
+);
+const aboutFood = (extract: string) => words(extract.slice(0, 300)).some((w) => FOOD_WORDS.has(w));
 
 export function fromGuide(name: string, countryCode?: string): Description | undefined {
   const wanted = meaningful(name);
@@ -51,13 +59,19 @@ export function tidyExtract(extract: string) {
 
 type Page = { title: string; index?: number; extract?: string; pageprops?: { disambiguation?: string } };
 
+// Only at the start: a good article can say "may refer to" further down, about something else.
+const listsMeanings = (extract: string) => /\bmay refer to\b/i.test(extract.slice(0, 120));
+
 /** The first search result that's really about this: named by it, or naming it right at the start of the article. */
-export function pickPage(name: string, pages: Page[]): Page | undefined {
+export function pickPage(name: string, pages: Page[], food = false): Page | undefined {
   const wanted = meaningful(name);
   if (!wanted.length) return;
-  const sorted = [...pages].sort((a, b) => (a.index ?? 9) - (b.index ?? 9));
-  return sorted.find((p) => {
-    if (p.pageprops || !p.extract || /\bmay refer to\b/i.test(p.extract)) return false;
+  const sorted = [...pages].sort((a, b) => (a.index ?? 9) - (b.index ?? 9)).filter((p) => !food || !p.extract || aboutFood(p.extract));
+  // An article with exactly this name beats one that merely mentions it ("Barbacoa" isn't Birria, a kind of barbacoa).
+  const exact = sorted.find((p) => !p.pageprops && p.extract && !listsMeanings(p.extract) && meaningful(p.title).sort().join(" ") === [...wanted].sort().join(" "));
+  if (exact) return exact;
+  const found = sorted.find((p) => {
+    if (p.pageprops || !p.extract || listsMeanings(p.extract)) return false;
     const title = meaningful(p.title);
     const covered = title.filter((w) => wanted.includes(w)).length;
     const article = new Set(words(p.extract));
@@ -68,33 +82,48 @@ export function pickPage(name: string, pages: Page[]): Page | undefined {
     const opening = new Set(words(p.extract.slice(0, 300)));
     return wanted.length === 1 && opening.has(wanted[0]);
   });
+  if (found || !food) return found;
+  // "Tacos de carnitas": an article on carnitas needn't mention tacos, as long as that's its whole subject.
+  const filling = name.trim().match(/^\S+\s+(?:de|del|con)\s+(.+)$/i)?.[1];
+  if (!filling) return;
+  const subject = meaningful(filling).sort().join(" ");
+  return sorted.find((p) => !p.pageprops && p.extract && !listsMeanings(p.extract) && meaningful(p.title).sort().join(" ") === subject);
 }
 
 const cache = new Map<string, Description | null>();
 
-async function fromWikipedia(name: string): Promise<Description | undefined> {
+async function fromWikipedia(name: string, food: boolean): Promise<Description | undefined> {
   const params = new URLSearchParams({
-    action: "query", generator: "search", gsrsearch: name, gsrlimit: "3", prop: "extracts|pageprops", exintro: "1", explaintext: "1",
-    exsentences: "3", exlimit: "3", ppprop: "disambiguation", format: "json", origin: "*",
+    action: "query", generator: "search", gsrsearch: name, gsrlimit: "5", prop: "extracts|pageprops", exintro: "1", explaintext: "1",
+    exsentences: "3", exlimit: "5", ppprop: "disambiguation", format: "json", origin: "*",
   });
-  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "HeyJoy-travel-app/0.1" }, signal: AbortSignal.timeout(4000) });
+  const ask = () => fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "HeyJoy-travel-app/0.1" }, signal: AbortSignal.timeout(5000) });
+  const res = await ask().catch(ask); // one more go: the first request after a quiet spell can be slow
   if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`);
   const data = (await res.json()) as { query?: { pages?: Record<string, Page> } };
-  const page = pickPage(name, Object.values(data.query?.pages ?? {}));
+  const page = pickPage(name, Object.values(data.query?.pages ?? {}), food);
   if (!page?.extract) return;
   const text = tidyExtract(page.extract);
   return text ? { text, source: "wikipedia", url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}` } : undefined;
 }
 
-export async function describe(name: string, countryCode?: string): Promise<Description | undefined> {
+export async function describe(name: string, countryCode?: string, food = false): Promise<Description | undefined> {
   const clean = name.trim();
   if (clean.length < 3) return;
   const known = fromGuide(clean, countryCode);
   if (known) return known;
-  const key = fold(clean);
+  const key = `${food ? "food:" : ""}${fold(clean)}`;
   if (cache.has(key)) return cache.get(key) ?? undefined;
   // Only a real answer is remembered: a failed request (rate limited, offline) throws, so it can be tried again.
-  const found = await fromWikipedia(clean);
+  const found = await fromWikipedia(clean, food);
   cache.set(key, found ?? null);
   return found;
+}
+
+/** Fills in a list entry's description. A failed lookup throws, and an entry left blank can be tried again later. */
+export async function describeEntry(entry: ListEntry, countryCode?: string, food = false) {
+  const found = await describe(entry.title, countryCode, food);
+  if (!found || entry.notes) return;
+  entry.notes = found.text;
+  if (found.url) entry.links = [...(entry.links ?? []), { label: "Wikipedia", url: found.url }];
 }

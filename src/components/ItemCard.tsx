@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cancellationOf, type Cancellation } from "../../shared/cancellation.ts";
 import type { ActivityItem, DraftItem, FlightItem, IncludedPlace, ItineraryItem } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import { activityDays } from "../../shared/days.ts";
 import { formatDay, formatTime, formatTimeOn } from "../format.ts";
 import ItemForm from "./ItemForm.tsx";
 import LodgingField from "./LodgingField.tsx";
@@ -207,8 +208,13 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
   );
 }
 
-export default function ItemCard({ item, mockFlights, onChange, linkedFlight }: { item: ItineraryItem; mockFlights: boolean; onChange: () => void; linkedFlight?: FlightItem }) {
+export default function ItemCard({ item, day, mockFlights, onChange, linkedFlight }: { item: ItineraryItem; day?: string; mockFlights: boolean; onChange: () => void; linkedFlight?: FlightItem }) {
   const [editing, setEditing] = useState(false);
+  // An activity over several days has a card on each: which day of it this is.
+  const runsOn = item.kind === "activity" ? activityDays(item) : [];
+  const dayIndex = runsOn.length > 1 && day ? runsOn.indexOf(day) : -1;
+  const isLaterDay = dayIndex > 0;
+  const isLastDay = isLaterDay && dayIndex === runsOn.length - 1;
   // The driver tracks the flight, so a pick-up is when it really lands (demo flight data aside).
   const landsAt = linkedFlight && item.kind === "activity" && item.transferLeg === "pickup"
     ? (linkedFlight.live?.provider === "mock" ? undefined : linkedFlight.live?.arrivalTime) ?? linkedFlight.arrivalTime
@@ -234,8 +240,10 @@ export default function ItemCard({ item, mockFlights, onChange, linkedFlight }: 
 
   return (
     <div className={`item ${item.kind}`}>
-      <div className="item-time">
-        {formatTime(item.kind === "flight" ? item.live?.departureTime ?? item.departureTime : item.kind === "stay" ? item.checkIn : item.start)}
+      <div className={`item-time ${isLaterDay ? "later-day" : ""}`}>
+        {item.kind === "activity" && isLaterDay
+          ? isLastDay ? `Until ${formatTime(item.end)}` : "All day"
+          : formatTime(item.kind === "flight" ? item.live?.departureTime ?? item.departureTime : item.kind === "stay" ? item.checkIn : item.start)}
       </div>
       <div className="item-body">
         {item.kind === "flight" && <FlightBody f={item} mockFlights={mockFlights} onChange={onChange} />}
@@ -253,11 +261,13 @@ export default function ItemCard({ item, mockFlights, onChange, linkedFlight }: 
           <>
             <div className="row">
               <strong><span className="item-icon" aria-hidden="true">{itemIcon(item)}</span>{item.title}</strong>
+              {dayIndex >= 0 && <span className="tag day-of">Day {dayIndex + 1} of {runsOn.length}</span>}
               {item.category && <span className="tag">{item.category}</span>}
               <CancelTag terms={cancellationOf(item)} />
             </div>
             <div className="row small">
               <span>
+                {dayIndex >= 0 && `${formatDay(item.start)} `}
                 {formatTime(landsAt ?? item.start)}
                 {item.end && ` – ${formatTimeOn(item.end, item.start)}`}
               </span>
@@ -303,7 +313,7 @@ export default function ItemCard({ item, mockFlights, onChange, linkedFlight }: 
         <button className="link" onClick={() => setEditing(true)}>Edit</button>
         <button
           className="link danger"
-          onClick={() => confirm("Delete this item?") && api.deleteItem(item.id).then(onChange)}
+          onClick={() => confirm(dayIndex >= 0 ? `Delete this from all ${runsOn.length} days?` : "Delete this item?") && api.deleteItem(item.id).then(onChange)}
         >
           Delete
         </button>

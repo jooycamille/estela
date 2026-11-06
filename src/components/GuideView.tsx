@@ -1,9 +1,11 @@
-import { formatDay } from "../format.ts";
-import { useCallback, useEffect, useState } from "react";
+import { formatDay, formatTimeOn } from "../format.ts";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { STYLE_LABELS } from "../../shared/lists.ts";
-import type { AreaGroup, EssentialKind, Essentials, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
+import type { DateCard, EssentialKind, Essentials, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
 import { api, type ListSuggestions } from "../api.ts";
 import { AddEntry, AreaCard, EntryRow, IdeaCard, tripDays, type AddOption } from "./ListView.tsx";
+import { useStickBelowHeader } from "./DayStrip.tsx";
+import Fold, { expand, FoldAll } from "./Fold.tsx";
 import { PRICE_LABEL } from "./Price.tsx";
 
 // A destination guide Joy makes for each city you stay in: what to eat, do and see (matched to your travel styles),
@@ -44,7 +46,6 @@ export default function GuideView({
 }) {
   const days = tripDays(trip);
   const [ideas, setIdeas] = useState<ListSuggestions>();
-  const [areas, setAreas] = useState<AreaGroup[]>([]);
   const [error, setError] = useState<string>();
   const [expanded, setExpanded] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [adding, setAdding] = useState(false);
@@ -54,7 +55,6 @@ export default function GuideView({
   const signature = list.entries.map((e) => `${e.id}${e.day}${e.lat}`).join("|") + (list.dismissed ?? []).length;
   const refresh = useCallback(() => {
     api.listSuggestions(list.id).then(setIdeas).catch(() => setIdeas(undefined));
-    api.areas(trip.id).then(setAreas).catch(() => setAreas([]));
   }, [list.id, trip.id]);
   useEffect(refresh, [refresh, signature]);
 
@@ -73,22 +73,14 @@ export default function GuideView({
   // Picks you've since booked are on the itinerary, so they're out of the way here (still saved).
   const booked = new Set([...(ideas?.bookedPicks?.map((p) => p.id) ?? []), ...(ideas?.hiddenPicks ?? [])]);
   const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key && !booked.has(e.id)) })).filter((s) => s.entries.length);
-  // Places in your tours, a column for each tour's date (the server sends them in date order).
-  const tourDays = (ideas?.inItinerary ?? []).reduce<{ day: string; tour: string; places: NonNullable<ListSuggestions["inItinerary"]> }[]>((days, p) => {
-    const same = days.find((d) => d.day === p.day && d.tour === p.tour);
-    if (same) same.places.push(p);
-    else days.push({ day: p.day, tour: p.tour, places: [p] });
-    return days;
-  }, []);
-  const myAreas = areas
-    .map((g) => ({ ...g, entries: g.entries.filter((e) => !booked.has(e.id)) }))
-    .filter((g) => g.entries.some((e) => e.listId === list.id));
+  const dateCards = ideas?.byDate ?? [];
+  const areasLeft = ideas?.areasLeft ?? [];
+  const toAdd = dateCards.reduce((n, c) => n + c.nearby.length, 0);
   const options: AddOption[] = SECTIONS.map((s) => ({
     key: s.key,
     ...s.add,
     label: `${s.icon} ${s.one}`,
     placeholder: s.key === "food" ? "e.g. Tacos al pastor" : s.key === "activities" ? "e.g. Salsa class" : undefined,
-    priced: s.key === "restaurants",
   }));
 
   return (
@@ -100,92 +92,74 @@ export default function GuideView({
             Joy's guide, made for this stop on your trip
             {trip.styles.length > 0 && <> · for your style: {trip.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}</>}
           </p>
-          <nav className="guide-nav" aria-label="Guide sections">
-            {/* Buttons, not #links: the app's routing lives in the URL hash, so changing it would leave the trip. */}
-            {[{ key: "essentials", label: "🆘 Essentials nearby" }, ...SECTIONS.map((s) => ({ key: s.key, label: `${s.icon} ${s.title.replace(" for your style", "")}` }))].map((n) => (
-              <button
-                key={n.key}
-                type="button"
-                onClick={() => document.getElementById(`${list.id}-${n.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              >
-                {n.label}
-              </button>
-            ))}
-          </nav>
         </div>
       </div>
+
+      <SectionBar
+        listId={list.id}
+        sections={[
+          { key: "essentials", label: "🆘 Essentials" },
+          ...(dateCards.length || areasLeft.length ? [{ key: "dates", label: "📅 Plan by date" }] : []),
+          { key: "picks", label: "⭐ Your picks" },
+          ...(ideas?.guide ? SECTIONS.map((s) => ({ key: s.key, label: `${s.icon} ${s.title.replace(" for your style", "")}` })) : []),
+        ]}
+      />
 
       {error && <p className="error">{error}</p>}
 
       {/* Safety first: emergency number, pharmacies, hospitals, police and ATMs near where you're staying. */}
       <EssentialsCard list={list} />
 
-      {myAreas.length > 0 && (
-        <section className="card areas">
-          <h3>🗺️ Plan by area</h3>
-          <p className="muted small">Your picks that are close together, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.</p>
-          {myAreas.map((g) => (
-            <AreaCard key={g.entries.map((e) => e.id).join()} group={g} listId={list.id} days={days} onPlan={(day) =>
-              act(() => api.planDay(trip.id, day, g.entries.map((e) => ({ listId: e.listId, entryId: e.id }))))
-            } />
-          ))}
-        </section>
-      )}
-
-      {tourDays.length > 0 && (
-        <section className="card areas by-date">
-          <h3>📅 Your places by date</h3>
-          <p className="muted small">Part of your tours, so there's no need to plan them separately.</p>
-          {tourDays.map((d) => {
-            const key = `${d.day}|${d.tour}`;
-            const open = openRows.has(key);
+      {(dateCards.length > 0 || areasLeft.length > 0) && (
+        <section id={`${list.id}-dates`} className="card areas by-date guide-part">
+          <Fold id={`${list.id}:dates`} title="📅 Plan by date" summary={toAdd ? `${toAdd} nearby to add` : dateCards.length || undefined}>
+          {dateCards.length > 0 && <p className="muted small">What's on each date, and places on your list close enough to add. Tour stops are already covered.</p>}
+          {dateCards.map((c) => {
+            const key = `${c.day}|${c.tour ?? ""}`;
             return (
-              <div key={key} className="area by-date-card">
-                <div className="area-head">
-                  <button type="button" className="link plain by-date-day" title="Show this day in your itinerary" onClick={() => onShowDay(d.day)}><b>{formatDay(d.day)}</b></button>
-                  <span className="muted small"> · {d.tour} · {d.places.length} place{d.places.length === 1 ? "" : "s"}</span>
-                </div>
-                <ol className="by-date-places">
-                  {(open ? d.places : d.places.slice(0, ROW_PLACES)).map((p) => (
-                    <li key={p.title} className="small">
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.lat !== undefined ? `${p.lat},${p.lon}` : p.address ?? `${p.title}, ${list.name}`)}`} target="_blank" rel="noopener noreferrer" title="Open in Maps">
-                        <span aria-hidden="true">📍</span> {p.title}
-                      </a>
-                    </li>
-                  ))}
-                </ol>
-                {d.places.length > ROW_PLACES && (
-                  <button
-                    type="button"
-                    className="link tiny by-date-more"
-                    aria-expanded={open}
-                    onClick={() =>
-                      setOpenRows((rows) => {
-                        const next = new Set(rows);
-                        if (!next.delete(key)) next.add(key);
-                        return next;
-                      })
-                    }
-                  >
-                    {open ? "Show less" : `+${d.places.length - ROW_PLACES} more`}
-                  </button>
-                )}
-              </div>
+              <DateRow
+                key={key}
+                card={c}
+                listName={list.name}
+                open={openRows.has(key)}
+                onToggle={() =>
+                  setOpenRows((rows) => {
+                    const next = new Set(rows);
+                    if (!next.delete(key)) next.add(key);
+                    return next;
+                  })
+                }
+                onShowDay={() => onShowDay(c.day)}
+                onPlan={(day, entries) => act(() => api.planDay(trip.id, day, entries.map((e) => ({ listId: e.listId, entryId: e.id }))))}
+              />
             );
           })}
+          {areasLeft.length > 0 && (
+            <div className="areas-left">
+              <h4>{dateCards.length ? "Your other picks, by area" : "Your picks, by area"}</h4>
+              <p className="muted small">Close together, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.</p>
+              {areasLeft.map((g) => (
+                <AreaCard key={g.entries.map((e) => e.id).join()} group={g} listId={list.id} days={days} onPlan={(day) =>
+                  act(() => api.planDay(trip.id, day, g.entries.map((e) => ({ listId: e.listId, entryId: e.id }))))
+                } />
+              ))}
+            </div>
+          )}
+          </Fold>
         </section>
       )}
 
-      <section className="card">
-        <h3>⭐ Your picks</h3>
+      <section id={`${list.id}-picks`} className="card guide-part">
+        <Fold id={`${list.id}:picks`} title="⭐ Your picks" summary={picks.reduce((n, s) => n + s.entries.length, 0)}>
         {picks.length === 0 && <p className="muted small">Tap <b>+ Add</b> on anything below to save it here.</p>}
         <button type="button" className="link add-own edit-only" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
           {adding ? "Close" : "+ Add your own"}
         </button>
+        {adding && <AddEntry list={list} tripId={trip.id} options={options} onAdd={(body) => act(() => api.addEntry(list.id, body))} />}
         <div className="list-columns">
           {picks.map((s) => (
             <div key={s.key} className="list-col">
-              <h4>{s.icon} {s.title.replace(" for your style", "")} <span className="muted small">{s.entries.length}</span></h4>
+              <Fold id={`${list.id}:picks:${s.key}`} heading="h4" title={<>{s.icon} {s.title.replace(" for your style", "")} <span className="muted small">{s.entries.length}</span></>}>
               <ul className="entries">
                 {s.entries.map((e) => (
                   <EntryRow
@@ -199,6 +173,7 @@ export default function GuideView({
                   />
                 ))}
               </ul>
+              </Fold>
             </div>
           ))}
         </div>
@@ -208,9 +183,8 @@ export default function GuideView({
             {ideas!.bookedPicks!.map((p) => p.title).join(" · ")}
           </p>
         )}
+        </Fold>
       </section>
-
-      {adding && <AddEntry list={list} tripId={trip.id} options={options} onAdd={(body) => act(() => api.addEntry(list.id, body))} />}
 
       {!ideas && <p className="muted">Joy is putting your guide together…</p>}
       {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
@@ -223,7 +197,7 @@ export default function GuideView({
           const shown = expanded[s.key] ? all : all.slice(0, 6);
           return (
             <section key={s.key} id={`${list.id}-${s.key}`} className="card list-ideas guide-section">
-              <h3>{s.icon} {s.title}</h3>
+              <Fold id={`${list.id}:${s.key}`} title={<>{s.icon} {s.title}</>} summary={all.length}>
               {s.key === "restaurants" && (
                 <>
                   <div className="price-filter" role="radiogroup" aria-label="Price">
@@ -264,6 +238,7 @@ export default function GuideView({
                   {expanded[s.key] ? "Show fewer" : `Show ${all.length - 6} more`}
                 </button>
               )}
+              </Fold>
             </section>
           );
         })}
@@ -276,6 +251,139 @@ export default function GuideView({
         </div>
       )}
 
+    </div>
+  );
+}
+
+function DateRow({
+  card,
+  listName,
+  open,
+  onToggle,
+  onShowDay,
+  onPlan,
+}: {
+  card: DateCard;
+  listName: string;
+  open: boolean;
+  onToggle: () => void;
+  onShowDay: () => void;
+  onPlan: (day: string | null, entries: { listId: string; id: string }[]) => void;
+}) {
+  const stops = card.places.length;
+  return (
+    <div className="area by-date-card">
+      <div className="area-head">
+        <button type="button" className="link plain by-date-day" title="Show this day in your itinerary" onClick={onShowDay}><b>{formatDay(card.day)}</b></button>
+        {card.tour && <span className="muted small"> · {card.tour}{card.tourStart && ` · ${card.tourStart}${card.tourEnd ? `–${formatTimeOn(card.tourEnd, card.day)}` : ""}`} · {stops} place{stops === 1 ? "" : "s"}</span>}
+      </div>
+      {stops > 0 && (
+        <ol className="by-date-places">
+          {(open ? card.places : card.places.slice(0, ROW_PLACES)).map((p) => (
+            <li key={p.title} className="small">
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.lat !== undefined ? `${p.lat},${p.lon}` : p.address ?? `${p.title}, ${listName}`)}`} target="_blank" rel="noopener noreferrer" title="Open in Maps">
+                <span aria-hidden="true">📍</span> {p.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      )}
+      {stops > ROW_PLACES && (
+        <button type="button" className="link tiny by-date-more" aria-expanded={open} onClick={onToggle}>
+          {open ? "Show less" : `+${stops - ROW_PLACES} more`}
+        </button>
+      )}
+      {card.planned.length > 0 && (
+        <ul className="by-date-picks">
+          {card.planned.map((e) => (
+            <li key={e.id} className="small">
+              <span>⭐ <b>{e.title}</b> <span className="muted tiny">· added to this day</span></span>
+              <button type="button" className="link muted-link edit-only" onClick={() => onPlan(null, [e])}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {card.free?.room === 0 && <p className="muted tiny by-date-full">⏰ Not much free time this day, so nothing more is suggested.</p>}
+      {card.nearby.length > 0 && (
+        <div className="by-date-nearby">
+          <div className="by-date-nearby-head">
+            <span className="small"><b>✨ On your list, close by</b></span>
+            {card.nearby.length > 1 && card.nearby.length <= (card.free?.room ?? 0) && <button type="button" className="link edit-only" onClick={() => onPlan(card.day, card.nearby)}>Add all {card.nearby.length}</button>}
+          </div>
+          {card.free && <div className="muted tiny">Free {card.free.from}–{card.free.to}, time for about {card.free.room}</div>}
+          <ul className="by-date-picks">
+            {card.nearby.map((e) => (
+              <li key={e.id} className="small">
+                <span>{e.title} <span className="muted tiny">· {e.km < 0.1 ? "next to" : `${e.km} km from`} {e.near}</span></span>
+                <button type="button" className="link edit-only" onClick={() => onPlan(card.day, [e])}>+ Add to this day</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Stays in view as you scroll, like the dates in the itinerary, to move between the guide's sections. */
+function SectionBar({ listId, sections }: { listId: string; sections: { key: string; label: string }[] }) {
+  useStickBelowHeader();
+  const bar = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(sections[0]?.key);
+  const signature = sections.map((s) => s.key).join();
+
+  // Highlight the section nearest the top of the screen, or the last one once there's no further to scroll.
+  useEffect(() => {
+    const onScroll = () => {
+      const offset = (bar.current?.getBoundingClientRect().bottom ?? 120) + 12;
+      const keys = signature.split(",");
+      const atEnd = window.scrollY > 0 && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      let current = keys[0];
+      for (const key of keys) {
+        const el = document.getElementById(`${listId}-${key}`);
+        if (el && el.getBoundingClientRect().top <= offset) current = key;
+      }
+      setActive(atEnd ? keys[keys.length - 1] : current);
+    };
+    onScroll();
+    addEventListener("scroll", onScroll, { passive: true });
+    addEventListener("resize", onScroll);
+    return () => {
+      removeEventListener("scroll", onScroll);
+      removeEventListener("resize", onScroll);
+    };
+  }, [listId, signature]);
+
+  // Keep the highlighted one visible in the bar (it scrolls sideways on phones). Instant, so the page's own smooth
+  // scroll isn't cancelled.
+  useEffect(() => {
+    const chip = bar.current?.querySelector<HTMLElement>(`[data-section="${active}"]`);
+    const row = chip?.parentElement;
+    if (chip && row) row.scrollTo({ left: chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2 });
+  }, [active]);
+
+  const jump = (key: string) => {
+    expand(`${listId}:${key}`);
+    // Once it has opened, land just below the header and this bar.
+    setTimeout(() => {
+      const el = document.getElementById(`${listId}-${key}`);
+      const header = document.querySelector(".topbar")?.getBoundingClientRect().height ?? 60;
+      const height = bar.current?.getBoundingClientRect().height ?? 50;
+      if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - header - height - 8, behavior: "smooth" });
+    });
+  };
+
+  return (
+    <div className="guide-bar" ref={bar}>
+      <nav className="guide-nav" aria-label="Guide sections">
+        {/* Buttons, not #links: the app's routing lives in the URL hash, so changing it would leave the trip. */}
+        {sections.map((s) => (
+          <button key={s.key} type="button" data-section={s.key} className={active === s.key ? "on" : ""} aria-current={active === s.key ? "true" : undefined} onClick={() => jump(s.key)}>
+            {s.label}
+          </button>
+        ))}
+      </nav>
+      <FoldAll ids={sections.map((s) => `${listId}:${s.key}`)} />
     </div>
   );
 }
@@ -293,7 +401,7 @@ function EssentialsCard({ list }: { list: TripList }) {
 
   return (
     <section id={`${list.id}-essentials`} className="card essentials">
-      <h3>🆘 Essentials near where you're staying</h3>
+      <Fold id={`${list.id}:essentials`} title="🆘 Essentials near where you're staying" summary={data?.emergency ? `Emergency: ${data.emergency.number}` : undefined}>
       {data?.emergency && (
         <p className="emergency">
           Emergency number in {list.name}: <a href={`tel:${data.emergency.number}`}><b>{data.emergency.number}</b></a>
@@ -340,6 +448,7 @@ function EssentialsCard({ list }: { list: TripList }) {
         Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors. Distances are
         straight-line; tap a name for directions. In an emergency, call the number above first.
       </p>
+      </Fold>
     </section>
   );
 }

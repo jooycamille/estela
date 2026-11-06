@@ -336,6 +336,8 @@ export interface ListEntry {
   done: boolean; // been there / tried it
   day?: string; // YYYY-MM-DD it's planned for
   addedAt: string;
+  priceChecked?: boolean; // restaurants: the price has been looked for, or you've set it yourself: not looked up again
+  noDescription?: boolean; // you cleared the description yourself, so it isn't filled in again
 }
 
 export interface TripList {
@@ -372,6 +374,18 @@ export interface AreaGroup {
   entries: (ListEntry & { listId: string; listEmoji: string; listName: string })[];
   suggestedDays: string[]; // days you're nearby with little else on
   routeUrl?: string; // Google Maps directions through them, in walking order
+}
+
+/** One date in a guide: what's on, and places on your lists that are close enough to add. */
+export interface DateCard {
+  day: string;
+  tour?: string;
+  tourStart?: string; // HH:mm
+  tourEnd?: string; // YYYY-MM-DDTHH:mm, which may be a later day
+  free?: { from: string; to: string; room: number }; // the longest free stretch that day, and how many more places fit
+  places: { title: string; address?: string; lat?: number; lon?: number }[]; // what the tour includes
+  planned: AreaGroup["entries"]; // picks you've already put on this date
+  nearby: (AreaGroup["entries"][number] & { km: number; near: string })[]; // unplanned picks close to the tour's places
 }
 
 // ---------- Nearby essentials (per stay) ----------

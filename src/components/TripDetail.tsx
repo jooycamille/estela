@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
 import { api, saveTripOffline, type DayPlans } from "../api.ts";
+import { rememberPlace, restoredPlace } from "../pagePlace.ts";
 import { formatDateRange, formatDay } from "../format.ts";
 import { flightForTransfer } from "../../shared/cancellation.ts";
+import { activityDays } from "../../shared/days.ts";
 import DayStrip, { dayId, type DayInfo } from "./DayStrip.tsx";
+import Fold, { expand, FoldAll } from "./Fold.tsx";
 import EmailImport from "./EmailImport.tsx";
 import ItemCard from "./ItemCard.tsx";
 import ItemForm, { KIND_LABEL, type Kind } from "./ItemForm.tsx";
@@ -41,22 +44,28 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const [panel, setPanel] = useState<Panel>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [version, setVersion] = useState(0);
-  const [category, setCategory] = useState<Category>("all");
+  const [restored] = useState(restoredPlace); // after a reload, back to the tab and guide you had open
+  const [category, setCategory] = useState<Category>((restored.category as Category | undefined) ?? "all");
   const [lists, setLists] = useState<TripList[]>([]);
+  const [listsLoaded, setListsLoaded] = useState(false);
   const [plans, setPlans] = useState<DayPlans>({});
-  const [view, setView] = useState<"itinerary" | "prepare" | "ideas">(initialView ?? "itinerary");
+  const [view, setView] = useState<"itinerary" | "prepare" | "ideas">((restored.view as "itinerary" | "prepare" | "ideas" | undefined) ?? initialView ?? "itinerary");
   const [ideaCount, setIdeaCount] = useState(0);
   // In the Suggestions tab: Joy's tips, or one of the city guides / your lists (by id).
-  const [ideaSection, setIdeaSection] = useState<string>("tips");
+  const [ideaSection, setIdeaSection] = useState<string>(restored.section ?? "tips");
   const [emptyDay, setEmptyDay] = useState<string>(); // a day with nothing on it, picked in the date strip
   const [openTodos, setOpenTodos] = useState(0);
   const [addedPlace, setAddedPlace] = useState<AddedPlace>(); // the note after adding one, with where to find it
 
   const load = useCallback(() => {
     api.trip(tripId).then((d) => { setData(d); setVersion((v) => v + 1); }).catch((e) => setError(e.message));
-    api.lists(tripId).then(setLists).catch(() => undefined);
+    api.lists(tripId).then((l) => { setLists(l); setListsLoaded(true); }).catch(() => undefined);
     api.dayPlans(tripId).then(setPlans).catch(() => undefined);
   }, [tripId]);
+
+  useEffect(() => {
+    rememberPlace({ view, section: ideaSection, category });
+  }, [view, ideaSection, category]);
 
   useEffect(() => {
     load();
@@ -88,12 +97,11 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
     );
   }
 
-  // Group by day; stays also show on check-out day.
+  // Group by day. An activity that runs for several days shows on each of them.
   const byDay = new Map<string, ItineraryItem[]>();
   const shown = category === "all" ? items : items.filter((i) => i.kind === category);
   for (const item of [...shown].sort((a, b) => startOf(a).localeCompare(startOf(b)))) {
-    const d = startOf(item).slice(0, 10);
-    byDay.set(d, [...(byDay.get(d) ?? []), item]);
+    for (const d of item.kind === "activity" ? activityDays(item) : [startOf(item).slice(0, 10)]) byDay.set(d, [...(byDay.get(d) ?? []), item]);
   }
   // Days with places planned from your lists show up too (in the All view).
   if (category === "all") for (const d of Object.keys(plans)) if (!byDay.has(d)) byDay.set(d, []);
@@ -107,8 +115,10 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   // Where you're sleeping on a night (checked in before, checking out after or on that day).
   const stayOn = (day: string) =>
     items.find((i): i is Extract<ItineraryItem, { kind: "stay" }> => i.kind === "stay" && i.checkIn.slice(0, 10) <= day && i.checkOut.slice(0, 10) > day);
+  const dayFold = (day: string) => `${trip.id}:day:${day}`;
   // Days where only accommodation is booked still need things to do.
   const addFor = (day: string, kind: Kind | "place") => {
+    expand(dayFold(day));
     // Open the form right there in that day, if it's showing, so you keep your place in the itinerary.
     const inline = byDay.has(day);
     setPanel(kind === "place" ? { type: "place", date: day, inline } : { type: "add", kind, date: day, inline });
@@ -121,6 +131,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const showDay = (day: string) => {
     setView("itinerary");
     setCategory("all");
+    expand(dayFold(day));
     setTimeout(() => document.getElementById(dayId(day))?.scrollIntoView(), 100);
   };
   // The Add form for whatever's open: at the top of the page, or inside the day it was opened from.
@@ -301,7 +312,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 onAddToItinerary={addToItinerary}
               />
             )}
-            {ideaSection !== "tips" && !openList && <p className="muted">That list was deleted.</p>}
+            {ideaSection !== "tips" && !openList && listsLoaded && <p className="muted">That list was deleted.</p>}
           </>
         )}
         {/* Loaded on every tab (hidden unless chosen) so the tab can show how many tips there are. */}
@@ -309,7 +320,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <Suggestions tripId={trip.id} version={version} onCount={setIdeaCount} />
         </div>
         {view === "ideas" ? null : view === "prepare" ? (
-          <PrepareView key={version} tripId={trip.id} onCounts={setOpenTodos} />
+          <PrepareView version={version} tripId={trip.id} onCounts={setOpenTodos} />
         ) : (
         <>
         {panel?.type === "travellers" && (
@@ -397,6 +408,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 {refreshing ? "Checking…" : "↻ Check flights"}
               </button>
             )}
+            <FoldAll ids={days.map(([day]) => dayFold(day))} />
           </div>
         )}
         {category !== "all" && count(category) === 0 && (
@@ -409,6 +421,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
         {stripDays.length > 0 && (
           <DayStrip
             days={stripDays}
+            onJump={(day) => expand(dayFold(day))}
             onEmptyDay={(day) => {
               setEmptyDay(day);
               requestAnimationFrame(() => document.getElementById("empty-day")?.scrollIntoView({ block: "nearest" }));
@@ -454,14 +467,24 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 <span className="small">{describePart(part)}</span>
               </div>
             )}
-            <h2 className="day-head">
-              {formatDay(day)}
-              {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> outside trip dates</span>}
-            </h2>
+            <Fold
+              id={dayFold(day)}
+              heading="h2"
+              headClass="day-head"
+              title={<>
+                {formatDay(day)}
+                {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> outside trip dates</span>}
+              </>}
+              summary={(() => {
+                const n = dayItems.length + (plans[day]?.entries.length ?? 0);
+                return n ? `${n} item${n === 1 ? "" : "s"}` : "Nothing planned";
+              })()}
+            >
             {dayItems.map((item) => (
               <ItemCard
                 key={item.id}
                 item={item}
+                day={day}
                 mockFlights={mockFlights}
                 onChange={load}
                 linkedFlight={item.kind === "activity" && item.category === "transfer" ? flightForTransfer(item, items.filter((i): i is Extract<ItineraryItem, { kind: "flight" }> => i.kind === "flight")) : undefined}
@@ -523,6 +546,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             {(panel?.type === "add" || panel?.type === "place") && panel.inline && panel.date === day && (
               <div id="day-add-form" className="day-add-form">{addForm()}</div>
             )}
+            </Fold>
           </section>
           );
         })}

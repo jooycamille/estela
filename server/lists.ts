@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { listTheme, type ListTheme } from "../shared/lists.ts";
-import type { AreaGroup, TravelStyle, ItineraryItem, Link, ListEntry, ListSuggestion, StayItem, Trip, TripList, TripPlace } from "../shared/types.ts";
+import type { ActivityItem, AreaGroup, DateCard, TravelStyle, ItineraryItem, Link, ListEntry, ListSuggestion, PriceLevel, StayItem, Trip, TripList, TripPlace } from "../shared/types.ts";
 import { aiEnabled, extract } from "./ai.ts";
 import { activityLinks } from "./bookingLinks.ts";
 import { db, itemStart, newId, now } from "./db.ts";
 import { GENERIC_STYLE_IDEAS, IDEAS, mapsSearch, RESTAURANTS, STYLE_IDEAS, type Idea, type StyleIdea } from "./listIdeas.ts";
 import { searchLodging } from "./lodging.ts";
+import { googlePriceLevel } from "./googlePlaces.ts";
 import { cityCentre, countryName } from "./places.ts";
 import { distanceKm, tripPlaces } from "./tripPlaces.ts";
 
@@ -61,6 +62,43 @@ export async function locateEntry(entry: ListEntry, list: TripList, trip: Trip, 
     if (hit) return { ...entry, address: entry.address ?? hit.address, area: hit.area, lat: hit.lat, lon: hit.lon };
   }
   return entry;
+}
+
+/** Is this somewhere to eat or drink, so that it has a price level? */
+export const isRestaurant = (entry: ListEntry, list: TripList) => {
+  if (entry.kind !== "place") return false;
+  if (list.auto) return entry.section === "eat";
+  const theme = listTheme(list.name, list.emoji);
+  return theme === "food" || theme === "drinks";
+};
+
+/** The price from Joy's own guide, for a place it knows by exactly that name in this list's country. */
+export function guidePrice(title: string, list: TripList): PriceLevel | undefined {
+  const cc = list.place?.countryCode;
+  if (!cc) return;
+  const here = list.place?.lat !== undefined && list.place.lon !== undefined ? { lat: list.place.lat, lon: list.place.lon } : undefined;
+  const same = (t: string) => fold(t) === fold(title);
+  const curated = Object.entries(RESTAURANTS).filter(([k]) => {
+    const at = cityCentre(k, cc);
+    return !!at && (!here || distanceKm(at, here) < 60);
+  });
+  return curated.flatMap(([, ideas]) => ideas).find((r) => same(r.title))?.price ?? IDEAS[cc]?.find((i) => same(i.title) && i.price)?.price;
+}
+
+/** Fills in a restaurant's price: Joy's guide first (free), then Google. Left to try again if Google can't answer now. */
+export async function fillPrice(entry: ListEntry, list: TripList) {
+  if (entry.price || entry.priceChecked || !isRestaurant(entry, list)) return;
+  const known = guidePrice(entry.title, list);
+  if (known) {
+    entry.price = known;
+    entry.priceChecked = true;
+    return;
+  }
+  const near = entry.lat !== undefined && entry.lon !== undefined ? { lat: entry.lat, lon: entry.lon } : list.place?.lat !== undefined && list.place.lon !== undefined ? { lat: list.place.lat, lon: list.place.lon } : undefined;
+  const found = await googlePriceLevel(entry.title, list.place?.name ?? list.name, near);
+  if (found === null) return;
+  entry.priceChecked = true;
+  if (found && !entry.price) entry.price = found;
 }
 
 // ---------- Suggestions ----------
@@ -354,8 +392,69 @@ const daysBetween = (from: string, to: string) => {
   return out;
 };
 
+// How much of a day is free. Times are in minutes after midnight, local to the booking.
+const OUT_FROM = 9 * 60; // the part of the day you could be out seeing somewhere
+const OUT_UNTIL = 21 * 60;
+const MIN_FREE = 3 * 60; // less than this between bookings isn't worth planning a visit around
+const VISIT = 90; // a rough time for one place, getting there included
+const AT_AIRPORT_BEFORE = 3 * 60;
+const AFTER_LANDING = 90;
+const TOUR_IF_NO_END = 3 * 60;
+const RIDE_IF_NO_END = 60;
+
+const clockText = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+/** A booking's time on this day: from midnight if it started earlier, to the next midnight if it ends later. */
+const minutesOn = (time: string, day: string) => {
+  const date = time.slice(0, 10);
+  if (date !== day) return date < day ? 0 : 24 * 60;
+  return Number(time.slice(11, 13)) * 60 + Number(time.slice(14, 16));
+};
+const later = (time: string, minutes: number) => {
+  const t = new Date(`${time.slice(0, 16)}:00Z`);
+  t.setUTCMinutes(t.getUTCMinutes() + minutes);
+  return t.toISOString().slice(0, 16);
+};
+
+/** When bookings take up this day. A stay doesn't: you're free to go out from it. */
+function busyTimes(items: ItineraryItem[], day: string): [number, number][] {
+  const spans: [string, string][] = [];
+  for (const i of items) {
+    if (i.kind === "flight") {
+      spans.push([later(i.departureTime, -AT_AIRPORT_BEFORE), later(i.arrivalTime ?? later(i.departureTime, 180), AFTER_LANDING)]);
+    } else if (i.kind === "activity") {
+      const ends = i.end && i.end > i.start ? i.end : later(i.start, i.category === "transfer" ? RIDE_IF_NO_END : TOUR_IF_NO_END);
+      spans.push([i.start, ends]);
+    }
+  }
+  return spans
+    .filter(([from, to]) => from.slice(0, 10) <= day && to.slice(0, 10) >= day)
+    .map(([from, to]): [number, number] => [minutesOn(from, day), minutesOn(to, day)])
+    .sort((a, b) => a[0] - b[0]);
+}
+
+/** The longest free stretch of a day, and how many more places fit, counting those you've already put on it. */
+function freeTime(trip: Trip, items: ItineraryItem[], day: string) {
+  let free = { from: OUT_FROM, to: OUT_FROM };
+  let at = OUT_FROM;
+  const stretch = (until: number) => {
+    if (Math.min(until, OUT_UNTIL) - at > free.to - free.from) free = { from: at, to: Math.min(until, OUT_UNTIL) };
+  };
+  for (const [from, to] of busyTimes(items, day)) {
+    stretch(from);
+    at = Math.max(at, to);
+  }
+  stretch(OUT_UNTIL);
+  const length = free.to - free.from;
+  const planned = tripLists(trip.id).flatMap((l) => l.entries).filter((e) => e.day === day && e.kind !== "thing").length;
+  return {
+    from: clockText(free.from),
+    to: clockText(free.to),
+    room: length < MIN_FREE ? 0 : Math.max(0, Math.floor((length - planned * VISIT) / VISIT)),
+  };
+}
+
 /** Unplanned places from all your lists, grouped by area, each with the best days to go. */
-export function areaGroups(trip: Trip, items: ItineraryItem[]): AreaGroup[] {
+export function areaGroups(trip: Trip, items: ItineraryItem[], leaveOut?: Set<string>): AreaGroup[] {
   const cities = tripCities(trip, items);
   const busy = new Map<string, number>();
   for (const i of items) {
@@ -365,7 +464,7 @@ export function areaGroups(trip: Trip, items: ItineraryItem[]): AreaGroup[] {
   for (const e of located(trip.id, (e) => !!e.day)) busy.set(e.day!, (busy.get(e.day!) ?? 0) + 1);
 
   // Biggest groups pick their days first; each suggestion makes that day a little less attractive for the next group.
-  return cluster(located(trip.id, (e) => !e.day))
+  return cluster(located(trip.id, (e) => !e.day && !leaveOut?.has(e.id)))
     .sort((a, b) => b.length - a.length)
     .map((entries): AreaGroup => {
       const centre = { lat: entries.reduce((s, p) => s + p.lat, 0) / entries.length, lon: entries.reduce((s, p) => s + p.lon, 0) / entries.length };
@@ -375,6 +474,7 @@ export function areaGroups(trip: Trip, items: ItineraryItem[]): AreaGroup[] {
       const range = city ? daysBetween(city.from, city.to) : daysBetween(trip.startDate, trip.endDate);
       const suggestedDays = range
         .map((day, i) => ({ day, score: (busy.get(day) ?? 0) + (i === 0 || i === range.length - 1 ? 3 : 0) }))
+        .filter(({ day }) => freeTime(trip, items, day).room > 0)
         .sort((a, b) => a.score - b.score || a.day.localeCompare(b.day))
         .slice(0, 3)
         .map((d) => d.day)
@@ -568,6 +668,46 @@ function placesInTours(list: TripList, trip: Trip, items: ItineraryItem[]) {
     .map(({ place, tour }) => ({ ...place, tour: tour.title, day: tour.start.slice(0, 10) }));
 }
 
+/**
+ * A guide's dates: each tour with its places, the picks you've put on that date, and your unplanned picks close to the
+ * tour, each under the nearest tour whose day has time for it. Picks with no such tour are left to group by area.
+ */
+export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[]) {
+  const booked = new Set(tripLists(trip.id).flatMap((l) => alreadyBooked(l, trip, items).bookedPicks.map((p) => p.id)));
+  const cards = new Map<string, DateCard>();
+  const inTours = placesInTours(list, trip, items);
+  for (const { tour, day, ...place } of inTours) {
+    const key = `${day}|${tour}`;
+    const booking = items.find((i): i is ActivityItem => i.kind === "activity" && i.title === tour && i.start.startsWith(day));
+    const card = cards.get(key) ?? { day, tour, tourStart: booking?.start.slice(11, 16), tourEnd: booking?.end, free: freeTime(trip, items, day), places: [], planned: [], nearby: [] };
+    card.places.push(place);
+    cards.set(key, card);
+  }
+  const mapped = inTours.filter((p): p is typeof p & LatLon => p.lat !== undefined && p.lon !== undefined);
+  const nearbyIds = new Set<string>();
+  for (const pick of located(trip.id, (e) => !e.day && e.kind === "place" && !booked.has(e.id))) {
+    const closest = mapped
+      .map((p) => ({ p, km: distanceKm(p, pick) }))
+      .filter(({ p, km }) => km <= NEAR_KM && (cards.get(`${p.day}|${p.tour}`)?.free?.room ?? 0) > 0)
+      .sort((a, b) => a.km - b.km)[0];
+    if (!closest) continue;
+    cards.get(`${closest.p.day}|${closest.p.tour}`)!.nearby.push({ ...pick, km: Math.round(closest.km * 10) / 10, near: closest.p.title.split(",")[0] });
+    nearbyIds.add(pick.id);
+  }
+  for (const card of cards.values()) card.nearby.sort((a, b) => a.km - b.km);
+  for (const entry of list.entries) {
+    if (!entry.day || booked.has(entry.id)) continue;
+    const onDay = [...cards.values()].find((c) => c.day === entry.day);
+    const card = onDay ?? { day: entry.day, places: [], planned: [], nearby: [] };
+    card.planned.push({ ...entry, listId: list.id, listEmoji: list.emoji, listName: list.name });
+    if (!onDay) cards.set(entry.day, card);
+  }
+  return {
+    byDate: [...cards.values()].sort((a, b) => a.day.localeCompare(b.day) || (a.tour ?? "").localeCompare(b.tour ?? "")),
+    areasLeft: areaGroups(trip, items, new Set([...booked, ...nearbyIds])).filter((g) => g.entries.some((e) => e.listId === list.id)),
+  };
+}
+
 /** Which guide covers which dates, for choosing where a new place goes. */
 export function guideDays(trip: Trip, items: ItineraryItem[]) {
   const stops = guideDestinations(trip, items);
@@ -635,6 +775,7 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     bookedPicks: booked.bookedPicks.filter((p) => !p.inTour),
     hiddenPicks: booked.bookedPicks.filter((p) => p.inTour).map((p) => p.id),
     inItinerary: placesInTours(list, trip, items),
+    ...planByDate(list, trip, items),
     suggestions: [],
     styles: trip.styles,
     styleIdeas: [],
