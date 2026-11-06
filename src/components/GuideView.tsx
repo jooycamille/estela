@@ -1,7 +1,7 @@
 import { formatDay, formatTimeOn } from "../format.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STYLE_LABELS } from "../../shared/lists.ts";
-import type { DateCard, EssentialKind, Essentials, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
+import type { DateCard, EssentialKind, Essentials, SafetyTips, ListEntry, ListSuggestion, PriceLevel, Trip, TripList } from "../../shared/types.ts";
 import { api, type ListSuggestions } from "../api.ts";
 import { AddEntry, AreaCard, EntryRow, IdeaCard, tripDays, type AddOption } from "./ListView.tsx";
 import { useStickBelowHeader } from "./DayStrip.tsx";
@@ -75,7 +75,7 @@ export default function GuideView({
   const picks = SECTIONS.map((s) => ({ ...s, entries: list.entries.filter((e) => sectionOf(e) === s.key && !booked.has(e.id)) })).filter((s) => s.entries.length);
   const dateCards = ideas?.byDate ?? [];
   const areasLeft = ideas?.areasLeft ?? [];
-  const toAdd = dateCards.reduce((n, c) => n + c.nearby.length, 0);
+  const toAdd = dateCards.reduce((n, c) => n + c.nearby.length + c.things.length + c.ideas.length, 0);
   const options: AddOption[] = SECTIONS.map((s) => ({
     key: s.key,
     ...s.add,
@@ -112,8 +112,8 @@ export default function GuideView({
 
       {(dateCards.length > 0 || areasLeft.length > 0) && (
         <section id={`${list.id}-dates`} className="card areas by-date guide-part">
-          <Fold id={`${list.id}:dates`} title="📅 Plan by date" summary={toAdd ? `${toAdd} nearby to add` : dateCards.length || undefined}>
-          {dateCards.length > 0 && <p className="muted small">What's on each date, and places on your list close enough to add. Tour stops are already covered.</p>}
+          <Fold id={`${list.id}:dates`} title="📅 Plan by date" summary={toAdd ? `${toAdd} to add` : dateCards.length || undefined}>
+          {dateCards.length > 0 && <p className="muted small">What's on each date, places on your list close by, and things to do when there's time. Tour stops are already covered.</p>}
           {dateCards.map((c) => {
             const key = `${c.day}|${c.tour ?? ""}`;
             return (
@@ -131,6 +131,7 @@ export default function GuideView({
                 }
                 onShowDay={() => onShowDay(c.day)}
                 onPlan={(day, entries) => act(() => api.planDay(trip.id, day, entries.map((e) => ({ listId: e.listId, entryId: e.id }))))}
+                onAddIdea={(idea) => act(() => api.addEntry(list.id, { title: idea.title, kind: "activity", notes: idea.detail, links: idea.links, day: c.day }))}
               />
             );
           })}
@@ -262,6 +263,7 @@ function DateRow({
   onToggle,
   onShowDay,
   onPlan,
+  onAddIdea,
 }: {
   card: DateCard;
   listName: string;
@@ -269,13 +271,16 @@ function DateRow({
   onToggle: () => void;
   onShowDay: () => void;
   onPlan: (day: string | null, entries: { listId: string; id: string }[]) => void;
+  onAddIdea: (idea: ListSuggestion) => void;
 }) {
   const stops = card.places.length;
+  const toDo = card.things.length + card.ideas.length;
   return (
     <div className="area by-date-card">
       <div className="area-head">
         <button type="button" className="link plain by-date-day" title="Show this day in your itinerary" onClick={onShowDay}><b>{formatDay(card.day)}</b></button>
         {card.tour && <span className="muted small"> · {card.tour}{card.tourStart && ` · ${card.tourStart}${card.tourEnd ? `–${formatTimeOn(card.tourEnd, card.day)}` : ""}`} · {stops} place{stops === 1 ? "" : "s"}</span>}
+        {!card.tour && !card.planned.length && <span className="muted small"> · Nothing booked</span>}
       </div>
       {stops > 0 && (
         <ol className="by-date-places">
@@ -304,21 +309,47 @@ function DateRow({
         </ul>
       )}
       {card.free?.room === 0 && <p className="muted tiny by-date-full">⏰ Not much free time this day, so nothing more is suggested.</p>}
-      {card.nearby.length > 0 && (
+      {(card.nearby.length > 0 || toDo > 0) && (
         <div className="by-date-nearby">
-          <div className="by-date-nearby-head">
-            <span className="small"><b>✨ On your list, close by</b></span>
-            {card.nearby.length > 1 && card.nearby.length <= (card.free?.room ?? 0) && <button type="button" className="link edit-only" onClick={() => onPlan(card.day, card.nearby)}>Add all {card.nearby.length}</button>}
-          </div>
-          {card.free && <div className="muted tiny">Free {card.free.from}–{card.free.to}, time for about {card.free.room}</div>}
-          <ul className="by-date-picks">
-            {card.nearby.map((e) => (
-              <li key={e.id} className="small">
-                <span>{e.title} <span className="muted tiny">· {e.km < 0.1 ? "next to" : `${e.km} km from`} {e.near}</span></span>
-                <button type="button" className="link edit-only" onClick={() => onPlan(card.day, [e])}>+ Add to this day</button>
-              </li>
-            ))}
-          </ul>
+          {card.free && <div className="muted tiny by-date-free">Free {card.free.from}–{card.free.to}, time for about {card.free.room}</div>}
+          {card.nearby.length > 0 && (
+            <>
+              <div className="by-date-nearby-head">
+                <span className="small"><b>✨ On your list, close by</b></span>
+                {card.nearby.length > 1 && card.nearby.length <= (card.free?.room ?? 0) && <button type="button" className="link edit-only" onClick={() => onPlan(card.day, card.nearby)}>Add all {card.nearby.length}</button>}
+              </div>
+              <ul className="by-date-picks">
+                {card.nearby.map((e) => (
+                  <li key={e.id} className="small">
+                    <span>{e.title} <span className="muted tiny">· {e.km < 0.1 ? "next to" : `${e.km} km from`} {e.near}</span></span>
+                    <button type="button" className="link edit-only" onClick={() => onPlan(card.day, [e])}>+ Add to this day</button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {toDo > 0 && (
+            <>
+              <div className="by-date-nearby-head"><span className="small"><b>🎯 Things to do</b></span></div>
+              <ul className="by-date-picks">
+                {card.things.map((e) => (
+                  <li key={e.id} className="small">
+                    <span>{e.title} <span className="muted tiny">· on your list</span></span>
+                    <button type="button" className="link edit-only" onClick={() => onPlan(card.day, [e])}>+ Add to this day</button>
+                  </li>
+                ))}
+                {card.ideas.map((idea) => (
+                  <li key={idea.title} className="small">
+                    <span>
+                      {idea.title} <span className="muted tiny">· {idea.tag ?? "idea from Joy"}</span>
+                      {idea.detail && <span className="muted tiny by-date-detail">{idea.detail}</span>}
+                    </span>
+                    <button type="button" className="link edit-only" onClick={() => onAddIdea(idea)}>+ Add to this day</button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -401,7 +432,7 @@ function EssentialsCard({ list }: { list: TripList }) {
 
   return (
     <section id={`${list.id}-essentials`} className="card essentials">
-      <Fold id={`${list.id}:essentials`} title="🆘 Essentials near where you're staying" summary={data?.emergency ? `Emergency: ${data.emergency.number}` : undefined}>
+      <Fold id={`${list.id}:essentials`} title="🆘 Essentials" summary={data?.emergency ? `Emergency: ${data.emergency.number}` : undefined}>
       {data?.emergency && (
         <p className="emergency">
           Emergency number in {list.name}: <a href={`tel:${data.emergency.number}`}><b>{data.emergency.number}</b></a>
@@ -448,7 +479,51 @@ function EssentialsCard({ list }: { list: TripList }) {
         Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors. Distances are
         straight-line; tap a name for directions. In an emergency, call the number above first.
       </p>
+      {(data?.apps?.length ?? 0) > 0 && (
+        <div className="safety-tips safety-part">
+          <Fold id={`${list.id}:apps`} heading="h4" title="📱 Useful apps" summary={data!.apps!.length}>
+            <ul className="small">
+              {data!.apps!.map((app) => (
+                <li key={app.name}>
+                  <a href={app.url} target="_blank" rel="noopener noreferrer"><b>{app.name}</b> ↗</a> <span className="muted tiny">· {app.kind}</span>
+                  <span className="muted app-why"> {app.why}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="muted tiny">Each links to a page confirming it. Check it still works in your area when you download it.</p>
+          </Fold>
+        </div>
+      )}
+      {data?.tips && <SafetyTipsPart listId={list.id} place={list.name} tips={data.tips} />}
       </Fold>
     </section>
+  );
+}
+
+function SafetyTipsPart({ listId, place, tips }: { listId: string; place: string; tips: SafetyTips }) {
+  const parts = [
+    { key: "scams", title: "⚠️ Scams to look out for", items: tips.scams },
+    { key: "here", title: `📍 In ${place}`, items: tips.here ?? [] },
+    { key: "safety", title: "🛡️ Staying safe", items: tips.safety },
+    { key: "rules", title: "📜 Local rules", items: tips.rules },
+  ].filter((p) => p.items.length);
+  return (
+    <div className="safety-tips">
+      {tips.regions && <p className="warning small">{tips.regions}</p>}
+      {parts.map((p) => (
+        <div key={p.key} className="safety-part">
+          <Fold id={`${listId}:tips:${p.key}`} heading="h4" title={p.title} summary={p.items.length}>
+            <ul className="small">
+              {p.items.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </Fold>
+        </div>
+      ))}
+      <p className="muted tiny">
+        {parts.length
+          ? <>From <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a>{tips.checked && `, checked ${formatDay(tips.checked)} ${tips.checked.slice(0, 4)}`}. Written for UK travellers, and it changes, so read the latest before you go, along with your own government's advice.</>
+          : <>Joy doesn't have scam and safety tips for here yet. See <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a> or your own government's advice.</>}
+      </p>
+    </div>
   );
 }

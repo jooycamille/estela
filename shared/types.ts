@@ -386,6 +386,8 @@ export interface DateCard {
   places: { title: string; address?: string; lat?: number; lon?: number }[]; // what the tour includes
   planned: AreaGroup["entries"]; // picks you've already put on this date
   nearby: (AreaGroup["entries"][number] & { km: number; near: string })[]; // unplanned picks close to the tour's places
+  things: AreaGroup["entries"]; // things to do you've saved, on a date with time for them
+  ideas: ListSuggestion[]; // Joy's things to do, not saved yet
 }
 
 // ---------- Nearby essentials (per stay) ----------
@@ -411,7 +413,29 @@ export interface StayEssentials {
   directionsFrom?: string; // "lat,lon" of the stay, for map directions
 }
 
+/** What to know in a place: from official travel advice, which is linked because it changes. */
+export interface SafetyTips {
+  scams: string[];
+  safety: string[];
+  rules: string[];
+  here?: string[]; // for this city
+  regions?: string; // parts of the country the source warns against
+  sourceName: string;
+  sourceUrl: string;
+  checked?: string; // YYYY-MM-DD these were last compared with the source
+}
+
+/** An app worth having in a place, linked to where it was confirmed. */
+export interface LocalApp {
+  name: string;
+  kind: "Getting around" | "Language" | "Safety" | "Official";
+  why: string;
+  url: string;
+}
+
 export interface Essentials {
   emergency?: { number: string; note?: string };
   stays: StayEssentials[];
+  tips?: SafetyTips;
+  apps?: LocalApp[];
 }

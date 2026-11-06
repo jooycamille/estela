@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PrepItem } from "../../shared/types.ts";
 import { api, type PrepData } from "../api.ts";
 import { formatDay } from "../format.ts";
-import Fold, { FoldAll } from "./Fold.tsx";
+import { findSamePrepItem } from "../../shared/prepAdd.ts";
+import Fold, { expand, FoldAll } from "./Fold.tsx";
 import RemindersCard from "./RemindersCard.tsx";
 
 // Every region code the browser can name (for the home-country picker).
@@ -156,31 +157,39 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
       </div>
 
       <PrepSection
+        tripId={tripId}
         foldId={`${tripId}:todo`}
+        allItems={all}
         title="Before you go"
         items={section("todo")}
         checked={checked}
         hideDone={hideDone}
         onToggle={toggle}
-        onAdd={(text) => api.addPrep(tripId, "todo", text).then(load)}
+        onAdd={(text) => api.addPrep(tripId, "todo", text).then((item) => { load(); return item; })}
         onDelete={(id) => api.deletePrep(tripId, id).then(load)}
+        onEdit={(id, text) => api.updatePrep(tripId, id, text).then((item) => { load(); return item; })}
       />
       <PrepSection
+        tripId={tripId}
         foldId={`${tripId}:packing`}
+        allItems={all}
         title="Packing list"
         items={section("packing")}
         checked={checked}
         hideDone={hideDone}
         onToggle={toggle}
-        onAdd={(text) => api.addPrep(tripId, "packing", text).then(load)}
+        onAdd={(text) => api.addPrep(tripId, "packing", text).then((item) => { load(); return item; })}
         onDelete={(id) => api.deletePrep(tripId, id).then(load)}
+        onEdit={(id, text) => api.updatePrep(tripId, id, text).then((item) => { load(); return item; })}
       />
     </div>
   );
 }
 
 function PrepSection({
+  tripId,
   foldId,
+  allItems,
   title,
   items,
   checked,
@@ -188,17 +197,31 @@ function PrepSection({
   onToggle,
   onAdd,
   onDelete,
+  onEdit,
 }: {
+  tripId: string;
   foldId: string;
+  allItems: PrepItem[];
   title: string;
   items: PrepItem[];
   checked: Set<string>;
   hideDone: boolean;
   onToggle: (id: string, on: boolean) => void;
-  onAdd: (text: string) => Promise<unknown>;
+  onAdd: (text: string) => Promise<PrepItem>;
   onDelete: (id: string) => Promise<unknown>;
+  onEdit: (id: string, text: string) => Promise<PrepItem>;
 }) {
   const [text, setText] = useState("");
+  const [already, setAlready] = useState<PrepItem>(); // what you're typing is on the list already
+  const [added, setAdded] = useState<string>(); // where the last one went
+  const [editing, setEditing] = useState<string>(); // the item you're correcting
+  const add = async () => {
+    const item = await onAdd(text.trim());
+    expand(`${foldId}:${item.group}`);
+    setText("");
+    setAlready(undefined);
+    setAdded(`Added to ${item.group}`);
+  };
   const now = new Date().toISOString().slice(0, 16);
   const groups = [...new Set(items.map((i) => i.group))];
   return (
@@ -210,36 +233,64 @@ function PrepSection({
         return (
           <div key={g} className="prep-group">
             <Fold id={`${foldId}:${g}`} heading="h5" title={g} summary={`${shown.filter((i) => !checked.has(i.id)).length} to do`}>
+            {g === "Medications" && (
+              <p className="muted tiny prep-note">
+                General guidance from the <a href="https://wwwnc.cdc.gov/travel/page/pack-smart" target="_blank" rel="noopener noreferrer">CDC ↗</a> and <a href="https://travelhealthpro.org.uk/factsheet/43/medicines-abroad" target="_blank" rel="noopener noreferrer">TravelHealthPro ↗</a>, not medical advice. Check with a doctor or pharmacist what suits you, especially if you're pregnant, have allergies or take other medication.
+              </p>
+            )}
             <ul>
               {shown.map((i) => {
                 const done = checked.has(i.id);
                 const overdue = !done && i.due && i.due < now;
                 return (
                   <li key={i.id} className={done ? "done" : ""}>
-                    <label className="prep-item">
-                      <input className="edit-lock" type="checkbox" checked={done} onChange={(e) => onToggle(i.id, e.target.checked)} />
-                      <span>
-                        <span className="prep-text">{i.text}</span>
-                        {dueLabel(i) && <span className={`due ${overdue ? "overdue" : ""}`}>{dueLabel(i)}</span>}
-                        {!done &&
-                          i.reminders
-                            ?.filter((r) => r.at > new Date().toISOString())
-                            .map((r) => (
-                              <span key={r.at} className="due reminder" title={r.label}>
-                                🔔 {new Date(r.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
-                              </span>
-                            ))}
-                        {i.detail && <span className="muted small prep-detail">{i.detail}</span>}
-                        {i.source && <span className="muted tiny prep-detail">For {i.source}</span>}
-                      </span>
-                    </label>
-                    {(i.links?.length || i.custom) && (
-                      <div className="prep-links">
-                        {i.links?.map((l) => (
-                          <a key={l.url} className="book-link" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
-                        ))}
-                        {i.custom && <button className="link danger edit-only" onClick={() => onDelete(i.id)}>Remove</button>}
+                    {editing === i.id ? (
+                      <EditPrepItem
+                        item={i}
+                        others={allItems.filter((other) => other.id !== i.id)}
+                        onCancel={() => setEditing(undefined)}
+                        onSave={async (newText) => {
+                          const saved = await onEdit(i.id, newText);
+                          expand(`${foldId}:${saved.group}`);
+                          setEditing(undefined);
+                          setAdded(saved.group === i.group ? undefined : `Moved to ${saved.group}`);
+                        }}
+                      />
+                    ) : (
+                      <>
+                      <div className="prep-row">
+                      <label className="prep-item">
+                        <input className="edit-lock" type="checkbox" checked={done} onChange={(e) => onToggle(i.id, e.target.checked)} />
+                        <span>
+                          <span className="prep-text">{i.text}</span>
+                          {dueLabel(i) && <span className={`due ${overdue ? "overdue" : ""}`}>{dueLabel(i)}</span>}
+                          {!done &&
+                            i.reminders
+                              ?.filter((r) => r.at > new Date().toISOString())
+                              .map((r) => (
+                                <span key={r.at} className="due reminder" title={r.label}>
+                                  🔔 {new Date(r.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                </span>
+                              ))}
+                          {i.detail && <span className="muted small prep-detail">{i.detail}</span>}
+                          {i.source && <span className="muted tiny prep-detail">For {i.source}</span>}
+                        </span>
+                      </label>
+                      {i.custom && (
+                        <span className="prep-actions edit-only">
+                          <button type="button" className="prep-action" title="Edit" aria-label={`Edit ${i.text}`} onClick={() => setEditing(i.id)}>✎</button>
+                          <button type="button" className="prep-action danger" title="Remove" aria-label={`Remove ${i.text}`} onClick={() => onDelete(i.id)}>✕</button>
+                        </span>
+                      )}
                       </div>
+                      {i.links?.length ? (
+                        <div className="prep-links">
+                          {i.links.map((l) => (
+                            <a key={l.url} className="book-link" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
+                          ))}
+                        </div>
+                      ) : null}
+                      </>
                     )}
                   </li>
                 );
@@ -254,14 +305,75 @@ function PrepSection({
         onSubmit={async (e) => {
           e.preventDefault();
           if (!text.trim()) return;
-          await onAdd(text.trim());
-          setText("");
+          const same = findSamePrepItem(text, allItems);
+          if (!same) return add();
+          // Show you where it is, in case that part of the list is minimized.
+          expand(`${tripId}:${same.section}`);
+          expand(`${tripId}:${same.section}:${same.group}`);
+          setAdded(undefined);
+          setAlready(same);
         }}
       >
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Add to ${title.toLowerCase()}…`} aria-label={`Add to ${title}`} />
+        <input value={text} onChange={(e) => { setText(e.target.value); setAlready(undefined); setAdded(undefined); }} placeholder={`Add to ${title.toLowerCase()}…`} aria-label={`Add to ${title}`} />
         <button type="submit" className="secondary" disabled={!text.trim()}>Add</button>
       </form>
+      {added && <p className="muted small edit-only prep-added" role="status">✓ {added}</p>}
+      {already && (
+        <p className="small edit-only prep-already" role="status">
+          Already on your list: <b>{already.text}</b>
+          <span className="muted"> · {already.section === "todo" ? "Before you go" : "Packing list"}, {already.group}{checked.has(already.id) ? " · ticked off" : ""}</span>
+          <span className="prep-already-actions">
+            <button type="button" className="link" onClick={add}>Add anyway</button>
+            <button type="button" className="link muted-link" onClick={() => { setAlready(undefined); setText(""); }}>Never mind</button>
+          </span>
+        </p>
+      )}
       </Fold>
     </section>
+  );
+}
+
+/** Corrects an item you added, in place, with the same check for what's already on the list as adding one. */
+function EditPrepItem({ item, others, onSave, onCancel }: { item: PrepItem; others: PrepItem[]; onSave: (text: string) => Promise<unknown>; onCancel: () => void }) {
+  const [text, setText] = useState(item.text);
+  const [already, setAlready] = useState<PrepItem>();
+  const [error, setError] = useState<string>();
+  const save = () => onSave(text.trim()).catch((e) => setError((e as Error).message));
+  return (
+    <>
+      <form
+        className="key-row prep-edit"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const trimmed = text.trim();
+          if (!trimmed) return;
+          if (trimmed === item.text) return onCancel();
+          const same = findSamePrepItem(trimmed, others);
+          if (same) setAlready(same);
+          else void save();
+        }}
+      >
+        <input
+          autoFocus
+          value={text}
+          maxLength={200}
+          aria-label={`Edit ${item.text}`}
+          onChange={(e) => { setText(e.target.value); setAlready(undefined); }}
+          onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+        />
+        <button type="submit" className="secondary" disabled={!text.trim()}>Save</button>
+        <button type="button" className="link muted-link" onClick={onCancel}>Cancel</button>
+      </form>
+      {error && <p className="error small">{error}</p>}
+      {already && (
+        <p className="small prep-already" role="status">
+          Already on your list: <b>{already.text}</b>
+          <span className="muted"> · {already.section === "todo" ? "Before you go" : "Packing list"}, {already.group}</span>
+          <span className="prep-already-actions">
+            <button type="button" className="link" onClick={save}>Save anyway</button>
+          </span>
+        </p>
+      )}
+    </>
   );
 }

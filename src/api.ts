@@ -135,6 +135,7 @@ export const api = {
     request<{ checked: string[] }>(`/trips/${tripId}/prep/check`, json("PUT", { id, checked })),
   addPrep: (tripId: string, section: "todo" | "packing", text: string) =>
     request<PrepItem>(`/trips/${tripId}/prep/custom`, json("POST", { section, text })),
+  updatePrep: (tripId: string, id: string, text: string) => request<PrepItem>(`/trips/${tripId}/prep/custom/${encodeURIComponent(id)}`, json("PATCH", { text })),
   deletePrep: (tripId: string, id: string) => request<void>(`/trips/${tripId}/prep/custom/${encodeURIComponent(id)}`, json("DELETE")),
   setHomeCountry: (country: string) => request<{ homeCountry: string }>("/settings/home-country", json("PUT", { country })),
   trips: () => request<TripSummary[]>("/trips"),

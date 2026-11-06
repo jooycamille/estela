@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { ActivityItem, ItineraryItem, ListEntry, Trip, TripList } from "../shared/types.ts";
+import type { ActivityItem, ItineraryItem, ListEntry, ListSuggestion, Trip, TripList } from "../shared/types.ts";
 
 process.env.DB_PATH = join(mkdtempSync(join(tmpdir(), "heyjoy-bydate-")), "db.json");
 const { db } = await import("../server/db.ts");
@@ -120,6 +120,64 @@ test("a full day isn't offered for a group of places either", () => {
   const { areasLeft } = planByDate(setUp([pick("far", 19.36, -99.2)]), short, [timed("a", "2027-03-03T05:00", "2027-03-03T19:00")]);
   assert.ok(areasLeft[0].suggestedDays.length > 0);
   assert.ok(!areasLeft[0].suggestedDays.includes("2027-03-03"));
+});
+
+const thing = (id: string, more: Partial<ListEntry> = {}): ListEntry => ({ id, title: `Zefir ${id} class`, kind: "activity", done: false, addedAt: "2027-01-01", ...more });
+const idea = (title: string, tag?: string): ListSuggestion => ({ title, kind: "activity", tag, source: "rules" });
+const onDays = (cards: { day: string; things: { id: string }[]; ideas: { title: string }[] }[]) =>
+  Object.fromEntries(cards.filter((c) => c.things.length || c.ideas.length).map((c) => [c.day, [...c.things.map((t) => t.id), ...c.ideas.map((i) => i.title)]]));
+
+test("saved things to do go on the free days, not on full ones, and a free day gets a card of its own", () => {
+  const short = { ...trip, startDate: "2027-03-02", endDate: "2027-03-03" } as Trip;
+  const { byDate } = planByDate(setUp([thing("a"), thing("b")]), short, [timed("t", "2027-03-02T05:00", "2027-03-02T19:00")]);
+  assert.deepEqual(onDays(byDate), { "2027-03-03": ["a", "b"] });
+  assert.equal(byDate.find((c) => c.day === "2027-03-03")?.tour, undefined);
+});
+
+test("your own things to do come before Joy's ideas, up to two on a date", () => {
+  const short = { ...trip, startDate: "2027-03-03", endDate: "2027-03-03" } as Trip;
+  const { byDate } = planByDate(setUp([thing("mine")]), short, [], [idea("Idea one"), idea("Idea two")]);
+  assert.deepEqual(onDays(byDate), { "2027-03-03": ["mine", "Idea one"] });
+});
+
+test("places close by leave less room for things to do", () => {
+  const short = { ...trip, startDate: "2027-03-02", endDate: "2027-03-02" } as Trip;
+  const list = setUp([...[1, 2, 3, 4].map((n) => pick(`near${n}`, 19.432, -99.132)), thing("a")]);
+  const { byDate } = planByDate(list, short, [timed("t", "2027-03-02T14:00", "2027-03-02T21:00")]); // 09:00-14:00 fits 3
+  assert.deepEqual(onDays(byDate), {});
+});
+
+test("things already planned, done or booked aren't suggested again", () => {
+  const short = { ...trip, startDate: "2027-03-03", endDate: "2027-03-03" } as Trip;
+  const { byDate } = planByDate(setUp([thing("planned", { day: "2027-03-03" }), thing("done", { done: true })]), short, []);
+  assert.deepEqual(onDays(byDate), {});
+  assert.deepEqual(byDate[0].planned.map((p) => p.id), ["planned"]);
+});
+
+test("an idea only goes on a date it suits", () => {
+  // 7 March 2027 is a Sunday, 8 March a Monday.
+  const days = { ...trip, startDate: "2027-03-07", endDate: "2027-03-08" } as Trip;
+  assert.deepEqual(onDays(planByDate(setUp([]), days, [], [idea("Market", "Sunday mornings")]).byDate), { "2027-03-07": ["Market"] });
+  assert.deepEqual(onDays(planByDate(setUp([]), { ...days, startDate: "2027-03-08" } as Trip, [], [idea("Market", "Sunday mornings")]).byDate), {});
+  const busy = [timed("t", "2027-03-08T14:00", "2027-03-08T21:00")];
+  assert.deepEqual(onDays(planByDate(setUp([]), { ...days, startDate: "2027-03-08" } as Trip, busy, [idea("Long outing", "Day trip")]).byDate), {});
+});
+
+test("taking one suggestion doesn't send the others to other dates", () => {
+  const days = { ...trip, startDate: "2027-03-01", endDate: "2027-03-08" } as Trip;
+  const all = Array.from({ length: 12 }, (_, n) => idea(`Idea ${n}`));
+  const dayOf = (cards: Record<string, string[]>, title: string) => Object.entries(cards).find(([, titles]) => titles.includes(title))?.[0];
+  const before = onDays(planByDate(setUp([]), days, [], all).byDate);
+  for (const taken of all) {
+    const after = onDays(planByDate(setUp([]), days, [], all.filter((i) => i !== taken)).byDate);
+    const moved = all.filter((i) => i !== taken && dayOf(before, i.title) && dayOf(after, i.title) && dayOf(before, i.title) !== dayOf(after, i.title));
+    assert.ok(moved.length <= 1, `${taken.title} moved ${moved.map((i) => i.title)}`);
+  }
+});
+
+test("something saved with a day in its name waits for that day", () => {
+  const days = { ...trip, startDate: "2027-03-05", endDate: "2027-03-07" } as Trip; // Friday to Sunday
+  assert.deepEqual(onDays(planByDate(setUp([thing("ride", { title: "Zefir Sunday ride" })]), days, []).byDate), { "2027-03-07": ["ride"] });
 });
 
 test("a tour stop named by its street address reads as just the street", () => {

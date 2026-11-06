@@ -10,6 +10,7 @@ import { aiEnabled } from "./ai.ts";
 import { getAirport, searchAirports } from "./airports.ts";
 import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
+import { prepGroupFor } from "../shared/prepAdd.ts";
 import { buildPrep } from "./prep.ts";
 import { describe, describeEntry } from "./describe.ts";
 import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signOut, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
@@ -17,6 +18,8 @@ import { emailConfigured, sendEmail } from "./mailer.ts";
 import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
 import type { UserRecord } from "./db.ts";
 import { essentialsFor } from "./essentials.ts";
+import { localApps } from "./localApps.ts";
+import { safetyTips } from "./safetyTips.ts";
 import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideDays, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, fillPrice, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { assumedStops, tripPlaces } from "./tripPlaces.ts";
@@ -596,7 +599,7 @@ app.get("/api/trips/:id/prep", async (req, res) => {
     homeCountryGuess: places.homeCountry ?? null,
     todo,
     packing,
-    custom: trip.prep?.custom ?? [],
+    custom: (trip.prep?.custom ?? []).map((c) => (c.group === "Your items" ? { ...c, group: prepGroupFor(c.section, c.text) } : c)), // added before they were sorted
     checked: trip.prep?.checked ?? [],
   });
 });
@@ -650,10 +653,21 @@ app.post("/api/trips/:id/prep/custom", (req, res) => {
   if (!trip) return void res.status(404).json({ error: "Trip not found" });
   const { section, text } = z.object({ section: z.enum(["todo", "packing"]), text: z.string().trim().min(1).max(200) }).parse(req.body);
   const prep = (trip.prep ??= { checked: [], custom: [] });
-  const item = { id: `custom:${newId()}`, section, group: "Your items", text, custom: true };
+  const item = { id: `custom:${newId()}`, section, group: prepGroupFor(section, text), text, custom: true };
   prep.custom.push(item);
   save();
   res.status(201).json(item);
+});
+
+app.patch("/api/trips/:id/prep/custom/:itemId", (req, res) => {
+  const trip = getTrip(req.params.id);
+  const item = trip?.prep?.custom.find((c) => c.id === req.params.itemId);
+  if (!trip || !item) return void res.status(404).json({ error: "Not found" });
+  const { text } = z.object({ text: z.string().trim().min(1).max(200) }).parse(req.body);
+  item.text = text;
+  item.group = prepGroupFor(item.section, text); // a corrected word can show where it really belongs
+  save();
+  res.json(item);
 });
 
 app.delete("/api/trips/:id/prep/custom/:itemId", (req, res) => {
@@ -895,8 +909,8 @@ app.get("/api/lists/:id/essentials", async (req, res) => {
   const items = tripItems(trip.id);
   const p = list.place;
   const near = p?.lat !== undefined && p.lon !== undefined ? { lat: p.lat, lon: p.lon } : positionOn(trip, items, trip.startDate);
-  if (!near) return res.json({ emergency: undefined, stays: [] });
-  res.json(await essentialsFor(guideStays(list, trip, items), near, p?.countryCode));
+  if (!near) return res.json({ emergency: undefined, stays: [], tips: safetyTips(p?.countryCode, p?.name), apps: localApps(p?.countryCode, p?.name) });
+  res.json(await essentialsFor(guideStays(list, trip, items), near, p?.countryCode, p?.name));
 });
 
 app.get("/api/trips/:id/list-places", (req, res) => {

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { localApps } from "./localApps.ts";
+import { safetyTips } from "./safetyTips.ts";
 import type { EssentialKind, EssentialPlace, Essentials, StayEssentials, StayItem } from "../shared/types.ts";
 import { DATA_DIR } from "./db.ts";
 import { googleEnabled } from "./googlePlaces.ts";
@@ -141,8 +143,8 @@ export async function stayEssentials(stay: StayItem, near: LatLon): Promise<Stay
   return value;
 }
 
-export async function essentialsFor(stays: StayItem[], near: LatLon, countryCode?: string): Promise<Essentials> {
+export async function essentialsFor(stays: StayItem[], near: LatLon, countryCode?: string, city?: string): Promise<Essentials> {
   const out: StayEssentials[] = [];
   for (const s of stays) out.push(await stayEssentials(s, near));
-  return { emergency: emergencyFor(countryCode), stays: out };
+  return { emergency: emergencyFor(countryCode), stays: out, tips: safetyTips(countryCode, city), apps: localApps(countryCode, city) };
 }

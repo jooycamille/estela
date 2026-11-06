@@ -668,18 +668,42 @@ function placesInTours(list: TripList, trip: Trip, items: ItineraryItem[]) {
     .map(({ place, tour }) => ({ ...place, tour: tour.title, day: tour.start.slice(0, 10) }));
 }
 
+const THINGS_A_DAY = 2; // suggestions of things to do on one date: enough to choose from without filling the page
+
+/** Whether something can happen on this date, going by what its name and tag say. */
+function suitsDay(thing: { title: string; tag?: string }, day: string, free: { from: string; room: number }) {
+  const tag = `${thing.title} ${thing.tag ?? ""}`;
+  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
+  if (/day trip|fly from/i.test(tag) && free.room < 5) return false;
+  if (/go (in the morning|early)/i.test(tag) && free.from > clockText(OUT_FROM)) return false;
+  if (/first saturday/i.test(tag)) return weekday === 6 && Number(day.slice(8)) <= 7;
+  if (/saturday/i.test(tag)) return weekday === 6;
+  if (/sunday/i.test(tag)) return weekday === 0;
+  if (/weekend/i.test(tag)) return weekday === 0 || weekday === 6;
+  return true;
+}
+
+/** The dates you're in this guide's place. With several places and no flights to tell them apart, unknown. */
+function stopDays(list: TripList, trip: Trip, items: ItineraryItem[]) {
+  const stops = guideDestinations(trip, items);
+  const stop = stops.find((s) => samePlace(s, list.place));
+  if (!stop || (!stop.from && stops.length > 1)) return [];
+  return daysBetween(stop.from ?? trip.startDate, stop.to ?? trip.endDate);
+}
+
 /**
  * A guide's dates: each tour with its places, the picks you've put on that date, and your unplanned picks close to the
  * tour, each under the nearest tour whose day has time for it. Picks with no such tour are left to group by area.
+ * Things to do aren't on the map, so they go by free time: your own first, then Joy's `ideas`, on days with room.
  */
-export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[]) {
+export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[], ideas: ListSuggestion[] = []) {
   const booked = new Set(tripLists(trip.id).flatMap((l) => alreadyBooked(l, trip, items).bookedPicks.map((p) => p.id)));
   const cards = new Map<string, DateCard>();
   const inTours = placesInTours(list, trip, items);
   for (const { tour, day, ...place } of inTours) {
     const key = `${day}|${tour}`;
     const booking = items.find((i): i is ActivityItem => i.kind === "activity" && i.title === tour && i.start.startsWith(day));
-    const card = cards.get(key) ?? { day, tour, tourStart: booking?.start.slice(11, 16), tourEnd: booking?.end, free: freeTime(trip, items, day), places: [], planned: [], nearby: [] };
+    const card = cards.get(key) ?? { day, tour, tourStart: booking?.start.slice(11, 16), tourEnd: booking?.end, free: freeTime(trip, items, day), places: [], planned: [], nearby: [], things: [], ideas: [] };
     card.places.push(place);
     cards.set(key, card);
   }
@@ -698,10 +722,37 @@ export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[]) {
   for (const entry of list.entries) {
     if (!entry.day || booked.has(entry.id)) continue;
     const onDay = [...cards.values()].find((c) => c.day === entry.day);
-    const card = onDay ?? { day: entry.day, places: [], planned: [], nearby: [] };
+    const card: DateCard = onDay ?? { day: entry.day, free: freeTime(trip, items, entry.day), places: [], planned: [], nearby: [], things: [], ideas: [] };
     card.planned.push({ ...entry, listId: list.id, listEmoji: list.emoji, listName: list.name });
     if (!onDay) cards.set(entry.day, card);
   }
+  // Each has a date of its own, so adding one doesn't send the rest to other dates while you're tapping: at most, an
+  // idea that didn't fit before appears in the space. Your own always find a date; Joy's fill any still empty.
+  // Places close by count towards a date's room: those dates are already well filled.
+  const room = new Map(stopDays(list, trip, items).map((day) => {
+    const nearby = [...cards.values()].filter((c) => c.day === day).reduce((n, c) => n + c.nearby.length, 0);
+    return [day, Math.min(THINGS_A_DAY, freeTime(trip, items, day).room - nearby)];
+  }));
+  const dates = [...room.keys()];
+  const used = new Set<string>();
+  const place = (title: string, fits: (day: string) => boolean, onCard: (card: DateCard) => void, ownDateOnly = false) => {
+    const first = [...title].reduce((sum, c) => (sum * 31 + c.charCodeAt(0)) % 9973, 0);
+    const suitable = dates.map((_, i) => dates[(first + i) % dates.length]).filter(fits);
+    const day = (ownDateOnly ? suitable.slice(0, 1) : suitable).find((d) => room.get(d)! > 0);
+    if (!day) return false;
+    room.set(day, room.get(day)! - 1);
+    used.add(day);
+    let card = [...cards.values()].find((c) => c.day === day);
+    if (!card) cards.set(day, (card = { day, free: freeTime(trip, items, day), places: [], planned: [], nearby: [], things: [], ideas: [] }));
+    onCard(card);
+    return true;
+  };
+  for (const entry of list.entries) {
+    if (entry.kind === "activity" && !entry.day && !entry.done && !booked.has(entry.id)) place(entry.title, (day) => suitsDay(entry, day, freeTime(trip, items, day)), (c) => c.things.push({ ...entry, listId: list.id, listEmoji: list.emoji, listName: list.name }));
+  }
+  const ideaFits = (idea: ListSuggestion) => (day: string) => suitsDay(idea, day, freeTime(trip, items, day));
+  const notPlaced = ideas.filter((idea) => !place(idea.title, ideaFits(idea), (c) => c.ideas.push(idea), true));
+  for (const idea of notPlaced) place(idea.title, (day) => !used.has(day) && ideaFits(idea)(day), (c) => c.ideas.push(idea));
   return {
     byDate: [...cards.values()].sort((a, b) => a.day.localeCompare(b.day) || (a.tour ?? "").localeCompare(b.tour ?? "")),
     areasLeft: areaGroups(trip, items, new Set([...booked, ...nearbyIds])).filter((g) => g.entries.some((e) => e.listId === list.id)),
@@ -775,7 +826,7 @@ export function guideSuggestions(list: TripList, trip: Trip, items: ItineraryIte
     bookedPicks: booked.bookedPicks.filter((p) => !p.inTour),
     hiddenPicks: booked.bookedPicks.filter((p) => p.inTour).map((p) => p.id),
     inItinerary: placesInTours(list, trip, items),
-    ...planByDate(list, trip, items),
+    ...planByDate(list, trip, items, activities),
     suggestions: [],
     styles: trip.styles,
     styleIdeas: [],

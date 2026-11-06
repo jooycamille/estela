@@ -308,6 +308,12 @@ label.checkbox { flex-direction: row; align-items: flex-start; gap: 8px; color: 
 .prep-group li { padding: 6px 8px; border-radius: 8px; }
 .prep-group li:hover { background: var(--bg); }
 .prep-item { flex-direction: row; align-items: flex-start; gap: 10px; margin: 0; color: var(--text); font-size: 0.92rem; cursor: pointer; }
+.prep-row { display: flex; align-items: flex-start; gap: 8px; }
+.prep-row .prep-item { flex: 1; min-width: 0; }
+.prep-actions { display: flex; flex: none; gap: 2px; margin: -6px -4px -6px 0; }
+.prep-action { width: 32px; height: 32px; padding: 0; background: none; border: none; border-radius: 8px; box-shadow: none; color: var(--muted); font-size: 0.95rem; font-weight: 400; line-height: 1; cursor: pointer; }
+.prep-action:hover { background: var(--border); color: var(--text); }
+.prep-action.danger:hover { color: var(--danger, #e5484d); }
 .prep-item input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--btn-to); }
 .prep-item > span { display: grid; gap: 2px; }
 .prep-text { font-weight: 500; }
@@ -691,7 +697,18 @@ button.link.fold-all { color: var(--muted); font-size: 0.78rem; }
 .by-date-picks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
 .by-date-picks li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
 .by-date-picks li button { flex-shrink: 0; margin-left: auto; }
+.safety-tips { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.safety-part ul { margin: 4px 0 10px; padding-left: 20px; }
+.safety-part li { margin-bottom: 4px; }
+.app-why { display: block; }
+.prep-note { margin: 0 0 6px 8px; }
+.prep-added, .prep-already { margin: 6px 0 0; }
+.prep-edit { align-items: center; }
+.prep-already-actions { display: inline-flex; gap: 12px; margin-left: 10px; }
 .by-date-full { margin: 8px 0 0; }
+.by-date-free { margin-bottom: 4px; }
+.by-date-detail { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.by-date-picks + .by-date-nearby-head { margin-top: 8px; }
 .by-date-nearby { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .by-date-nearby-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .areas-left { margin-top: 16px; }

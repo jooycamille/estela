@@ -1,3 +1,4 @@
+import { healthAdvice } from "./travelHealth.ts";
 import { cancellationOf } from "../shared/cancellation.ts";
 import type { ActivityItem, FlightItem, ItineraryItem, Link, PrepItem, Trip } from "../shared/types.ts";
 import { borderForms, laterIfNight } from "./arrivalForms.ts";
@@ -46,6 +47,8 @@ const ACTIVITY_RISKS: [RegExp, string][] = [
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+const MEDICATIONS = "Medications";
+const minusDays = (day: string, days: number) => new Date(new Date(`${day}T12:00:00Z`).getTime() - days * 86400_000).toISOString().slice(0, 10);
 const minusHours = (t: string, h: number) => {
   const d = new Date(`${t.slice(0, 16)}:00Z`);
   d.setUTCHours(d.getUTCHours() - h);
@@ -241,6 +244,9 @@ export function buildPrep(
     text: "Save copies of your documents",
     detail: "Photos of your passport, insurance policy and cards, stored somewhere you can reach offline. Your bookings are already here in Hey Joy.",
   });
+  const healthTodo = healthAdvice(foreign, places.stops.map((s) => s.city), activities.filter((a) => a.category !== "transfer"), countryName, list, home);
+  todoItem({ group: "Do soon", ...healthTodo.clinic, due: `${minusDays(trip.startDate, 30)}T09:00` });
+  if (healthTodo.yellowFever) todoItem({ group: "Do soon", ...healthTodo.yellowFever });
   // Activities' own to-dos (pay cash, confirm pickup…), due the day before each activity.
   for (const a of activities) {
     for (const step of a.guide?.beforeYouGo ?? []) {
@@ -252,7 +258,16 @@ export function buildPrep(
   }
 
   // ---------- Packing ----------
-  for (const x of ["Passport", "Phone and charger", "Power bank", "Cards and some cash", "Any medication you take (with prescriptions)", "Copies of important documents"]) pack("Essentials", x);
+  for (const x of ["Passport", "Phone and charger", "Power bank", "Cards and some cash", "Copies of important documents"]) pack("Essentials", x);
+  // Keeps its old id, so a tick from when this was under Essentials stays.
+  packing.push({
+    id: "Essentials:any-medication-you-take-with-prescriptions",
+    section: "packing",
+    group: MEDICATIONS,
+    text: "Any medication you take (with prescriptions)",
+    detail: "Enough for the whole trip plus delays, in original packaging, mostly in your hand luggage. Carry a copy of the prescription and a doctor's letter listing the generic names. Some countries restrict medicines, even over-the-counter ones, so check for each country.",
+  });
+  for (const { text, detail, source } of healthTodo.packing) add(packing, { section: "packing", group: MEDICATIONS, text, detail, source }, text);
   if (places.longHaul.length) {
     for (const x of ["Neck pillow", "Eye mask and earplugs", "Compression socks", "Refillable water bottle", "A warm layer for the plane"]) {
       pack("For long flights", x, x === "Compression socks" ? `For ${list(places.longHaul.map((f) => f.flightNumber))}.` : undefined);
@@ -286,7 +301,7 @@ export function buildPrep(
   if (activities.some((a) => /hik|trek|jungle|waterfall|nature|volcano/i.test(a.title)) || trip.styles.includes("adventure") || trip.styles.includes("nature")) {
     pack("For your activities", "Comfortable walking shoes");
     pack("For your activities", "Day pack");
-    pack("For your activities", "Insect repellent");
+    if (!has(/insect repellent/i)) pack("For your activities", "Insect repellent");
   }
   if (trip.purpose !== "leisure") for (const x of ["Laptop and charger", "Business outfit(s)", "Business cards"]) pack("For work", x);
   if (trip.styles.includes("nightlife")) pack("Clothes", "An outfit for going out");
