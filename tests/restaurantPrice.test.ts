@@ -41,7 +41,7 @@ test("a restaurant's price comes from the place you meant, nearby", () => {
   assert.equal(priceFromPlaces("Madeup Bistro", [at("Madeup Bistro", "PRICE_LEVEL_EXPENSIVE", 40.7, -74)], near), undefined); // another city
 });
 
-test("Joy's guide answers without asking Google", async () => {
+test("Estela's guide answers without asking Google", async () => {
   const calls = fakeGoogle(google("PRICE_LEVEL_EXPENSIVE"));
   const entry = restaurant("mercado de san juan");
   await fillPrice(entry, list);

@@ -44,7 +44,7 @@ export function SuggestionLists({ card, onPlan, onAddIdea }: { card: Picks } & H
             {card.ideas.map((idea) => (
               <li key={idea.title} className="small">
                 <span>
-                  {idea.title} <span className="muted tiny">· {idea.tag ?? "idea from Joy"}</span>
+                  {idea.title} <span className="muted tiny">· {idea.tag ?? "idea from Estela"}</span>
                   {idea.detail && <span className="muted tiny by-date-detail">{idea.detail}</span>}
                 </span>
                 <button type="button" className="link edit-only" onClick={() => onAddIdea(idea)}>+ Add to this day</button>

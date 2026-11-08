@@ -64,7 +64,7 @@ export default function ListForm({
     >
       <h3>{initial ? "Edit list" : "New list"}</h3>
       <p className="muted small">
-        Make your own list, like <i>Mexico Eats</i> or <i>Mexico Places</i>. Joy suggests ideas that fit it, finds the places
+        Make your own list, like <i>Mexico Eats</i> or <i>Mexico Places</i>. Estela suggests ideas that fit it, finds the places
         on the map, and helps you plan nearby ones on the same day.
       </p>
       <div className="grid2">

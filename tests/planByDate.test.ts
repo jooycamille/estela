@@ -134,7 +134,7 @@ test("saved things to do go on the free days, not on full ones, and a free day g
   assert.equal(byDate.find((c) => c.day === "2027-03-03")?.tour, undefined);
 });
 
-test("your own things to do come before Joy's ideas, up to two on a date", () => {
+test("your own things to do come before Estela's ideas, up to two on a date", () => {
   const short = { ...trip, startDate: "2027-03-03", endDate: "2027-03-03" } as Trip;
   const { byDate } = planByDate(setUp([thing("mine")]), short, [], [idea("Idea one"), idea("Idea two")]);
   assert.deepEqual(onDays(byDate), { "2027-03-03": ["mine", "Idea one"] });

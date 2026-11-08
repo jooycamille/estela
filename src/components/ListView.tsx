@@ -104,7 +104,7 @@ export default function ListView({
         {columns.map(([kind, entries, heading]) => (
           <section key={kind} className="card list-col">
             <Fold id={`${list.id}:${kind}`} title={<>{heading} <span className="muted small">{entries.length || ""}</span></>}>
-            {entries.length === 0 && <p className="muted small">None yet. Add your own below, or pick from Joy's ideas.</p>}
+            {entries.length === 0 && <p className="muted small">None yet. Add your own below, or pick from Estela's ideas.</p>}
             <ul className="entries">
               {entries.map((e) => (
                 <EntryRow
@@ -158,7 +158,7 @@ export default function ListView({
       )}
 
       <section className="card list-ideas">
-        <Fold id={`${list.id}:ideas`} title={<><Sparkles aria-hidden="true" /> Joy's ideas for {list.name}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
+        <Fold id={`${list.id}:ideas`} title={<><Sparkles aria-hidden="true" /> Estela's ideas for {list.name}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
         {!ideas && <p className="muted small">Thinking…</p>}
         {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
           <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
@@ -208,7 +208,7 @@ export default function ListView({
         )}
         {ideas && !ideas.ai && (
           <p className="muted tiny">
-            Ideas from Joy's built-in guide: local dishes, drinks and well-known sights. With Claude connected, Joy also names
+            Ideas from Estela's built-in guide: local dishes, drinks and well-known sights. With Claude connected, Estela also names
             specific restaurants and spots.
           </p>
         )}
@@ -406,7 +406,7 @@ export function AddEntry({
           {describes && lookup.state === "none" && <span className="muted tiny">No description found. You can write your own.</span>}
           {describes && lookup.state === "found" && (
             <span className="muted tiny">
-              {lookup.source === "guide" ? "From Joy's guide" : <>From <a href={lookup.url} target="_blank" rel="noopener noreferrer">Wikipedia</a></>}, so check it fits. You can edit it.
+              {lookup.source === "guide" ? "From Estela's guide" : <>From <a href={lookup.url} target="_blank" rel="noopener noreferrer">Wikipedia</a></>}, so check it fits. You can edit it.
             </span>
           )}
         </label>

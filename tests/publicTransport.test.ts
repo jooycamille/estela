@@ -11,7 +11,7 @@ test("a known city says what you need, with a link to check it", () => {
   assert.ok(item.links.every((l) => l.url.startsWith("https://")));
 });
 
-test("a city Joy doesn't know gets a reminder, not a guess", () => {
+test("a city Estela doesn't know gets a reminder, not a guess", () => {
   assert.deepEqual(texts("Madeup Town"), ["Check how to pay for public transport in Madeup Town"]);
 });
 

@@ -136,7 +136,7 @@ const TIPS: Record<string, CountryTips> = {
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
 
-/** What to know in this place, or just where to read about it for a country Joy has no tips for. */
+/** What to know in this place, or just where to read about it for a country Estela has no tips for. */
 export function safetyTips(countryCode?: string, city?: string): SafetyTips {
   const tips = countryCode ? TIPS[countryCode] : undefined;
   if (!tips) return { scams: [], safety: [], rules: [], sourceName: SOURCE_NAME, sourceUrl: "https://www.gov.uk/foreign-travel-advice" };

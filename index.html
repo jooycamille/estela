@@ -3,16 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Hey Joy</title>
-    <meta name="description" content="Hey Joy — your friendly trip assistant. Forward your bookings, and Joy keeps your itinerary, flights and plans in one place." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>Estela — Your journey, composed.</title>
+    <meta name="description" content="Estela — your journey, composed. Forward your bookings, and Estela keeps your itinerary, flights and plans in one place." />
+    <!-- ?v= makes browsers fetch the new icon rather than one they kept from before. -->
+    <link rel="icon" href="/favicon.ico?v=estela" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" href="/favicon-32.png?v=estela" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=estela" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=estela" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Hey Joy" />
+    <meta name="apple-mobile-web-app-title" content="Estela" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="theme-color" content="#FF5A5F" />
+    <!-- The phone's status bar matches the page, in light and dark mode. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F5F1" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0F0F0E" />
   </head>
   <body>
     <div id="root"></div>

@@ -85,7 +85,7 @@ export function startReminderLoop(checklistFor: (trip: Trip) => Promise<PrepItem
           db.remindersSent.push(key);
           save();
           for (const userId of people) {
-            await notifyUser(userId, { title: `Hey Joy · ${trip.name}`, body: r.label, url: `/#/trip/${trip.id}/prepare`, tag: key });
+            await notifyUser(userId, { title: `Estela · ${trip.name}`, body: r.label, url: `/#/trip/${trip.id}/prepare`, tag: key });
           }
         }
       }

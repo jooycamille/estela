@@ -13,7 +13,7 @@ import Ico from "./Ico.tsx";
 import type { LucideIcon } from "../icons.ts";
 import { Banknote, LifeBuoy, CalendarDays, Hospital, Hotel, Landmark, MapPin, Pill, ScrollText, ShieldCheck, Smartphone, Soup, Star, Stethoscope, Ticket, TriangleAlert, Utensils } from "lucide-react";
 
-// A destination guide Joy makes for each city you stay in: what to eat, do and see (matched to your travel styles),
+// A destination guide Estela makes for each city you stay in: what to eat, do and see (matched to your travel styles),
 // your saved picks, and the pharmacies, clinics, police and ATMs near where you're staying.
 
 type SectionKey = "restaurants" | "food" | "activities" | "sights";
@@ -98,7 +98,7 @@ export default function GuideView({
         <div>
           <h2>{list.name}</h2>
           <p className="muted small">
-            Joy's guide, made for this stop on your trip
+            Estela's guide, made for this stop on your trip
             {trip.styles.length > 0 && <> · for your style: {trip.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}</>}
           </p>
         </div>
@@ -200,7 +200,7 @@ export default function GuideView({
         </Fold>
       </section>
 
-      {!ideas && <p className="muted">Joy is putting your guide together…</p>}
+      {!ideas && <p className="muted">Estela is putting your guide together…</p>}
       {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
         <p className="muted small booked-ideas">✓ Left out because they're booked or planned: {ideas!.bookedIdeas!.join(" · ")}</p>
       )}
@@ -426,7 +426,7 @@ function EssentialsCard({ list }: { list: TripList }) {
       )}
       {!data && !error && <p className="muted small">Finding pharmacies, hospitals, police and ATMs near your stays… The first time takes a few seconds.</p>}
       {error && <p className="muted small">Couldn't reach the map service right now. Try again later.</p>}
-      {data && data.stays.length === 0 && <p className="muted small">Add where you're staying in {list.name}, and Joy will find what's nearby.</p>}
+      {data && data.stays.length === 0 && <p className="muted small">Add where you're staying in {list.name}, and Estela will find what's nearby.</p>}
       {data?.stays.map((st) => (
         <div key={st.stayId} className="stay-essentials">
           <h4>
@@ -507,7 +507,7 @@ function SafetyTipsPart({ listId, place, tips }: { listId: string; place: string
       <p className="muted tiny">
         {parts.length
           ? <>From <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a>{tips.checked && `, checked ${formatDay(tips.checked)} ${tips.checked.slice(0, 4)}`}. Written for UK travellers, and it changes, so read the latest before you go, along with your own government's advice.</>
-          : <>Joy doesn't have scam and safety tips for here yet. See <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a> or your own government's advice.</>}
+          : <>Estela doesn't have scam and safety tips for here yet. See <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a> or your own government's advice.</>}
       </p>
     </div>
   );

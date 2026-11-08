@@ -98,9 +98,10 @@ export interface User {
   name: string;
   email?: string; // sign-in email (lowercase); none yet for someone invited who hasn't joined
   isAdmin: boolean;
-  claimedAt?: string; // the admin: when they signed up (until then, the first visitor can set Hey Joy up)
+  claimedAt?: string; // the admin: when they signed up (until then, the first visitor can set Estela up)
   homeCountry?: string;
   displayCurrency?: string;
+  tourPending?: boolean; // a new account that hasn't seen the welcome tour yet (accounts from before it never do)
   createdAt: string;
 }
 
@@ -335,7 +336,7 @@ export interface ListEntry {
   lat?: number;
   lon?: number;
   link?: string; // your own link (a booking, a recommendation)
-  links?: Link[]; // where to try it, map, tour searches — from Joy
+  links?: Link[]; // where to try it, map, tour searches — from Estela
   done: boolean; // been there / tried it
   day?: string; // YYYY-MM-DD it's planned for
   addedAt: string;
@@ -358,7 +359,7 @@ export interface TripList {
   tripId: string;
   name: string;
   emoji: string;
-  auto?: boolean; // a destination guide Joy made for one of your cities
+  auto?: boolean; // a destination guide Estela made for one of your cities
   place?: TripPlace; // what it's about (Mexico, Mexico City…); none = anywhere on the trip
   entries: ListEntry[];
   dismissed?: string[]; // suggestion titles you said no to
@@ -400,7 +401,7 @@ export interface DateCard {
   planned: AreaGroup["entries"]; // picks you've already put on this date
   nearby: (AreaGroup["entries"][number] & { km: number; near: string })[]; // unplanned picks close to the tour's places
   things: AreaGroup["entries"]; // things to do you've saved, on a date with time for them
-  ideas: ListSuggestion[]; // Joy's things to do, not saved yet
+  ideas: ListSuggestion[]; // Estela's things to do, not saved yet
 }
 
 // ---------- Nearby essentials (per stay) ----------

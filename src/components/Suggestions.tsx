@@ -42,7 +42,7 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
       <p className="muted small">Ideas and heads-ups based on your trip type, who's going, your travel style, and gaps in your plans.</p>
       {aiAvailable && (
         <button className="secondary" onClick={askClaude} disabled={loading}>
-          <Sparkles aria-hidden="true" /> {loading ? "Joy is thinking…" : usedAi ? "Ask Joy again" : "Ask Joy for more ideas"}
+          <Sparkles aria-hidden="true" /> {loading ? "Estela is thinking…" : usedAi ? "Ask Estela again" : "Ask Estela for more ideas"}
         </button>
       )}
       {error && <p className="warning small">{error}</p>}

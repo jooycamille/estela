@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type PrepItem, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
 import { listTheme } from "../shared/lists.ts";
 import { aiEnabled } from "./ai.ts";
+import { askEstela, tripContext } from "./chat.ts";
 import { getAirport, searchAirports } from "./airports.ts";
 import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
@@ -127,12 +128,12 @@ app.get("/api/health", (_req, res) => {
 const Token = z.string().min(20).max(100);
 const Email = z.string().trim().max(200).email("Enter a valid email address");
 const Name = z.string().trim().min(1, "Enter your name").max(40);
-const userView = (u: UserRecord) => ({ id: u.id, name: u.name, email: u.email ?? null, isAdmin: u.isAdmin, hasPassword: !!u.passwordHash });
+const userView = (u: UserRecord) => ({ id: u.id, name: u.name, email: u.email ?? null, isAdmin: u.isAdmin, hasPassword: !!u.passwordHash, tourPending: !!u.tourPending });
 const fail = (res: Response, r: { error: string; status: number }) => void res.status(r.status).json({ error: r.error });
 
 app.get("/api/auth/me", (req, res) => {
   const user = userOf(req);
-  // claimHere: nobody owns Hey Joy yet and this is the Mac it runs on, so signing up here claims it (and its trips).
+  // claimHere: nobody owns Estela yet and this is the Mac it runs on, so signing up here claims it (and its trips).
   res.json({ user: user ? userView(user) : null, claimHere: !user && needsOwner() && onThisMac(req), emailReset: emailConfigured() });
 });
 
@@ -159,8 +160,8 @@ app.post("/api/auth/forgot", async (req, res) => {
     const url = `${await publicUrl(req)}/#/reset/${createLink("reset", user.id, 60)}`;
     await sendEmail(
       user.email!,
-      "Reset your Hey Joy password",
-      `Hi ${user.name},\n\nTo choose a new password for Hey Joy, open this link (it works once, for 1 hour):\n${url}\n\nIf you didn't ask for this, you can ignore this email; your password stays the same.\n\n— Joy`,
+      "Reset your Estela password",
+      `Hi ${user.name},\n\nTo choose a new password for Estela, open this link (it works once, for 1 hour):\n${url}\n\nIf you didn't ask for this, you can ignore this email; your password stays the same.\n\n— Estela`,
     ).catch((err) => console.warn("Couldn't send reset email:", (err as Error).message));
   }
   res.json({ ok: true });
@@ -191,6 +192,14 @@ app.post("/api/auth/accept-invite", (req, res) => {
   const r = acceptInvite(userFrom(res), z.object({ token: Token }).parse(req.body).token);
   if ("error" in r) return void res.status(400).json(r);
   res.json(r);
+});
+
+// The welcome tour was finished or skipped: it doesn't open again on any device (Help can still show it).
+app.post("/api/auth/tour-done", (_req, res) => {
+  const user = userFrom(res);
+  delete user.tourPending;
+  save();
+  res.json({ user: userView(user) });
 });
 
 app.patch("/api/auth/me", (req, res) => {
@@ -630,6 +639,60 @@ async function checklistFor(trip: Trip) {
   return buildPrep(trip, items, places, [], home ?? places.homeCountry, countryName).todo;
 }
 
+// ---------- Ask Estela (chat) ----------
+
+// A day's questions per person, so a stuck tab or a long evening of questions can't run up a big bill.
+const CHAT_PER_DAY = 60;
+const chatCount = new Map<string, { day: string; n: number }>();
+
+const ChatInput = z.object({
+  messages: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(6000) })).min(1).max(40),
+});
+
+// Streams the answer as server-sent events: "text" as it's written, "search" when Estela looks something up, "sources" for
+// the pages it used, then "done" (or "error"). Anyone on the trip can ask, viewers included: asking changes nothing.
+app.post("/api/trips/:id/chat", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  if (!aiEnabled()) return void res.status(503).json({ error: "Ask Estela needs Claude turned on (an Anthropic API key in .env)." });
+  const { messages } = ChatInput.parse(req.body);
+  const user = userFrom(res);
+  const today = new Date().toLocaleDateString("en-CA");
+  const used = chatCount.get(user.id);
+  const count = used?.day === today ? used.n : 0;
+  if (count >= CHAT_PER_DAY) return void res.status(429).json({ error: `That's ${CHAT_PER_DAY} questions today. Estela can answer more tomorrow.` });
+  chatCount.set(user.id, { day: today, n: count + 1 });
+
+  const items = tripItems(trip.id);
+  const home = user.homeCountry ?? (user.isAdmin ? settings.homeCountry : undefined);
+  const places = tripPlaces(trip, items);
+  const checked = new Set(trip.prep?.checked ?? []);
+  const todos = [...buildPrep(trip, items, places, [], home ?? places.homeCountry, countryName).todo, ...(trip.prep?.custom ?? []).filter((c) => c.section === "todo")]
+    .filter((t) => !checked.has(t.id));
+  const planned = db.lists.filter((l) => l.tripId === trip.id).flatMap((l) => l.entries.filter((e) => e.day));
+  const context = tripContext({ trip, items, planned, todos, today, homeCountry: home ? countryName(home) : undefined });
+
+  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" });
+  const send = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  // Closing the chat (or the tab) stops the answer, and the bill for it.
+  const stop = new AbortController();
+  res.on("close", () => stop.abort());
+  try {
+    await askEstela(context, messages, {
+      onText: (t) => send("text", t),
+      onSearch: (q) => send("search", q),
+      onSources: (s) => send("sources", s),
+    }, stop.signal);
+    send("done", {});
+  } catch (err) {
+    if (!stop.signal.aborted) {
+      console.warn("Ask Estela failed:", (err as Error).message);
+      send("error", "Estela couldn't answer just now. Try again in a moment.");
+    }
+  }
+  res.end();
+});
+
 // ---------- Reminders (push notifications) ----------
 
 // What's still to come on a trip, for the bell. Items you've ticked aren't reminded.
@@ -667,7 +730,7 @@ app.post("/api/push/unsubscribe", (req, res) => {
 });
 
 app.post("/api/push/test", async (_req, res) => {
-  const sent = await notifyUser(userFrom(res).id, { title: "Hey Joy", body: "Reminders are on. Joy will nudge you when it's time for Check-MIG, check-in and more.", url: "/#/" });
+  const sent = await notifyUser(userFrom(res).id, { title: "Estela", body: "Reminders are on. Estela will nudge you when it's time for Check-MIG, check-in and more.", url: "/#/" });
   res.json({ sent });
 });
 
@@ -1277,17 +1340,17 @@ app.listen(port, host, (err?: Error) => {
   // Express 5 calls this even when listening fails. A second copy must not start the pollers: each copy keeps its
   // own in-memory data and saves it to the same file, so they would overwrite each other's changes.
   if (err) {
-    console.error(`API port ${port} is already in use — is Hey Joy already running? Exiting so data isn't overwritten.`);
+    console.error(`API port ${port} is already in use — is Estela already running? Exiting so data isn't overwritten.`);
     process.exit(1);
   }
   // You sign in on this Mac with a fresh one-time link (valid 1 hour); other devices are signed in from the app.
   const admin = setUpPeople();
   if (needsOwner()) {
-    // Claiming Hey Joy (and the trips already in it): sign up on this Mac, or (e.g. once deployed) open this link.
-    console.log(`\n  Welcome! Create your account at http://localhost:${port} on this Mac to set up Hey Joy.`);
+    // Claiming Estela (and the trips already in it): sign up on this Mac, or (e.g. once deployed) open this link.
+    console.log(`\n  Welcome! Create your account at http://localhost:${port} on this Mac to set up Estela.`);
     publicUrl().then((url) => console.log(`  Not on this Mac (e.g. deployed)? This one-time owner link works for 24 hours:\n  ${url}/#/signin/${createLink("owner", admin.id, 24 * 60)}\n`));
   }
-  console.log(`Hey Joy on http://${host === "127.0.0.1" ? "localhost" : host}:${port} (Claude: ${aiEnabled() ? "on" : "off — using rule-based fallbacks"})`);
+  console.log(`Estela on http://${host === "127.0.0.1" ? "localhost" : host}:${port} (Claude: ${aiEnabled() ? "on" : "off — using rule-based fallbacks"})`);
   const dropped = dropEmptyAttachments();
   if (dropped) console.log(`Removed ${dropped} empty attachment file(s); re-import their emails to attach them again.`);
   pruneAttachments();

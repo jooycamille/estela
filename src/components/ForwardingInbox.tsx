@@ -68,7 +68,7 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
 
   return (
     <div className="inbox">
-      <h4>Forward your bookings to Joy</h4>
+      <h4>Forward your bookings to Estela</h4>
       {!inbox ? (
         <>
           <p className="muted small">
@@ -103,7 +103,7 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
           </p>
 
           {inbox.emails.length === 0 ? (
-            <p className="muted small waiting">Joy is waiting for your first email…</p>
+            <p className="muted small waiting">Estela is waiting for your first email…</p>
           ) : (
             <ul className="inbox-log">
               {inbox.emails.slice(0, 8).map((e) => (

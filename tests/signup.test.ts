@@ -32,13 +32,13 @@ test("someone else signing up first gets an empty account, not your trips", asyn
   assert.equal(auth.needsOwner(), true);
 });
 
-test("signing up on the Mac claims Hey Joy and the trips already in it", async () => {
-  const joy = user(await auth.signUp(onMac, res() as never, { name: "Joy", email: "Joy@Example.com ", password: "trip of a lifetime" }));
-  assert.equal(joy.id, owner.id);
-  assert.equal(joy.isAdmin, true);
-  assert.equal(joy.email, "joy@example.com");
-  assert.equal(auth.tripRole(joy as never, db.trips[0]), "owner");
-  assert.match(joy.passwordHash!, /^scrypt\$/);
+test("signing up on the Mac claims Estela and the trips already in it", async () => {
+  const sam = user(await auth.signUp(onMac, res() as never, { name: "Sam", email: "Sam@Example.com ", password: "trip of a lifetime" }));
+  assert.equal(sam.id, owner.id);
+  assert.equal(sam.isAdmin, true);
+  assert.equal(sam.email, "sam@example.com");
+  assert.equal(auth.tripRole(sam as never, db.trips[0]), "owner");
+  assert.match(sam.passwordHash!, /^scrypt\$/);
   assert.equal(auth.needsOwner(), false);
   // Another sign-up on the Mac after that is just another account.
   const other = user(await auth.signUp(onMac, res() as never, { name: "Guest", email: "guest@example.com", password: "another long one" }));
@@ -46,7 +46,7 @@ test("signing up on the Mac claims Hey Joy and the trips already in it", async (
 });
 
 test("emails are unique and passwords have to be reasonable", async () => {
-  assert.deepEqual(await auth.signUp(remote(), res() as never, { name: "X", email: "JOY@example.com", password: "whatever123" }), {
+  assert.deepEqual(await auth.signUp(remote(), res() as never, { name: "X", email: "SAM@example.com", password: "whatever123" }), {
     status: 409,
     error: "There's already an account with that email. Sign in instead.",
   });
@@ -56,9 +56,9 @@ test("emails are unique and passwords have to be reasonable", async () => {
 
 test("signing in: right password works, wrong ones don't say why, and repeated tries are stopped", async () => {
   const r = res();
-  assert.equal(user(await auth.signIn(remote(), r as never, { email: "joy@example.com", password: "trip of a lifetime" })).name, "Joy");
+  assert.equal(user(await auth.signIn(remote(), r as never, { email: "sam@example.com", password: "trip of a lifetime" })).name, "Sam");
   assert.match(r.headers["set-cookie"], /^joy_session=[\w-]+; Path=\/; HttpOnly; SameSite=Lax; Max-Age=\d+; Secure$/);
-  assert.deepEqual(await auth.signIn(remote(), res() as never, { email: "joy@example.com", password: "nope" }), { status: 401, error: "Email or password is incorrect" });
+  assert.deepEqual(await auth.signIn(remote(), res() as never, { email: "sam@example.com", password: "nope" }), { status: 401, error: "Email or password is incorrect" });
   assert.deepEqual(await auth.signIn(remote(), res() as never, { email: "nobody@example.com", password: "nope" }), { status: 401, error: "Email or password is incorrect" });
   let last;
   for (let i = 0; i < 9; i++) last = await auth.signIn(remote("100.1.1.1"), res() as never, { email: "andres@example.com", password: "wrong" });
@@ -66,14 +66,14 @@ test("signing in: right password works, wrong ones don't say why, and repeated t
 });
 
 test("a reset link sets a new password once, and signs out other devices", async () => {
-  const joy = auth.findByEmail("joy@example.com")!;
-  const before = db.sessions.filter((s) => s.userId === joy.id).length;
+  const sam = auth.findByEmail("sam@example.com")!;
+  const before = db.sessions.filter((s) => s.userId === sam.id).length;
   assert.ok(before > 0);
-  const link = auth.createLink("reset", joy.id, 60);
+  const link = auth.createLink("reset", sam.id, 60);
   user(await auth.resetPassword(remote(), res() as never, link, "a brand new password"));
-  assert.equal(db.sessions.filter((s) => s.userId === joy.id).length, 1); // just this device
+  assert.equal(db.sessions.filter((s) => s.userId === sam.id).length, 1); // just this device
   assert.equal(((await auth.resetPassword(remote(), res() as never, link, "again and again")) as { status: number }).status, 400);
-  user(await auth.signIn(remote("100.2.2.2"), res() as never, { email: "joy@example.com", password: "a brand new password" }));
+  user(await auth.signIn(remote("100.2.2.2"), res() as never, { email: "sam@example.com", password: "a brand new password" }));
 });
 
 test("an invite moves the trip from the invited name to the account that accepts it", () => {
@@ -82,7 +82,7 @@ test("an invite moves the trip from the invited name to the account that accepts
   db.users.push(placeholder);
   trip.members = [{ userId: placeholder.id, role: "editor", addedAt: "" }];
   const link = auth.createLink("invite", placeholder.id, 60, trip.id);
-  assert.deepEqual(auth.invitePreview(link), { tripName: "The Americas", invitedBy: "Joy", invitedName: "Ana" });
+  assert.deepEqual(auth.invitePreview(link), { tripName: "The Americas", invitedBy: "Sam", invitedName: "Ana" });
   const andres = auth.findByEmail("andres@example.com")!;
   assert.deepEqual(auth.acceptInvite(andres, link), { tripId: "old" });
   assert.equal(auth.tripRole(andres, trip), "editor");
@@ -90,7 +90,7 @@ test("an invite moves the trip from the invited name to the account that accepts
   assert.ok("error" in auth.acceptInvite(andres, link)); // used up
 });
 
-test("the owner link (for a deployed server) claims Hey Joy once", () => {
+test("the owner link (for a deployed server) claims Estela once", () => {
   db.users.find((u) => u.isAdmin)!.claimedAt = undefined; // pretend it's a fresh deploy
   const admin = db.users.find((u) => u.isAdmin)!;
   const link = auth.createLink("owner", admin.id, 60);

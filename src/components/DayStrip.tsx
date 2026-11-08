@@ -35,6 +35,8 @@ export function useStickBelowHeader() {
 export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]; onEmptyDay?: (day: string) => void; onJump?: (day: string) => void }) {
   const [active, setActive] = useState<string>();
   const strip = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLDivElement>(null);
+  useDragToScroll(row);
   const today = new Date().toLocaleDateString("en-CA");
   const onTrip = days.some((d) => d.day === today);
 
@@ -43,7 +45,7 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
   // Highlight the day whose section is nearest the top of the screen.
   useEffect(() => {
     const onScroll = () => {
-      const offset = (strip.current?.getBoundingClientRect().bottom ?? 120) + 12;
+      const offset = (strip.current?.getBoundingClientRect().bottom ?? 120) + 28; // a day you jumped to lands just below
       let current: string | undefined;
       for (const d of days) {
         const el = document.getElementById(dayId(d.day));
@@ -76,15 +78,15 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
     onJump?.(target);
     // Scroll the page itself, landing just below the header and this strip (an element's scrollIntoView gets
     // cancelled when the strip re-renders mid-scroll).
+    // Everything stuck at the top (header, the trip's tabs, this strip) ends at the strip's bottom edge.
     const el = document.getElementById(dayId(target));
-    const stripBottom = strip.current?.getBoundingClientRect().height ?? 80;
-    const header = document.querySelector(".topbar")?.getBoundingClientRect().height ?? 60;
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - header - stripBottom - 8, behavior: "smooth" });
+    const stuck = strip.current?.getBoundingClientRect().bottom ?? 140;
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - stuck - 8, behavior: "smooth" });
   };
 
   return (
     <div className="day-strip" ref={strip}>
-      <div className="day-strip-row" role="tablist" aria-label="Jump to a day">
+      <div className="day-strip-row" role="tablist" aria-label="Jump to a day" ref={row}>
         {onTrip && (
           <button type="button" className="day-chip-today" onClick={() => jump(today)}>
             Today
@@ -115,4 +117,67 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
       </div>
     </div>
   );
+}
+
+/**
+ * Drag the dates sideways with a mouse (fingers already swipe them), and scroll them with a mouse wheel while pointing
+ * at them. A drag doesn't count as tapping the date it started on.
+ */
+function useDragToScroll(ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let start: { x: number; left: number } | undefined;
+    let dragged = false;
+    const down = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      start = { x: e.clientX, left: el.scrollLeft };
+      dragged = false;
+    };
+    const move = (e: PointerEvent) => {
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      if (!dragged && Math.abs(dx) < 5) return; // a small wobble is still a click
+      if (!dragged) {
+        dragged = true;
+        el.setPointerCapture(e.pointerId);
+        el.classList.add("dragging");
+      }
+      el.scrollLeft = start.left - dx;
+    };
+    const up = (e: PointerEvent) => {
+      if (!start) return;
+      start = undefined;
+      el.classList.remove("dragging");
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    // The click that ends a drag isn't a tap on a date.
+    const click = (e: MouseEvent) => {
+      if (!dragged) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragged = false;
+    };
+    // A wheel turned over the dates moves them sideways (when they don't all fit), not the page.
+    const wheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const before = el.scrollLeft;
+      el.scrollLeft += e.deltaY;
+      if (el.scrollLeft !== before) e.preventDefault(); // at either end, let the page scroll on
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("click", click, true);
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      el.removeEventListener("click", click, true);
+      el.removeEventListener("wheel", wheel);
+    };
+  }, [ref]);
 }

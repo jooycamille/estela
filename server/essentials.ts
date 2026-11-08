@@ -29,7 +29,7 @@ const NOT_REALLY = /bitcoin|cripto|crypto|\bEPS\b|consultor|seguros?\b|insurance
 const GENERIC_STAY_WORDS = new Set(["home", "house", "hotel", "hostel", "apartment", "apartamento", "the", "and", "with", "near", "family", "villa", "casa", "room", "stay", "condo", "unit", "inn"]);
 const REAL_CARE = /hospital|cl[ií]nica|clinic|sanatorio|m[eé]dic|policl|salud|urgenc|emergenc/i;
 
-// National emergency numbers for the countries Joy knows well (112 also works from most mobiles worldwide).
+// National emergency numbers for the countries Estela knows well (112 also works from most mobiles worldwide).
 const EMERGENCY: Record<string, { number: string; note?: string }> = {
   MX: { number: "911", note: "Police, ambulance and fire" },
   PA: { number: "911", note: "Police, ambulance and fire" },

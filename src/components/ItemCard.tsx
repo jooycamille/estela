@@ -191,7 +191,7 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
       </div>
       {pending.length > 0 && (
         <div className="change-alert">
-          <strong>Joy noticed a change to {f.flightNumber}</strong>
+          <strong>Estela noticed a change to {f.flightNumber}</strong>
           <ul>
             {pending.map((c, i) => (
               <li key={i}>{c.field}: {c.from ? <s>{c.from.replace("T", " ")}</s> : "—"} → <b>{c.to?.replace("T", " ")}</b></li>

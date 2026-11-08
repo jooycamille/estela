@@ -110,7 +110,7 @@ function findFlights(trip: Trip, items: ItineraryItem[]): Omit<Suggestion, "sour
   }
   return {
     title: `Find flights to ${to.city} (${to.iata})`,
-    description: `${from ? `From ${from}, ` : ""}${pretty(trip.startDate)} to ${pretty(trip.endDate)}. These open flight sites with your dates, where you can compare prices. Once booked, add the flight and Joy keeps it up to date.`,
+    description: `${from ? `From ${from}, ` : ""}${pretty(trip.startDate)} to ${pretty(trip.endDate)}. These open flight sites with your dates, where you can compare prices. Once booked, add the flight and Estela keeps it up to date.`,
     category: "logistics",
     day: trip.startDate,
     links,

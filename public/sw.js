@@ -1,8 +1,8 @@
-// Hey Joy's offline worker. Keeps the app and your trip data on your phone so you can read your itinerary, guides,
+// Estela's offline worker. Keeps the app and your trip data on your phone so you can read your itinerary, guides,
 // checklist, essentials and tickets without a connection. Data is always fetched fresh when your Mac is reachable;
 // the saved copy is only used when it isn't. Changes (adding, ticking…) need a connection.
 
-const VERSION = "heyjoy-v2";
+const VERSION = "estela-v3"; // a new name (and icons): caches from before are cleared
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data`;
 const SAVED_AT = "X-Joy-Saved-At"; // marks a response that came from the saved copy
@@ -93,7 +93,7 @@ self.addEventListener("fetch", (event) => {
 // ---------- Reminders (push notifications) ----------
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Hey Joy", body: "", url: "/" };
+  let data = { title: "Estela", body: "", url: "/" };
   try {
     data = { ...data, ...event.data.json() };
   } catch {

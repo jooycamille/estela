@@ -16,7 +16,7 @@ test("a city adds its own, whichever way its name is written", () => {
   assert.equal(safetyTips("MX").here, undefined);
 });
 
-test("a country Joy has no tips for only points to the advice, with no guesses", () => {
+test("a country Estela has no tips for only points to the advice, with no guesses", () => {
   const tips = safetyTips("ZZ");
   assert.deepEqual([tips.scams, tips.safety, tips.rules, tips.checked], [[], [], [], undefined]);
   assert.equal(tips.sourceUrl, "https://www.gov.uk/foreign-travel-advice");

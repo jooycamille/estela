@@ -138,13 +138,13 @@ export default function ReminderBell({ tripId }: { tripId?: string }) {
       )}
       {state === "blocked" && (
         <p className="small">
-          Notifications are blocked for Hey Joy on this device. On iPhone: <b>Settings → Notifications → Hey Joy</b>. In a browser: the site settings
+          Notifications are blocked for Estela on this device. On iPhone: <b>Settings → Notifications → Estela</b>. In a browser: the site settings
           (the icon left of the address).
         </p>
       )}
       {state === "needs-install" && (
         <p className="small">
-          On iPhone, reminders work in the Home Screen app: in Safari tap <b>Share → Add to Home Screen</b>, open Hey Joy from there, sign in, and
+          On iPhone, reminders work in the Home Screen app: in Safari tap <b>Share → Add to Home Screen</b>, open Estela from there, sign in, and
           turn reminders on.
         </p>
       )}

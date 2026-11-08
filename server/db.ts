@@ -42,7 +42,7 @@ export interface SessionRecord {
 /** A one-time sign-in link (an invite to a trip, or signing in another device). Only a hash is stored. */
 export interface InviteRecord {
   id: string; // sha256 of the link's secret
-  purpose: "invite" | "device" | "owner" | "reset"; // join a trip · sign in another device · claim Hey Joy · reset password
+  purpose: "invite" | "device" | "owner" | "reset"; // join a trip · sign in another device · claim Estela · reset password
   userId: string; // invite: the invited person's placeholder; otherwise the account it's for
   tripId?: string; // invite: the trip to join
   createdAt: string;

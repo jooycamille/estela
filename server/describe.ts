@@ -2,7 +2,7 @@ import type { EntryPhoto, ListEntry } from "../shared/types.ts";
 import { IDEAS } from "./listIdeas.ts";
 import { distanceKm } from "./tripPlaces.ts";
 
-// A short description for something you typed into a list: Joy's own guide first, then Wikipedia (free, no key). A wrong
+// A short description for something you typed into a list: Estela's own guide first, then Wikipedia (free, no key). A wrong
 // description is worse than none, so a Wikipedia article is only used when it's clearly about the same thing.
 
 export type Description = { text: string; source: "guide" | "wikipedia"; url?: string; image?: string; at?: { lat: number; lon: number } };
@@ -105,7 +105,7 @@ async function fromWikipedia(name: string, food: boolean): Promise<Description |
     action: "query", generator: "search", gsrsearch: name, gsrlimit: "5", prop: "extracts|pageprops|pageimages|coordinates", exintro: "1", explaintext: "1",
     exsentences: "3", exlimit: "5", ppprop: "disambiguation", piprop: "thumbnail", pithumbsize: "640", pilimit: "5", colimit: "5", format: "json", origin: "*",
   });
-  const ask = () => fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "HeyJoy-travel-app/0.1 (https://github.com/jooycamille/hey-joy)" }, signal: AbortSignal.timeout(5000) });
+  const ask = () => fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "Estela-travel-app/0.1 (https://github.com/jooycamille/hey-joy)" }, signal: AbortSignal.timeout(5000) });
   const res = await ask().catch(ask); // one more go: the first request after a quiet spell can be slow
   if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`);
   const data = (await res.json()) as { query?: { pages?: Record<string, Page> } };
@@ -157,7 +157,7 @@ async function nearbyPhoto(name: string, lat: number, lon: number): Promise<Entr
     action: "query", generator: "geosearch", ggscoord: `${lat}|${lon}`, ggsradius: "1000", ggslimit: "20", prop: "pageimages",
     piprop: "thumbnail", pithumbsize: "640", pilimit: "20", format: "json", origin: "*",
   });
-  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "HeyJoy-travel-app/0.1 (https://github.com/jooycamille/hey-joy)" }, signal: AbortSignal.timeout(5000) });
+  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "Estela-travel-app/0.1 (https://github.com/jooycamille/hey-joy)" }, signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`);
   const data = (await res.json()) as { query?: { pages?: Record<string, Page> } };
   const page = pickNearby(name, Object.values(data.query?.pages ?? {}));
@@ -189,7 +189,7 @@ async function placeArticle(name: string, at?: { lat?: number; lon?: number }): 
 export const PHOTO_VERSION = 3;
 export const photoDue = (entry: ListEntry) => entry.photoLooked !== PHOTO_VERSION;
 
-/** Looks for an entry's photo once, and fills in a description for a place that has none: Joy's guide, or the article
+/** Looks for an entry's photo once, and fills in a description for a place that has none: Estela's guide, or the article
  *  about this very place. A failed lookup leaves it to try again next time. */
 export async function fillPhoto(entry: ListEntry, countryCode?: string) {
   if (!photoDue(entry)) return false;
@@ -229,7 +229,7 @@ export async function recheckDescription(entry: ListEntry) {
   if (!link || !entry.notes) return false;
   const title = decodeURIComponent(link.url.slice("https://en.wikipedia.org/wiki/".length)).replace(/_/g, " ");
   const params = new URLSearchParams({ action: "query", titles: title, prop: "extracts|coordinates", exintro: "1", explaintext: "1", exsentences: "3", format: "json", origin: "*" });
-  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "HeyJoy-travel-app/0.1 (https://github.com/jooycamille/hey-joy)" }, signal: AbortSignal.timeout(5000) });
+  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": "Estela-travel-app/0.1 (https://github.com/jooycamille/hey-joy)" }, signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`Wikipedia answered ${res.status}`);
   const data = (await res.json()) as { query?: { pages?: Record<string, Page> } };
   const page = Object.values(data.query?.pages ?? {})[0];

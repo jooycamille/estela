@@ -65,7 +65,7 @@ export type PrepData = {
 
 export type TripInput = Omit<Trip, "id" | "createdAt">;
 export type TripSummary = Trip & { itemCount: number; role: TripRole; ownerName?: string; travellers: number };
-export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean };
+export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean; tourPending?: boolean };
 export type Device = { id: string; device: string; lastSeenAt: string; current: boolean };
 export type InviteLink = { name: string; url: string; expiresInDays: number };
 export type Travellers = { travellers: TravellerView[]; contacts: { id: string; name: string }[] };
@@ -161,6 +161,7 @@ export const api = {
   invite: (token: string) => request<{ tripName: string; invitedBy: string; invitedName?: string }>(`/auth/invite/${token}`),
   acceptInvite: (token: string) => request<{ tripId: string }>("/auth/accept-invite", json("POST", { token })),
   updateMe: (body: { name?: string; email?: string }) => request<{ user: Me }>("/auth/me", json("PATCH", body)),
+  tourDone: () => request<{ user: Me }>("/auth/tour-done", json("POST", {})),
   changePassword: (current: string | undefined, password: string) => request<{ ok: true }>("/auth/password", json("POST", { current, password })),
   signOut: () => request<void>("/auth/signout", json("POST")),
   devices: () => request<Device[]>("/auth/devices"),

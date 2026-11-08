@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Me } from "../api.ts";
-import Logo from "./Logo.tsx";
+import { Wordmark } from "./Logo.tsx";
 
 type Mode = "signin" | "signup" | "forgot";
 export type AuthLinks = { invite?: string; reset?: string; link?: string };
@@ -73,7 +73,7 @@ export default function SignIn({
   if (links.link && !error) {
     return (
       <div className="signin">
-        <Logo height={48} />
+        <Wordmark />
         <p>Signing you in…</p>
       </div>
     );
@@ -82,7 +82,7 @@ export default function SignIn({
   if (links.reset) {
     return (
       <div className="signin">
-        <Logo height={48} />
+        <Wordmark />
         <h1>Choose a new password</h1>
         {error && <p className="error">{error}</p>}
         <form className="auth-form" onSubmit={submit(async () => onSignedIn((await api.reset(links.reset!, password)).user))}>
@@ -99,17 +99,17 @@ export default function SignIn({
 
   return (
     <div className="signin">
-      <Logo height={48} />
+      <Wordmark />
       {invite ? (
         <div className="invite-banner">
           <b>{invite.invitedBy}</b> invited you to join <b>{invite.tripName}</b>.
           <div className="small">Create a free account (or sign in) to see it. You'll only see the trips you're part of.</div>
         </div>
       ) : (
-        <h1>{mode === "signup" ? "Create your Hey Joy account" : mode === "forgot" ? "Forgot your password?" : "Welcome back"}</h1>
+        <h1>{mode === "signup" ? "Create your Estela account" : mode === "forgot" ? "Forgot your password?" : "Welcome back"}</h1>
       )}
       {claimHere && mode === "signup" && !invite && (
-        <p className="claim-note">You're setting up Hey Joy on the Mac it runs on, so your account will own the trips already here.</p>
+        <p className="claim-note">You're setting up Estela on the Mac it runs on, so your account will own the trips already here.</p>
       )}
 
       {mode !== "forgot" && (
@@ -169,7 +169,7 @@ export default function SignIn({
             setNotice(
               emailReset
                 ? "If there's an account with that email, we've sent a link to reset your password. It works for 1 hour."
-                : "If there's an account with that email, a reset link was made. Email isn't set up yet, so it's shown in the Terminal where Hey Joy is running.",
+                : "If there's an account with that email, a reset link was made. Email isn't set up yet, so it's shown in the Terminal where Estela is running.",
             );
           })}
         >

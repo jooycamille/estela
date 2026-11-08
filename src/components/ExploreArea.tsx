@@ -45,7 +45,7 @@ export default function ExploreArea({ tripId, place, lists, onAdded }: { tripId:
       </button>
       {open && (
         <div className="explore-ideas">
-          {!ideas && !error && <p className="muted small">Joy is looking around {place.name}… The first look takes a few seconds.</p>}
+          {!ideas && !error && <p className="muted small">Estela is looking around {place.name}… The first look takes a few seconds.</p>}
           {error && <p className="error small">{error}</p>}
           {ideas && !shown.length && <p className="muted small">The map doesn't list anything more here. Try the links below.</p>}
           {shown.map((p) => (

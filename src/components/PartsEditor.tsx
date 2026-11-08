@@ -32,7 +32,7 @@ export default function PartsEditor({
     <fieldset className="parts">
       <legend>Parts of this trip (optional)</legend>
       <p className="muted small">
-        Travelling with different people at different times — e.g. solo first, then with family? Add a part for each, and Joy
+        Travelling with different people at different times — e.g. solo first, then with family? Add a part for each, and Estela
         will tailor suggestions and packing to who you're with.
       </p>
       {parts.map((p, i) => (

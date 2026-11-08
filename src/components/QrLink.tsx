@@ -29,7 +29,7 @@ export default function QrLink({ url, title, note }: { url: string; title: strin
             {copied ? "Copied ✓" : "Copy link"}
           </button>
           {"share" in navigator && (
-            <button type="button" className="ghost" onClick={() => navigator.share({ title: "Hey Joy", text: title, url }).catch(() => undefined)}>
+            <button type="button" className="ghost" onClick={() => navigator.share({ title: "Estela", text: title, url }).catch(() => undefined)}>
               Share…
             </button>
           )}

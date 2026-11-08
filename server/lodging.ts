@@ -30,7 +30,7 @@ export interface NominatimPlace {
 }
 
 const BASE = "https://nominatim.openstreetmap.org";
-const UA = "HeyJoy/0.1 (personal trip planner)";
+const UA = "Estela/0.1 (personal trip planner)";
 const cache = new Map<string, { at: number; value: unknown }>();
 let queue: Promise<unknown> = Promise.resolve();
 let last = 0;

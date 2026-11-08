@@ -76,7 +76,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
   }, [all, checked, data, onCounts]);
 
   if (error) return <p className="error">{error}</p>;
-  if (!data) return <p className="muted">Joy is getting your trip ready…</p>;
+  if (!data) return <p className="muted">Estela is getting your trip ready…</p>;
 
   const toggle = async (id: string, on: boolean) => {
     setData((d) => d && { ...d, checked: on ? [...d.checked, id] : d.checked.filter((x) => x !== id) });
@@ -95,7 +95,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
       {!data.homeCountry && (
         <div className="card home-country">
           <p className="small">
-            <b>Where are you travelling from?</b> Joy uses it for plug adapters, entry requirements and currency tips
+            <b>Where are you travelling from?</b> Estela uses it for plug adapters, entry requirements and currency tips
             {data.homeCountryGuess ? " — guessed from your first flight." : "."}
           </p>
           <div className="key-row">

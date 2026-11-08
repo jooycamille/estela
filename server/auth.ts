@@ -4,7 +4,7 @@ import type { Trip, TripRole, User } from "../shared/types.ts";
 import { db, newId, now, save, type InviteRecord, type UserRecord } from "./db.ts";
 
 // Accounts and access. Anyone can create an account (name, email, password); each account sees only its own trips
-// and the trips it's been invited to. The app's settings (flight-data API keys) belong to the owner of Hey Joy: the
+// and the trips it's been invited to. The app's settings (flight-data API keys) belong to the owner of Estela: the
 // account that claimed it, by signing up on the Mac running it or with the one-time owner link in the server log.
 //
 // Passwords are stored as scrypt hashes; cookies and one-time links as SHA-256 hashes of their secrets, so a copy of
@@ -65,7 +65,7 @@ export const clientAddress = (req: Request) => req.get("x-forwarded-for")?.split
 
 // ---------- People ----------
 
-/** Before accounts: an owner placeholder holds everything until the real owner claims Hey Joy. */
+/** Before accounts: an owner placeholder holds everything until the real owner claims Estela. */
 export function setUpPeople() {
   let admin = db.users.find((u) => u.isAdmin);
   let changed = false;
@@ -90,12 +90,12 @@ export function setUpPeople() {
   return admin;
 }
 
-/** True until someone claims Hey Joy (and its existing trips). */
+/** True until someone claims Estela (and its existing trips). */
 export const needsOwner = () => !db.users.some((u) => u.isAdmin && u.claimedAt);
 const ownerPlaceholder = () => db.users.find((u) => u.isAdmin && !u.claimedAt);
 
 /**
- * Is this request from the Mac running Hey Joy itself (not a phone or anyone else)? Other devices come through
+ * Is this request from the Mac running Estela itself (not a phone or anyone else)? Other devices come through
  * Tailscale (or a host's proxy), which adds forwarding headers and uses its own address, not localhost.
  */
 export function onThisMac(req: Request) {
@@ -159,7 +159,7 @@ export function userOf(req: Request): UserRecord | undefined {
 type AuthResult = { user: UserRecord } | { error: string; status: number };
 
 /**
- * A new account. Signing up on the Mac running Hey Joy, while nobody has claimed it, makes you its owner and gives
+ * A new account. Signing up on the Mac running Estela, while nobody has claimed it, makes you its owner and gives
  * you the trips already in it; every other sign-up starts with an empty account.
  */
 export async function signUp(req: Request, res: Response, input: { name: string; email: string; password: string }): Promise<AuthResult> {
@@ -171,10 +171,10 @@ export async function signUp(req: Request, res: Response, input: { name: string;
   const placeholder = ownerPlaceholder();
   let user: UserRecord;
   if (placeholder && onThisMac(req)) {
-    Object.assign(placeholder, { name: input.name, email, passwordHash, claimedAt: now() });
+    Object.assign(placeholder, { name: input.name, email, passwordHash, claimedAt: now(), tourPending: true });
     user = placeholder;
   } else {
-    user = { id: newId(), name: input.name, email, passwordHash, isAdmin: false, createdAt: now() };
+    user = { id: newId(), name: input.name, email, passwordHash, isAdmin: false, tourPending: true, createdAt: now() };
     db.users.push(user);
   }
   startSession(req, res, user);
@@ -193,7 +193,7 @@ export async function signIn(req: Request, res: Response, input: { email: string
 
 /** Changing your password signs out your other devices (in case someone else knew the old one). */
 export async function changePassword(req: Request, user: UserRecord, current: string | undefined, next: string): Promise<string | undefined> {
-  // Accounts without a password yet (the owner who claimed Hey Joy with a link) set one without the current one.
+  // Accounts without a password yet (the owner who claimed Estela with a link) set one without the current one.
   if (user.passwordHash && !(await passwordMatches(current ?? "", user.passwordHash))) return "Your current password is incorrect";
   const problem = passwordProblem(next, user.email);
   if (problem) return problem;
@@ -246,7 +246,7 @@ export async function resetPassword(req: Request, res: Response, linkSecret: str
   return { user };
 }
 
-/** What an invite is for, so the page can say "Joy invited you to The Americas" before you sign up or in. */
+/** What an invite is for, so the page can say "Sam invited you to The Americas" before you sign up or in. */
 export function invitePreview(linkSecret: string) {
   const link = findLink(linkSecret, "invite");
   const trip = link && db.trips.find((t) => t.id === link.tripId);
@@ -361,7 +361,7 @@ export function guard(req: Request, res: Response, next: NextFunction) {
   if (PUBLIC.some((re) => re.test(path))) return next();
 
   const user = userOf(req);
-  if (!user) return void res.status(401).json({ error: "Please sign in to Hey Joy", signIn: true });
+  if (!user) return void res.status(401).json({ error: "Please sign in to Estela", signIn: true });
   res.locals.user = user;
 
   if (ADMIN_ONLY.some((re) => re.test(path)) && !user.isAdmin) return void res.status(403).json({ error: "Only the app's owner can change this" });
@@ -374,7 +374,8 @@ export function guard(req: Request, res: Response, next: NextFunction) {
     const role = tripRole(user, trip);
     if (!role) return void res.status(404).json({ error: "Not found" });
     if (scoped?.ownerOnly && role !== "owner") return void res.status(403).json({ error: "Only the trip's owner can do that" });
-    if (!READS.has(req.method) && !canEdit(role)) return void res.status(403).json({ error: "You can view this trip but not change it" });
+    // Asking Estela a question (the chat) changes nothing, so viewers can too.
+    if (!READS.has(req.method) && !canEdit(role) && !/^\/api\/trips\/[^/]+\/chat$/.test(path)) return void res.status(403).json({ error: "You can view this trip but not change it" });
     res.locals.role = role;
   }
   next();

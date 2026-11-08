@@ -1,5 +1,5 @@
 // Sending email (password resets). Uses Resend (resend.com) when RESEND_API_KEY and MAIL_FROM are set, e.g.
-// MAIL_FROM="Hey Joy <hello@yourdomain.com>" with that domain verified in Resend. Without them (running on your own
+// MAIL_FROM="Estela <hello@yourdomain.com>" with that domain verified in Resend. Without them (running on your own
 // Mac), the email is printed in the server's Terminal instead, so you can still use the link.
 
 export async function sendEmail(to: string, subject: string, text: string) {

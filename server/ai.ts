@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
 
-const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
+export const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
 
 let client: Anthropic | null = null;
 
@@ -15,6 +15,9 @@ function getClient() {
   client ??= new Anthropic();
   return client;
 }
+
+/** The shared Claude client, for features that call it directly (like the chat). */
+export const claude = () => getClient();
 
 /**
  * One structured-output call. Returns null when Claude declines or the output

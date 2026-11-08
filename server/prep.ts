@@ -243,7 +243,7 @@ export function buildPrep(
   todoItem({
     group: "Do soon",
     text: "Save copies of your documents",
-    detail: "Photos of your passport, insurance policy and cards, stored somewhere you can reach offline. Your bookings are already here in Hey Joy.",
+    detail: "Photos of your passport, insurance policy and cards, stored somewhere you can reach offline. Your bookings are already here in Estela.",
   });
   const healthTodo = healthAdvice(foreign, places.stops.map((s) => s.city), activities.filter((a) => a.category !== "transfer"), countryName, list, home);
   todoItem({ group: "Do soon", ...healthTodo.clinic, due: `${minusDays(trip.startDate, 30)}T09:00` });

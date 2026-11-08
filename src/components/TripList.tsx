@@ -80,12 +80,12 @@ export default function TripList() {
   return (
     <>
       <div className="page-head">
-        <h1>Hey! Where to next?</h1>
+        <h1>Where to next?</h1>
         <button onClick={() => setCreating(true)}>+ New trip</button>
       </div>
       {trips?.length === 0 && (
         <div className="card empty">
-          <p>No trips yet. Create one, then add your flights, stays and activities — or forward your booking emails and Joy will put them together.</p>
+          <p>No trips yet. Create one, then add your flights, stays and activities — or forward your booking emails and Estela will put them together.</p>
         </div>
       )}
       {error && <p className="error">{error}</p>}
@@ -149,7 +149,7 @@ export default function TripList() {
             </p>
             <p className="muted small">{t.itemCount} {t.itemCount === 1 ? "item" : "items"} · {partySummary(t)}{t.styles.length ? ` · ${t.styles.join(", ")}` : ""}</p>
             {tripAlerts.length > 0 && status !== "past" && (
-              <p className="alert-inline">⚠︎ Joy spotted a change to {tripAlerts.map((a) => a.flightNumber).join(", ")}</p>
+              <p className="alert-inline">⚠︎ Estela spotted a change to {tripAlerts.map((a) => a.flightNumber).join(", ")}</p>
             )}
           </div>
         </a>

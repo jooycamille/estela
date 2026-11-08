@@ -75,7 +75,7 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
         <QrLink
           url={invite.url}
           title={`Send this to ${invite.name}`}
-          note={`They open it, create a free account (or sign in), and the trip appears in their Hey Joy. It works once and expires in ${invite.expiresInDays} days. Send it yourself (Messages, WhatsApp…).`}
+          note={`They open it, create a free account (or sign in), and the trip appears in their Estela. It works once and expires in ${invite.expiresInDays} days. Send it yourself (Messages, WhatsApp…).`}
         />
       )}
 

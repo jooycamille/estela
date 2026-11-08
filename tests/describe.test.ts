@@ -4,7 +4,7 @@ import { fromGuide, pickPage, tidyExtract } from "../server/describe.ts";
 
 const page = (title: string, extract: string, index = 1, disambig = false) => ({ title, extract, index, ...(disambig ? { pageprops: { disambiguation: "" } } : {}) });
 
-test("uses Joy's own guide first, exactly anywhere, loosely only in your country", () => {
+test("uses Estela's own guide first, exactly anywhere, loosely only in your country", () => {
   assert.ok(fromGuide("Tacos al pastor", "MX")?.text);
   assert.equal(fromGuide("Tacos al pastor", "MX")?.source, "guide");
   assert.ok(fromGuide("tacos al pastor", "PA")?.text);

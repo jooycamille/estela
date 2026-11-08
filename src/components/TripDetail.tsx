@@ -5,10 +5,11 @@ import { rememberPlace, restoredPlace } from "../pagePlace.ts";
 import { formatDateRange, formatDay } from "../format.ts";
 import { flightForTransfer } from "../../shared/cancellation.ts";
 import { activityDays } from "../../shared/days.ts";
-import DayStrip, { dayId, type DayInfo } from "./DayStrip.tsx";
+import DayStrip, { dayId, useStickBelowHeader, type DayInfo } from "./DayStrip.tsx";
 import DaySuggestions from "./DaySuggestions.tsx";
 import { DayAddMenu, DayChecklist, DayNote, DayTextForm } from "./DayExtras.tsx";
 import PlaceCard from "./PlaceCard.tsx";
+import AskEstela from "./AskEstela.tsx";
 import ExploreArea from "./ExploreArea.tsx";
 import Fold, { expand, FoldAll } from "./Fold.tsx";
 import Ico from "./Ico.tsx";
@@ -20,13 +21,15 @@ import GuideView from "./GuideView.tsx";
 import ListView from "./ListView.tsx";
 import PlaceForm, { type AddedPlace } from "./PlaceForm.tsx";
 import PrepareView from "./PrepareView.tsx";
-import SpendSummary from "./SpendSummary.tsx";
+import SpendingView from "./SpendingView.tsx";
 import TravellersPanel from "./TravellersPanel.tsx";
-import { CalendarDays, ClipboardCheck, Pencil, Compass, Lightbulb, Mail, MapPin, BedDouble, Users, X } from "lucide-react";
+import { CalendarDays, ClipboardCheck, Pencil, Wallet, RefreshCw, Trash2, Compass, Lightbulb, Mail, MapPin, BedDouble, Users, X } from "lucide-react";
 import { itemIcon, KIND_ICON, listIcon, type LucideIcon } from "../icons.ts";
 import { describePart, partOn, partRange, partySummary } from "../parts.ts";
 import Suggestions from "./Suggestions.tsx";
 import TripForm from "./TripForm.tsx";
+
+const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const CATEGORY_TABS = { all: "All", flight: "Flights", stay: "Accommodation", activity: "Activities" } as const;
 
@@ -44,7 +47,7 @@ type Panel =
   | null;
 type Category = "all" | Kind; // filters the itinerary
 
-export default function TripDetail({ tripId, mockFlights, initialView }: { tripId: string; mockFlights: boolean; initialView?: "prepare" }) {
+export default function TripDetail({ tripId, mockFlights, initialView, ai }: { tripId: string; mockFlights: boolean; initialView?: "prepare"; ai?: boolean }) {
   const [data, setData] = useState<{ trip: Trip; items: ItineraryItem[]; role: TripRole }>();
   const [error, setError] = useState<string>();
   const [panel, setPanel] = useState<Panel>(null);
@@ -63,15 +66,34 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const [lists, setLists] = useState<TripList[]>([]);
   const [listsLoaded, setListsLoaded] = useState(false);
   const [plans, setPlans] = useState<DayPlans>({});
-  const [view, setView] = useState<"itinerary" | "prepare" | "ideas">((restored.view as "itinerary" | "prepare" | "ideas" | undefined) ?? initialView ?? "itinerary");
+  const [view, setView] = useState<"itinerary" | "prepare" | "ideas" | "spending">((restored.view as "itinerary" | "prepare" | "ideas" | "spending" | undefined) ?? initialView ?? "itinerary");
   const [ideaCount, setIdeaCount] = useState(0);
-  // In the Suggestions tab: Joy's tips, or one of the city guides / your lists (by id).
+  // In the Suggestions tab: Estela's tips, or one of the city guides / your lists (by id).
   const [ideaSection, setIdeaSection] = useState<string>(restored.section ?? "tips");
   const [emptyDay, setEmptyDay] = useState<string>(); // a day with nothing on it, picked in the date strip
   const [headingDay, setHeadingDay] = useState<string>(); // the day whose heading you're typing
   const [dayForm, setDayForm] = useState<{ day: string; kind: "note" | "todo" }>(); // a note or checklist item you're typing for a day
   const [openTodos, setOpenTodos] = useState(0);
   const [addedPlace, setAddedPlace] = useState<AddedPlace>(); // the note after adding one, with where to find it
+
+  // The tabs stick under the header: measure them, so what sticks below them (the date strip) sits right under.
+  useStickBelowHeader();
+  useEffect(() => {
+    const place = () => {
+      const h = document.querySelector(".views")?.getBoundingClientRect().height ?? 0;
+      document.documentElement.style.setProperty("--tabs-h", `${Math.round(h)}px`);
+    };
+    place();
+    const watch = new ResizeObserver(place);
+    const tabs = document.querySelector(".views");
+    if (tabs) watch.observe(tabs);
+    addEventListener("resize", place);
+    return () => {
+      watch.disconnect();
+      removeEventListener("resize", place);
+      document.documentElement.style.setProperty("--tabs-h", "0px");
+    };
+  }, [data !== undefined]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(() => {
     api.trip(tripId).then((d) => { setData(d); setVersion((v) => v + 1); }).catch((e) => setError(e.message));
@@ -225,32 +247,37 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
 
   return (
     <div className={`detail ${canEditTrip ? "" : "view-only"}`}>
+      {ai && <AskEstela trip={trip} />}
       <div className="detail-main">
         <a href="#/" className="back">← All trips</a>
         <div className="page-head">
           <div>
             <h1>{trip.name}</h1>
-            <p className="muted">
-              {trip.destination} · {formatDateRange(trip.startDate, trip.endDate)} ·{" "}
-              <span className={`tag ${trip.purpose}`}>{trip.purpose}</span> · {partySummary(trip)}
-              {trip.styles.length > 0 && ` · ${trip.styles.join(", ")}`}
-            </p>
-            <SpendSummary items={items} category={category} />
+            {/* The trip at a glance: a row of facts, each with a small label. */}
+            <dl className="trip-facts">
+              <div className="trip-fact"><dt>When</dt><dd>{formatDateRange(trip.startDate, trip.endDate)}</dd></div>
+              {trip.destination && <div className="trip-fact"><dt>Where</dt><dd>{trip.destination}</dd></div>}
+              <div className="trip-fact"><dt>Travelling</dt><dd>{capitalise(partySummary(trip))} · {capitalise(trip.purpose)}</dd></div>
+              {trip.styles.length > 0 && <div className="trip-fact"><dt>Style</dt><dd>{capitalise(trip.styles.join(", "))}</dd></div>}
+            </dl>
           </div>
           <div className="head-actions">
-            <button className={`ghost ${panel?.type === "travellers" ? "on" : ""}`} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
+            <button className={`quiet ${panel?.type === "travellers" ? "on" : ""}`} aria-pressed={panel?.type === "travellers"} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
               <Users aria-hidden="true" /> Travellers{trip.members?.length ? ` · ${trip.members.length + 1}` : ""}
             </button>
-            {canEditTrip && <button className="ghost" onClick={() => setPanel({ type: "edit-trip" })}>Edit</button>}
+            {canEditTrip && <button className="quiet" onClick={() => setPanel({ type: "edit-trip" })}><Pencil aria-hidden="true" /> Edit</button>}
+            {/* Deleting is rare: a small bin that only turns red when you point at it. */}
             {data.role === "owner" && <button
-              className="ghost danger"
+              className="quiet icon-only danger"
+              title="Delete this trip"
+              aria-label={`Delete ${trip.name}`}
               onClick={async () => {
                 if (!confirm(`Delete "${trip.name}" and everything in it?`)) return;
                 await api.deleteTrip(trip.id);
                 location.hash = "#/";
               }}
             >
-              Delete
+              <Trash2 aria-hidden="true" />
             </button>}
           </div>
         </div>
@@ -265,11 +292,14 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <button role="tab" aria-selected={view === "ideas"} className={`view-tab ${view === "ideas" ? "on" : ""}`} onClick={() => setView("ideas")}>
             <Compass aria-hidden="true" /> Suggestions{ideaCount ? <span className="count">{ideaCount}</span> : null}
           </button>
+          <button role="tab" aria-selected={view === "spending"} className={`view-tab ${view === "spending" ? "on" : ""}`} onClick={() => setView("spending")}>
+            <Wallet aria-hidden="true" /> Spending
+          </button>
         </div>
 
         {view === "ideas" && (
           <>
-            {/* Joy's tips, a guide for each city you stay in, and your own lists. */}
+            {/* Estela's tips, a guide for each city you stay in, and your own lists. */}
             <div className="idea-nav categories" role="tablist" aria-label="Suggestions">
               <button role="tab" aria-selected={ideaSection === "tips"} className={`category ${ideaSection === "tips" ? "on" : ""}`} onClick={() => setIdeaSection("tips")}>
                 <Lightbulb aria-hidden="true" /> Tips {ideaCount > 0 && <span className="count">{ideaCount}</span>}
@@ -280,7 +310,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                   role="tab"
                   aria-selected={ideaSection === l.id}
                   className={`category ${l.auto ? "guide" : "own"} ${ideaSection === l.id ? "on" : ""}`}
-                  title={l.auto ? `Joy's guide to ${l.name}` : undefined}
+                  title={l.auto ? `Estela's guide to ${l.name}` : undefined}
                   onClick={() => setIdeaSection(l.id)}
                 >
                   <Ico icon={listIcon(l)} /> {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
@@ -338,7 +368,8 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
         <div hidden={view !== "ideas" || ideaSection !== "tips"}>
           <Suggestions tripId={trip.id} version={version} onCount={setIdeaCount} />
         </div>
-        {view === "ideas" ? null : view === "prepare" ? (
+        {view === "spending" && <SpendingView trip={trip} items={items} />}
+        {view === "ideas" || view === "spending" ? null : view === "prepare" ? (
           <PrepareView version={version} tripId={trip.id} onCounts={setOpenTodos} />
         ) : (
         <>
@@ -399,7 +430,6 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
 
         {items.length > 0 && (
           <div className="list-bar">
-            <span className="list-bar-label">Show</span>
             <div className="categories" role="tablist" aria-label="Show bookings">
               {(["all", "flight", "stay", "activity"] as const).map((c) => (
                 <button
@@ -413,6 +443,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                 </button>
               ))}
             </div>
+            <span className="list-bar-actions">
             {hasFlights && (
               <button
                 className="check-flights edit-only"
@@ -424,10 +455,11 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                   load();
                 }}
               >
-                {refreshing ? "Checking…" : "↻ Check flights"}
+                <RefreshCw aria-hidden="true" className={refreshing ? "spin" : ""} /> {refreshing ? "Checking…" : "Check flights"}
               </button>
             )}
             <FoldAll ids={days.map(([day]) => dayFold(day))} />
+            </span>
           </div>
         )}
         {category !== "all" && count(category) === 0 && (
@@ -469,7 +501,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
         )}
         {items.length === 0 && !panel && Object.keys(plans).length === 0 && (
           <div className="card empty">
-            <p>Nothing booked yet. Tap a date above, or add a flight, stay, activity or place, or forward a booking email and Joy will sort it out.</p>
+            <p>Nothing booked yet. Tap a date above, or add a flight, stay, activity or place, or forward a booking email and Estela will sort it out.</p>
           </div>
         )}
 

@@ -72,7 +72,7 @@ export const isRestaurant = (entry: ListEntry, list: TripList) => {
   return theme === "food" || theme === "drinks";
 };
 
-/** The price from Joy's own guide, for a place it knows by exactly that name in this list's country. */
+/** The price from Estela's own guide, for a place it knows by exactly that name in this list's country. */
 export function guidePrice(title: string, list: TripList): PriceLevel | undefined {
   const cc = list.place?.countryCode;
   if (!cc) return;
@@ -85,7 +85,7 @@ export function guidePrice(title: string, list: TripList): PriceLevel | undefine
   return curated.flatMap(([, ideas]) => ideas).find((r) => same(r.title))?.price ?? IDEAS[cc]?.find((i) => same(i.title) && i.price)?.price;
 }
 
-/** Fills in a restaurant's price: Joy's guide first (free), then Google. Left to try again if Google can't answer now. */
+/** Fills in a restaurant's price: Estela's guide first (free), then Google. Left to try again if Google can't answer now. */
 export async function fillPrice(entry: ListEntry, list: TripList) {
   if (entry.price || entry.priceChecked || !isRestaurant(entry, list)) return;
   const known = guidePrice(entry.title, list);
@@ -694,7 +694,7 @@ function stopDays(list: TripList, trip: Trip, items: ItineraryItem[]) {
 /**
  * A guide's dates: each tour with its places, the picks you've put on that date, and your unplanned picks close to the
  * tour, each under the nearest tour whose day has time for it. Picks with no such tour are left to group by area.
- * Things to do aren't on the map, so they go by free time: your own first, then Joy's `ideas`, on days with room.
+ * Things to do aren't on the map, so they go by free time: your own first, then Estela's `ideas`, on days with room.
  */
 export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[], ideas: ListSuggestion[] = []) {
   const booked = new Set(tripLists(trip.id).flatMap((l) => alreadyBooked(l, trip, items).bookedPicks.map((p) => p.id)));
@@ -727,7 +727,7 @@ export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[], i
     if (!onDay) cards.set(entry.day, card);
   }
   // Each has a date of its own, so adding one doesn't send the rest to other dates while you're tapping: at most, an
-  // idea that didn't fit before appears in the space. Your own always find a date; Joy's fill any still empty.
+  // idea that didn't fit before appears in the space. Your own always find a date; Estela's fill any still empty.
   // Places close by count towards a date's room: those dates are already well filled.
   const room = new Map(stopDays(list, trip, items).map((day) => {
     const nearby = [...cards.values()].filter((c) => c.day === day).reduce((n, c) => n + c.nearby.length, 0);
