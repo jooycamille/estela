@@ -12,6 +12,9 @@ const THEMES: [ListTheme, RegExp][] = [
 ];
 
 export function listTheme(name: string, emoji = ""): ListTheme {
+  // A theme picked for the list is saved as its emoji below, and wins over the name.
+  const picked = (Object.keys(THEME_EMOJI) as ListTheme[]).find((t) => THEME_EMOJI[t] === emoji);
+  if (picked) return picked;
   const text = `${name} ${emoji}`;
   return THEMES.find(([, re]) => re.test(text))?.[0] ?? "general";
 }
@@ -24,8 +27,8 @@ export const THEME_EMOJI: Record<ListTheme, string> = {
 import type { TravelStyle } from "./types.ts";
 
 export const STYLE_LABELS: Record<TravelStyle, string> = {
-  adventure: "🧗 Adventure", culture: "🎭 Culture", food: "🍲 Food", relaxation: "🧖 Relaxation", nature: "🌿 Nature",
-  nightlife: "🌙 Nightlife", shopping: "🛍️ Shopping", budget: "💸 Budget", luxury: "✨ Luxury",
+  adventure: "Adventure", culture: "Culture", food: "Food", relaxation: "Relaxation", nature: "Nature",
+  nightlife: "Nightlife", shopping: "Shopping", budget: "Budget", luxury: "Luxury",
 };
 
 /** Things to do (activities) share the "thing" column when that's already called "Things to do". */

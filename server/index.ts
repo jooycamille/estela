@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import "./env.ts";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
+import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type PrepItem, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
 import { listTheme } from "../shared/lists.ts";
 import { aiEnabled } from "./ai.ts";
 import { getAirport, searchAirports } from "./airports.ts";
@@ -12,15 +12,16 @@ import { describePlaces, matchDestination, searchPlaces } from "./places.ts";
 import { getRates } from "./fx.ts";
 import { prepGroupFor } from "../shared/prepAdd.ts";
 import { buildPrep } from "./prep.ts";
-import { describe, describeEntry } from "./describe.ts";
+import { describe, describeEntry, fillPhoto, photoDue, recheckDescription } from "./describe.ts";
 import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signOut, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
 import { emailConfigured, sendEmail } from "./mailer.ts";
 import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
 import type { UserRecord } from "./db.ts";
 import { essentialsFor } from "./essentials.ts";
+import { broadPlaces, exploreIdeas } from "./exploreArea.ts";
 import { localApps } from "./localApps.ts";
 import { safetyTips } from "./safetyTips.ts";
-import { areaGroups, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideDays, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, fillPrice, locateEntry } from "./lists.ts";
+import { areaGroups, daySuggestions, dayPlans, ensureGuides, entryLinks, fillEntryLinks, guideDays, guideStays, guideSuggestions, listPlaceOptions, listSuggestions, fillPrice, locateEntry } from "./lists.ts";
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { assumedStops, tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
@@ -33,7 +34,7 @@ import { db, itemStart, newId, now, save } from "./db.ts";
 import { normaliseFlightNumber, parseEmail } from "./emailParser.ts";
 import { FlightDataError, getProvider, lookupSchedule, serviceProvider, refreshDueFlights, refreshFlight, simulateChange, startFlightPoller } from "./flightStatus.ts";
 import { checkInbox, createInbox, reimportEmail, deleteInbox, getInbox, inboxForRecipients, inboxView, processEmail, startInboxPoller } from "./inbox.ts";
-import { createItem, ItemInput, opt, upsertFromEmail } from "./items.ts";
+import { createItem, ItemInput, opt, upsertFromEmail, addWhereToPlaces } from "./items.ts";
 import { addBookingLinks } from "./bookingLinks.ts";
 import { claudeSuggestions, ruleSuggestions } from "./suggestions.ts";
 
@@ -356,6 +357,21 @@ app.put("/api/trips/:id", (req, res) => {
   res.json(trip);
 });
 
+// Your own heading or note for a day of the itinerary. An empty one removes it.
+for (const [path, field, max] of [["day-title", "dayTitles", 80], ["day-note", "dayNotes", 2000]] as const) {
+  app.put(`/api/trips/:id/${path}`, (req, res) => {
+    const trip = getTrip(req.params.id);
+    if (!trip) return void res.status(404).json({ error: "Trip not found" });
+    const { day, text } = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), text: z.string().trim().max(max) }).parse(req.body);
+    const byDay = { ...trip[field] };
+    if (text) byDay[day] = text;
+    else delete byDay[day];
+    trip[field] = Object.keys(byDay).length ? byDay : undefined;
+    save();
+    res.json(trip[field] ?? {});
+  });
+}
+
 app.delete("/api/trips/:id", async (req, res) => {
   await deleteInbox(req.params.id);
   db.trips = db.trips.filter((t) => t.id !== req.params.id);
@@ -388,6 +404,7 @@ app.put("/api/items/:id", async (req, res) => {
     item.kind === "flight" && input.kind === "flight" &&
     (item.flightNumber !== input.flightNumber || item.departureTime.slice(0, 10) !== input.departureTime.slice(0, 10));
   Object.assign(item, input);
+  if (item.kind === "activity") addWhereToPlaces(item);
   if (item.kind === "flight" && flightChanged) {
     item.live = undefined;
     item.changes = [];
@@ -615,6 +632,22 @@ async function checklistFor(trip: Trip) {
 
 // ---------- Reminders (push notifications) ----------
 
+// What's still to come on a trip, for the bell. Items you've ticked aren't reminded.
+app.get("/api/trips/:id/reminders", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const ticked = new Set(trip.prep?.checked ?? []);
+  const now = new Date().toISOString();
+  const todo = await checklistFor(trip);
+  res.json(
+    todo
+      .filter((i) => !ticked.has(i.id))
+      .flatMap((i) => (i.reminders ?? []).map((r) => ({ ...r, item: i.text })))
+      .filter((r) => r.at > now)
+      .sort((a, b) => a.at.localeCompare(b.at)),
+  );
+});
+
 app.get("/api/push/key", (_req, res) => {
   res.json({ publicKey: pushPublicKey() });
 });
@@ -634,7 +667,7 @@ app.post("/api/push/unsubscribe", (req, res) => {
 });
 
 app.post("/api/push/test", async (_req, res) => {
-  const sent = await notifyUser(userFrom(res).id, { title: "Hey Joy", body: "🔔 Reminders are on. Joy will nudge you when it's time for Check-MIG, check-in and more.", url: "/#/" });
+  const sent = await notifyUser(userFrom(res).id, { title: "Hey Joy", body: "Reminders are on. Joy will nudge you when it's time for Check-MIG, check-in and more.", url: "/#/" });
   res.json({ sent });
 });
 
@@ -651,9 +684,12 @@ app.put("/api/trips/:id/prep/check", (req, res) => {
 app.post("/api/trips/:id/prep/custom", (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return void res.status(404).json({ error: "Trip not found" });
-  const { section, text } = z.object({ section: z.enum(["todo", "packing"]), text: z.string().trim().min(1).max(200) }).parse(req.body);
+  const { section, text, day } = z
+    .object({ section: z.enum(["todo", "packing"]), text: z.string().trim().min(1).max(200), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
+    .parse(req.body);
   const prep = (trip.prep ??= { checked: [], custom: [] });
-  const item = { id: `custom:${newId()}`, section, group: prepGroupFor(section, text), text, custom: true };
+  // Added from a day of the itinerary: it's for that day, and shows there too.
+  const item: PrepItem = { id: `custom:${newId()}`, section, group: prepGroupFor(section, text), text, custom: true, ...(day ? { due: `${day}T09:00` } : {}) };
   prep.custom.push(item);
   save();
   res.status(201).json(item);
@@ -765,6 +801,22 @@ const isFood = (list: TripList, kind: ListEntry["kind"]) => {
   const theme = listTheme(list.name, list.emoji);
   return !!list.auto || theme === "food" || theme === "drinks";
 };
+
+/** Descriptions from Wikipedia saved before they were checked for bands, films and same-named places elsewhere. Each
+ *  is checked once (gently: a free service); one that can't be reached is checked at the next start. */
+async function recheckDescriptions() {
+  for (const list of db.lists) {
+    for (const entry of list.entries) {
+      if (entry.descriptionChecked || !entry.links?.some((l) => l.label === "Wikipedia")) continue;
+      const removed = await recheckDescription(entry).catch(() => undefined);
+      if (removed === undefined) return;
+      if (removed) console.log(`Removed a wrong description from "${entry.title}" (it was about something else with that name).`);
+      entry.descriptionChecked = true;
+      save();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
+}
 
 /** Food entries saved with no description, for instance when Wikipedia couldn't be reached at the time. */
 async function fillMissingDescriptions() {
@@ -901,6 +953,27 @@ app.get("/api/lists/:id/suggestions", async (req, res) => {
   res.json(list.auto ? guideSuggestions(list, trip, tripItems(trip.id)) : await listSuggestions(list, trip, tripItems(trip.id)));
 });
 
+// What could fit on each day, for the itinerary.
+app.get("/api/trips/:id/day-suggestions", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  res.json(daySuggestions(trip, tripItems(trip.id)));
+});
+
+// Days that only name a town, and what's there.
+app.get("/api/trips/:id/explore", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const items = tripItems(trip.id);
+  res.json(await broadPlaces(trip, items, db.lists.filter((l) => l.tripId === trip.id), guideDays(trip, items)));
+});
+
+app.get("/api/trips/:id/explore/ideas", async (req, res) => {
+  if (!getTrip(req.params.id)) return void res.status(404).json({ error: "Trip not found" });
+  const { lat, lon, name } = z.object({ lat: z.coerce.number().min(-90).max(90), lon: z.coerce.number().min(-180).max(180), name: z.string().trim().min(1).max(120) }).parse(req.query);
+  res.json(await exploreIdeas({ lat, lon }, name));
+});
+
 // Pharmacies, hospitals/clinics, police and ATMs near each stay in a guide's city.
 app.get("/api/lists/:id/essentials", async (req, res) => {
   const list = getList(req.params.id);
@@ -925,9 +998,19 @@ app.get("/api/trips/:id/areas", (req, res) => {
   res.json(areaGroups(trip, tripItems(trip.id)));
 });
 
-app.get("/api/trips/:id/day-plans", (req, res) => {
+app.get("/api/trips/:id/day-plans", async (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return res.status(404).json({ error: "Trip not found" });
+  // A photo for each place planned for a day, looked up once (a few at a time, so the itinerary isn't held up long).
+  // One at a time, so Wikipedia isn't asked too much at once; if it says to wait, the rest are looked up next time.
+  const unlooked = db.lists.filter((l) => l.tripId === trip.id).flatMap((l) => l.entries.filter((e) => e.day && photoDue(e)).map((e) => ({ e, cc: l.place?.countryCode }))).slice(0, 6);
+  let found = false;
+  for (const { e, cc } of unlooked) {
+    const looked = await fillPhoto(e, cc).catch(() => undefined);
+    if (looked === undefined) break;
+    found ||= looked;
+  }
+  if (found) save();
   res.json(dayPlans(trip, tripItems(trip.id)));
 });
 
@@ -1212,5 +1295,8 @@ app.listen(port, host, (err?: Error) => {
   startReminderLoop(checklistFor);
   startInboxPoller();
   fillMissingDescriptions();
+  recheckDescriptions();
+  // Activities saved before the Where was added to their places. Each only gets this once.
+  if (db.items.map((i) => i.kind === "activity" && addWhereToPlaces(i)).some(Boolean)) save();
   setInterval(fillMissingDescriptions, 30 * 60_000);
 });

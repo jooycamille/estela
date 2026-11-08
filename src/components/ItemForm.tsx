@@ -196,7 +196,7 @@ function GenericItemForm({
                           setValues((v) => ({ ...v, name: p.name!, address: /\d/.test(p.address.split(",")[0]) ? p.address : v.address }));
                           setCoords({ lat: p.lat, lon: p.lon });
                           setNearby(undefined);
-                        }}>🏨 {p.name}</button>
+                        }}>{p.name}</button>
                       ))}
                     </>
                   ) : (

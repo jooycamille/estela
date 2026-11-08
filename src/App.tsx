@@ -1,3 +1,4 @@
+import ReminderBell from "./components/ReminderBell.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { api, type ConnectionState, type Me } from "./api.ts";
 import AccountView from "./components/AccountView.tsx";
@@ -113,19 +114,17 @@ export default function App() {
         </a>
         {status && (
           <div className="status">
-            <span className={`pill ${status.ai ? "ok" : ""}`}>AI {status.ai ? "on" : "off"}</span>
-            {me.isAdmin ? (
-              <a href="#/settings" className={`pill ${status.flightProvider !== "mock" ? "ok" : "attention"}`} title="Flight data settings">
-                Flight data: {status.flightProvider === "mock" ? "demo — connect" : PROVIDER_NAMES[status.flightProvider] ?? status.flightProvider}
-              </a>
-            ) : null}
-            <a href="#/account" className="pill account-pill" title="You, your devices, sign out">👤 {me.name}</a>
+            <ReminderBell tripId={tripId} />
+            <a href="#/account" className="account-link" title="You, your devices, sign out" aria-label={`Your account: ${me.name}`}>
+              <span className="avatar" aria-hidden="true">{[...me.name.trim()][0]?.toUpperCase() ?? "?"}</span>
+              <span className="account-name">{me.name}</span>
+            </a>
           </div>
         )}
       </header>
       {connection.offline && (
         <div className="offline-banner" role="status">
-          📴 Offline: showing the copy saved on this device
+          Offline: showing the copy saved on this device
           {connection.savedAt && <> (from {new Date(connection.savedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })})</>}
           . Changes need a connection to your Mac.
         </div>

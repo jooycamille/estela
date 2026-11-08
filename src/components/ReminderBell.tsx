@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import type { PrepItem } from "../../shared/types.ts";
-import { api } from "../api.ts";
-import Fold from "./Fold.tsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, type UpcomingReminder } from "../api.ts";
+import { Bell, BellOff } from "lucide-react";
 
-// Turning on reminders (push notifications) for this device, and the next few that are coming up. Browsers only allow
-// notifications from an installed or secure app: on iPhone, from the Home Screen app (iOS 16.4+).
+// The bell in the header: turning on reminders (push notifications) for this device, and what's coming up on the trip
+// you're looking at. Browsers only allow notifications from an installed or secure app: on iPhone, from the Home Screen
+// app (iOS 16.4+).
 
 type State = "checking" | "on" | "off" | "blocked" | "needs-install" | "unsupported";
 
@@ -24,10 +24,40 @@ async function registration() {
 const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
-export default function RemindersCard({ tripId, items, checked }: { tripId: string; items: PrepItem[]; checked: Set<string> }) {
+export default function ReminderBell({ tripId }: { tripId?: string }) {
   const [state, setState] = useState<State>("checking");
   const [message, setMessage] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [upcoming, setUpcoming] = useState<UpcomingReminder[]>([]);
+  const box = useRef<HTMLDivElement>(null);
+
+  const loadUpcoming = useCallback(() => {
+    if (!tripId) return setUpcoming([]);
+    api.upcomingReminders(tripId).then(setUpcoming).catch(() => setUpcoming([]));
+  }, [tripId]);
+  useEffect(() => {
+    loadUpcoming();
+    addEventListener("joy-reminders-changed", loadUpcoming); // an item was ticked or unticked
+    return () => removeEventListener("joy-reminders-changed", loadUpcoming);
+  }, [loadUpcoming]);
+
+  // Closes when you tap elsewhere or press Esc.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    addEventListener("pointerdown", away);
+    addEventListener("keydown", esc);
+    return () => {
+      removeEventListener("pointerdown", away);
+      removeEventListener("keydown", esc);
+    };
+  }, [open]);
 
   useEffect(() => {
     (async () => {
@@ -72,21 +102,30 @@ export default function RemindersCard({ tripId, items, checked }: { tripId: stri
     setMessage(undefined);
   };
 
-  const upcoming = items
-    .filter((i) => !checked.has(i.id))
-    .flatMap((i) => (i.reminders ?? []).map((r) => ({ ...r, item: i.text })))
-    .filter((r) => r.at > new Date().toISOString())
-    .sort((a, b) => a.at.localeCompare(b.at))
-    .slice(0, 3);
+  const coming = upcoming.filter((r) => r.at > new Date().toISOString());
+  const on = state === "on";
 
   return (
-    <section className="card reminders">
-      <Fold id={`${tripId}:reminders`} title="🔔 Reminders" summary={state === "on" ? <span className="reminders-on">On for this device</span> : undefined}>
+    <div className="bell" ref={box}>
+      <button
+        type="button"
+        className={`bell-button ${on ? "on" : ""}`}
+        aria-expanded={open}
+        aria-label={`Reminders${on ? ", on" : ", off"}${coming.length ? `, ${coming.length} coming up` : ""}`}
+        title="Reminders"
+        onClick={() => { setOpen((o) => !o); loadUpcoming(); }}
+      >
+        {on ? <Bell aria-hidden="true" /> : <BellOff aria-hidden="true" />}
+        {coming.length > 0 && <span className="bell-count" aria-hidden="true">{coming.length > 9 ? "9+" : coming.length}</span>}
+      </button>
+      {open && (
+      <div className="bell-panel reminders">
+      <h3>Reminders</h3>
       {state === "on" && <p className="reminders-status"><span className="reminders-on">On for this device</span></p>}
       {state === "off" && (
         <>
           <p className="muted small">Get a notification on this device when it's time: Check-MIG opening (and a last call before it closes), other online border forms, and online check-in.</p>
-          <button type="button" onClick={turnOn} disabled={busy}>{busy ? "Turning on…" : "🔔 Turn on reminders"}</button>
+          <button type="button" onClick={turnOn} disabled={busy}>{busy ? "Turning on…" : "Turn on reminders"}</button>
         </>
       )}
       {state === "on" && (
@@ -111,17 +150,18 @@ export default function RemindersCard({ tripId, items, checked }: { tripId: stri
       )}
       {state === "unsupported" && <p className="muted small">This browser can't show notifications. Try the Home Screen app on your phone, or Chrome, Edge, Firefox or Safari on a computer.</p>}
       {message && <p className="notice">{message}</p>}
-      {upcoming.length > 0 && (
+      {tripId && (coming.length === 0 ? <p className="muted small bell-none">Nothing coming up on this trip.</p> : (
         <ul className="upcoming-reminders">
-          {upcoming.map((r) => (
+          {coming.slice(0, 5).map((r) => (
             <li key={r.at + r.label}>
               <span className="muted small">{when(r.at)}</span> {r.label}
             </li>
           ))}
         </ul>
-      )}
+      ))}
       <p className="muted tiny">Reminders come from your Mac, so it needs to be on. Ticked items aren't reminded.</p>
-      </Fold>
-    </section>
+      </div>
+      )}
+    </div>
   );
 }

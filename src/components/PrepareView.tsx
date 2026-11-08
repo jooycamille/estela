@@ -4,7 +4,12 @@ import { api, type PrepData } from "../api.ts";
 import { formatDay } from "../format.ts";
 import { findSamePrepItem } from "../../shared/prepAdd.ts";
 import Fold, { expand, FoldAll } from "./Fold.tsx";
-import RemindersCard from "./RemindersCard.tsx";
+import { Bell, CloudRain, CloudSun, CloudSunRain, Globe, Pencil, Sun, ThermometerSnowflake, X } from "lucide-react";
+import type { LucideIcon } from "../icons.ts";
+import Ico from "./Ico.tsx";
+
+// The weather service describes the forecast with an emoji; shown as a line icon like the rest of the app.
+const WEATHER_ICON: Record<string, LucideIcon> = { "🌧️": CloudRain, "🌦️": CloudSunRain, "☀️": Sun, "🌤️": CloudSun, "🧥": ThermometerSnowflake };
 
 // Every region code the browser can name (for the home-country picker).
 const regionNames = new Intl.DisplayNames(undefined, { type: "region" });
@@ -24,6 +29,7 @@ const shortRange = (from: string, to: string) => `${formatDay(from)} – ${forma
 function dueLabel(item: PrepItem) {
   if (!item.due) return null;
   const day = formatDay(item.due);
+  if (item.custom) return `For ${day}`; // added from that day of the itinerary
   if (item.group === "For your activities") return `Day before · ${day}`;
   if (item.text.startsWith("Check in online")) return `Opens about ${day}`;
   if (item.when === "online") return `Online before you fly · by ${day}`;
@@ -75,6 +81,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
   const toggle = async (id: string, on: boolean) => {
     setData((d) => d && { ...d, checked: on ? [...d.checked, id] : d.checked.filter((x) => x !== id) });
     await api.checkPrep(tripId, id, on).catch(load);
+    dispatchEvent(new Event("joy-reminders-changed"));
   };
   const section = (s: "todo" | "packing") => [...(s === "todo" ? data.todo : data.packing), ...data.custom.filter((c) => c.section === s)];
   const progress = (s: "todo" | "packing") => {
@@ -111,7 +118,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
             {data.stops.map((s) => (
               <div key={`${s.city}-${s.from}`} className="weather">
                 <div className="weather-head">
-                  <span className="weather-icon" aria-hidden="true">{s.weather?.icon ?? "🌍"}</span>
+                  <span className="weather-icon"><Ico icon={WEATHER_ICON[s.weather?.icon ?? ""] ?? Globe} /></span>
                   <div>
                     <b>{s.city}</b>
                     <div className="muted tiny">{shortRange(s.from, s.to)}</div>
@@ -145,15 +152,13 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
         </section>
       )}
 
-      <RemindersCard tripId={tripId} items={data.todo} checked={checked} />
-
       <div className="prep-controls">
         <span className="small">To-do <b>{todo.done}/{todo.total}</b> · Packed <b>{packed.done}/{packed.total}</b></span>
         <label className="checkbox small">
           <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
           <span>Hide done</span>
         </label>
-        <FoldAll ids={[...(data.stops.length ? ["weather"] : []), "reminders", "todo", "packing"].map((key) => `${tripId}:${key}`)} />
+        <FoldAll ids={[...(data.stops.length ? ["weather"] : []), "todo", "packing"].map((key) => `${tripId}:${key}`)} />
       </div>
 
       <PrepSection
@@ -269,7 +274,7 @@ function PrepSection({
                               ?.filter((r) => r.at > new Date().toISOString())
                               .map((r) => (
                                 <span key={r.at} className="due reminder" title={r.label}>
-                                  🔔 {new Date(r.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                  <Bell aria-hidden="true" /> {new Date(r.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                                 </span>
                               ))}
                           {i.detail && <span className="muted small prep-detail">{i.detail}</span>}
@@ -278,8 +283,8 @@ function PrepSection({
                       </label>
                       {i.custom && (
                         <span className="prep-actions edit-only">
-                          <button type="button" className="prep-action" title="Edit" aria-label={`Edit ${i.text}`} onClick={() => setEditing(i.id)}>✎</button>
-                          <button type="button" className="prep-action danger" title="Remove" aria-label={`Remove ${i.text}`} onClick={() => onDelete(i.id)}>✕</button>
+                          <button type="button" className="prep-action" title="Edit" aria-label={`Edit ${i.text}`} onClick={() => setEditing(i.id)}><Pencil aria-hidden="true" /></button>
+                          <button type="button" className="prep-action danger" title="Remove" aria-label={`Remove ${i.text}`} onClick={() => onDelete(i.id)}><X aria-hidden="true" /></button>
                         </span>
                       )}
                       </div>

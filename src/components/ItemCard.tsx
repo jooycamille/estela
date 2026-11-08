@@ -10,6 +10,8 @@ import { formatMoney } from "./PriceField.tsx";
 import ActivityGuidePanel from "./ActivityGuidePanel.tsx";
 import { itemIcon } from "../icons.ts";
 import { attachmentUrl, fileToBase64, formatSize } from "../files.ts";
+import Ico from "./Ico.tsx";
+import { Link2, Paperclip } from "lucide-react";
 
 /** "Free cancellation until Tue, 8 Dec, 7:39 PM", "Non-refundable"… as a tag on the card. */
 function CancelTag({ terms }: { terms?: Cancellation }) {
@@ -51,7 +53,7 @@ function IncludedPlaces({ item, onChange }: { item: ActivityItem; onChange: () =
     <div className="included-places">
       {places.length > 0 && (
         <>
-          <b className="small">📍 Places included</b>
+          <b className="small">Places included</b>
           <ul>
             {places.map((p) => (
               <li key={p.title} className="small">
@@ -173,7 +175,7 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
   return (
     <>
       <div className="row">
-        <strong><span className="item-icon" aria-hidden="true">{itemIcon(f)}</span>{f.flightNumber}</strong>
+        <strong><span className="item-icon" aria-hidden="true"><Ico icon={itemIcon(f)} /></span>{f.flightNumber}</strong>
         <span>{f.from} → {f.to}</span>
         {f.airline && <span className="muted small">{f.airline}</span>}
         {f.live && <span className={`status-badge ${f.live.status}`}>{STATUS_LABEL[f.live.status]}</span>}
@@ -249,7 +251,7 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
         {item.kind === "flight" && <FlightBody f={item} mockFlights={mockFlights} onChange={onChange} />}
         {item.kind === "stay" && (
           <>
-            <div className="row"><strong><span className="item-icon" aria-hidden="true">{itemIcon(item)}</span>{item.name}</strong></div>
+            <div className="row"><strong><span className="item-icon" aria-hidden="true"><Ico icon={itemIcon(item)} /></span>{item.name}</strong></div>
             <div className="row small">
               <span>Check-in {formatTime(item.checkIn)}</span>
               <span>Check-out {item.checkOut.slice(0, 10)} {formatTime(item.checkOut)}</span>
@@ -260,7 +262,7 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
         {item.kind === "activity" && (
           <>
             <div className="row">
-              <strong><span className="item-icon" aria-hidden="true">{itemIcon(item)}</span>{item.title}</strong>
+              <strong><span className="item-icon" aria-hidden="true"><Ico icon={itemIcon(item)} /></span>{item.title}</strong>
               {dayIndex >= 0 && <span className="tag day-of">Day {dayIndex + 1} of {runsOn.length}</span>}
               {item.category && <span className="tag">{item.category}</span>}
               <CancelTag terms={cancellationOf(item)} />
@@ -329,11 +331,11 @@ function Files({ item, onChange }: { item: ItineraryItem; onChange: () => void }
   return (
     <div className="row small files">
       {item.links?.map((l) => (
-        <a key={l.url} className="file-link" href={l.url} target="_blank" rel="noreferrer noopener">🔗 {l.label}</a>
+        <a key={l.url} className="file-link" href={l.url} target="_blank" rel="noreferrer noopener"><Link2 aria-hidden="true" /> {l.label}</a>
       ))}
       {item.attachments?.map((a) => (
         <span key={a.id} className="file-link">
-          <a href={attachmentUrl(a.id)} target="_blank" rel="noreferrer">📎 {a.filename}</a>
+          <a href={attachmentUrl(a.id)} target="_blank" rel="noreferrer"><Paperclip aria-hidden="true" /> {a.filename}</a>
           <span className="muted"> {formatSize(a.size)}</span>
           <button
             className="link danger edit-only"

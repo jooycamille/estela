@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import type { Suggestion } from "../../shared/types.ts";
 import { api } from "../api.ts";
 import { formatDay } from "../format.ts";
+import { BriefcaseBusiness, Compass, Flower2, Landmark, Luggage, ShieldCheck, Sparkles, Star, Utensils } from "lucide-react";
+import type { LucideIcon } from "../icons.ts";
+import Ico from "./Ico.tsx";
 
-const ICON: Record<Suggestion["category"], string> = {
-  logistics: "🧭", productivity: "💼", food: "🍜", sightseeing: "🏛", wellness: "🧘", packing: "🧳", safety: "🛟", experience: "✨",
+const ICON: Record<Suggestion["category"], LucideIcon> = {
+  logistics: Compass, productivity: BriefcaseBusiness, food: Utensils, sightseeing: Landmark, wellness: Flower2, packing: Luggage, safety: ShieldCheck, experience: Star,
 };
 
 export default function Suggestions({ tripId, version, onCount }: { tripId: string; version: number; onCount?: (n: number) => void }) {
@@ -39,7 +42,7 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
       <p className="muted small">Ideas and heads-ups based on your trip type, who's going, your travel style, and gaps in your plans.</p>
       {aiAvailable && (
         <button className="secondary" onClick={askClaude} disabled={loading}>
-          {loading ? "Joy is thinking…" : usedAi ? "↻ Ask Joy again" : "✨ Ask Joy for more ideas"}
+          <Sparkles aria-hidden="true" /> {loading ? "Joy is thinking…" : usedAi ? "Ask Joy again" : "Ask Joy for more ideas"}
         </button>
       )}
       {error && <p className="warning small">{error}</p>}
@@ -47,7 +50,7 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
         {suggestions.map((s, i) => (
           <li key={i} className={`card suggestion ${s.category}`}>
             <div className="s-head">
-              <span>{ICON[s.category]}</span>
+              <span className="s-icon"><Ico icon={ICON[s.category]} /></span>
               <strong>{s.title}</strong>
             </div>
             <p>{s.description}</p>

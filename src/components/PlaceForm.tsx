@@ -124,7 +124,7 @@ export default function PlaceForm({
           <select value={listId} disabled={!choices.length} onChange={(e) => setChosenList(e.target.value)}>
             {choices.length === 0 && <option value="">No city guide yet</option>}
             {choices.map((l) => (
-              <option key={l.id} value={l.id}>{l.emoji} {l.name}</option>
+              <option key={l.id} value={l.id}>{l.name}</option>
             ))}
           </select>
         </label>

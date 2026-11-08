@@ -1,4 +1,4 @@
-import type { DateCard, PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import type { ExploreIdeas, ExplorePlace, DateCard, PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
 /** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
 export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
@@ -91,6 +91,9 @@ export type ListSuggestions = {
 export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }>;
 export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price" | "noDescription" | "priceChecked">> & { autoDescribe?: boolean; day?: string | null; price?: PriceLevel | null };
 
+export type DaySuggestion = Pick<DateCard, "day" | "free" | "nearby" | "things" | "ideas"> & { listId: string; place: string };
+export type UpcomingReminder = { at: string; label: string; item: string };
+
 export const api = {
   guideDays: (tripId: string) => request<{ listId: string; from?: string; to?: string }[]>(`/trips/${tripId}/guide-days`),
   lists: (tripId: string) => request<TripList[]>(`/trips/${tripId}/lists`),
@@ -133,13 +136,18 @@ export const api = {
   prep: (tripId: string) => request<PrepData>(`/trips/${tripId}/prep`),
   checkPrep: (tripId: string, id: string, checked: boolean) =>
     request<{ checked: string[] }>(`/trips/${tripId}/prep/check`, json("PUT", { id, checked })),
-  addPrep: (tripId: string, section: "todo" | "packing", text: string) =>
-    request<PrepItem>(`/trips/${tripId}/prep/custom`, json("POST", { section, text })),
+  addPrep: (tripId: string, section: "todo" | "packing", text: string, day?: string) =>
+    request<PrepItem>(`/trips/${tripId}/prep/custom`, json("POST", { section, text, day })),
   updatePrep: (tripId: string, id: string, text: string) => request<PrepItem>(`/trips/${tripId}/prep/custom/${encodeURIComponent(id)}`, json("PATCH", { text })),
   deletePrep: (tripId: string, id: string) => request<void>(`/trips/${tripId}/prep/custom/${encodeURIComponent(id)}`, json("DELETE")),
   setHomeCountry: (country: string) => request<{ homeCountry: string }>("/settings/home-country", json("PUT", { country })),
   trips: () => request<TripSummary[]>("/trips"),
   trip: (id: string) => request<{ trip: Trip; items: ItineraryItem[]; role: TripRole }>(`/trips/${id}`),
+  daySuggestions: (tripId: string) => request<DaySuggestion[]>(`/trips/${tripId}/day-suggestions`),
+  explorePlaces: (tripId: string) => request<ExplorePlace[]>(`/trips/${tripId}/explore`),
+  exploreIdeas: (tripId: string, place: Pick<ExplorePlace, "lat" | "lon" | "name">) =>
+    request<ExploreIdeas>(`/trips/${tripId}/explore/ideas?${new URLSearchParams({ lat: String(place.lat), lon: String(place.lon), name: place.name })}`),
+  upcomingReminders: (tripId: string) => request<UpcomingReminder[]>(`/trips/${tripId}/reminders`),
   pushKey: () => request<{ publicKey: string }>("/push/key"),
   pushSubscribe: (subscription: PushSubscriptionJSON) => request<{ ok: true }>("/push/subscribe", json("POST", { subscription })),
   pushUnsubscribe: (endpoint: string) => request<void>("/push/unsubscribe", json("POST", { endpoint })),
@@ -167,6 +175,8 @@ export const api = {
   travellerLink: (tripId: string, userId: string) => request<InviteLink>(`/trips/${tripId}/members/${userId}/link`, json("POST")),
   createTrip: (t: TripInput) => request<Trip>("/trips", json("POST", t)),
   updateTrip: (id: string, t: TripInput) => request<Trip>(`/trips/${id}`, json("PUT", t)),
+  setDayTitle: (tripId: string, day: string, text: string) => request<Record<string, string>>(`/trips/${tripId}/day-title`, json("PUT", { day, text })),
+  setDayNote: (tripId: string, day: string, text: string) => request<Record<string, string>>(`/trips/${tripId}/day-note`, json("PUT", { day, text })),
   deleteTrip: (id: string) => request<void>(`/trips/${id}`, json("DELETE")),
   addItems: (tripId: string, items: DraftItem[]) => request<ItineraryItem[]>(`/trips/${tripId}/items`, json("POST", items)),
   updateItem: (id: string, item: DraftItem) => request<ItineraryItem>(`/items/${id}`, json("PUT", item)),

@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { api, type LodgingResult } from "../api.ts";
+import { Hotel, MapPin } from "lucide-react";
 
 // A Property or Address input with a Find button (OpenStreetMap). Searches only on Find or Enter — no
 // search-as-you-type, per Nominatim's usage policy.
@@ -65,7 +66,7 @@ export default function LodgingField({
           }}
         />
         <button type="button" className="secondary" disabled={busy || (value ?? "").trim().length < 3} onClick={find} title={`Look up this ${label.toLowerCase()}`}>
-          {busy ? "…" : "🔍 Find"}
+          {busy ? "…" : "Find"}
         </button>
       </div>
       {results && (
@@ -82,7 +83,7 @@ export default function LodgingField({
                   setResults(undefined);
                 }}
               >
-                <span aria-hidden="true">{r.kind === "property" ? (search ? "📍" : "🏨") : search ? "🗺️" : "📍"}</span>{" "}
+                {r.kind === "property" && !search ? <Hotel aria-hidden="true" /> : <MapPin aria-hidden="true" />}{" "}
                 <span>
                   {r.name && <b>{r.name}</b>}
                   <span className={r.name ? "muted small block" : "small"}>{r.address}</span>

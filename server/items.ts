@@ -1,5 +1,6 @@
+import { distanceKm } from "./tripPlaces.ts";
 import { z } from "zod";
-import type { ActivityGuide, DraftItem, ItineraryItem, StoredAttachment } from "../shared/types.ts";
+import type { ActivityGuide, DraftItem, ItineraryItem, StoredAttachment, ActivityItem } from "../shared/types.ts";
 import { db, newId, now, save } from "./db.ts";
 import { normaliseFlightNumber } from "./emailParser.ts";
 import { refreshFlight } from "./flightStatus.ts";
@@ -82,7 +83,37 @@ export type ItemInputT = z.infer<typeof ItemInput>;
 
 export function createItem(tripId: string, input: ItemInputT): ItineraryItem {
   const base = { ...input, id: newId(), tripId, createdAt: now() };
-  return base.kind === "flight" ? { ...base, changes: [] } : base;
+  if (base.kind === "flight") return { ...base, changes: [] };
+  if (base.kind === "activity") addWhereToPlaces(base as ActivityItem);
+  return base;
+}
+
+const PLUS_CODE = /^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]*$/i;
+/** The name in a Where: its first part, unless that's a plus code, or too short to mean anything alone ("Brgy, 267 San Jose"). */
+function whereName(location: string) {
+  const parts = location.split(",").map((p) => p.trim()).filter((p) => p && !PLUS_CODE.test(p));
+  if (!parts.length) return location.trim();
+  return parts[0].length <= 4 && parts[1] ? `${parts[0]}, ${parts[1]}` : parts[0];
+}
+const SAME_SPOT_KM = 0.15;
+
+/**
+ * Puts an activity's Where among its places. Remembers what it added: a place you remove stays removed, and changing the
+ * Where swaps the old one for the new. Rides are left out, as they aren't somewhere you're visiting. True if anything changed.
+ */
+export function addWhereToPlaces(activity: ActivityItem) {
+  if (activity.category === "transfer" || !activity.location?.trim()) return false;
+  const location = activity.location.trim();
+  if (activity.placeFromWhere === location) return false;
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const previous = activity.placeFromWhere ? whereName(activity.placeFromWhere) : undefined;
+  const places = (activity.includes ?? []).filter((p) => !previous || !same(p.title, previous));
+  const title = whereName(location);
+  const { lat, lon } = activity;
+  const covered = places.some((p) => same(p.title, title) || (lat !== undefined && lon !== undefined && p.lat !== undefined && p.lon !== undefined && distanceKm({ lat, lon }, { lat: p.lat, lon: p.lon }) <= SAME_SPOT_KM));
+  activity.includes = covered ? places : [...places, { title, address: location, ...(lat !== undefined && lon !== undefined ? { lat, lon } : {}) }];
+  activity.placeFromWhere = location;
+  return true;
 }
 
 const sameDay = (a: string, b: string) => a.slice(0, 10) === b.slice(0, 10);
@@ -202,6 +233,7 @@ export async function upsertFromEmail(tripId: string, drafts: DraftItem[], email
       toRefresh.push(existing);
     }
     Object.assign(existing, defined);
+    if (existing.kind === "activity") addWhereToPlaces(existing);
     updated++;
   }
   save();

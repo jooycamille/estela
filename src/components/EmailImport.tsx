@@ -7,6 +7,8 @@ import ItemForm, { KIND_LABEL } from "./ItemForm.tsx";
 import { formatMoney } from "./PriceField.tsx";
 import { itemIcon } from "../icons.ts";
 import { fileToBase64 } from "../files.ts";
+import Ico from "./Ico.tsx";
+import { FileText } from "lucide-react";
 
 function draftSummary(d: DraftItem) {
   const price = d.price ? ` · ${formatMoney(d.price)}` : "";
@@ -100,7 +102,7 @@ export default function EmailImport({
             </label>
             {pdfs.map((p) => (
               <span key={p.filename} className="file-chip">
-                📄 {p.filename}
+                <FileText aria-hidden="true" /> {p.filename}
                 <button className="link" title="Remove" onClick={() => setPdfs((x) => x.filter((y) => y !== p))}>✕</button>
               </span>
             ))}
@@ -132,7 +134,7 @@ export default function EmailImport({
                   />
                 ) : (
                   <div className="draft-row">
-                    <span className={`kind ${d.kind}`}><span aria-hidden="true">{itemIcon(d)} </span>{KIND_LABEL[d.kind]}</span>
+                    <span className={`kind ${d.kind}`}><Ico icon={itemIcon(d)} /> {KIND_LABEL[d.kind]}</span>
                     <span className="grow">{draftSummary(d)}</span>
                     <button className="link" onClick={() => setEditing(i)}>Edit</button>
                     <button className="link danger" onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}>Remove</button>

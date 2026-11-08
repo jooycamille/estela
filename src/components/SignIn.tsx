@@ -186,7 +186,7 @@ export default function SignIn({
       )}
 
       <p className="muted tiny signin-foot">
-        Signed in on another device? Open <i>👤 your name → Sign in another device</i> there and scan the code. That's handy for the Home Screen app.
+        Signed in on another device? Open <i>your name → Sign in another device</i> there and scan the code. That's handy for the Home Screen app.
       </p>
     </div>
   );

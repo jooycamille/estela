@@ -37,13 +37,15 @@ function setMinimized(ids: string[], on: boolean) {
 /** Opens a section, for when something jumps to it or adds to it. */
 export const expand = (id: string) => setMinimized([id], false);
 
-/** A section's heading, which minimizes and expands what's under it. `summary` shows while it's minimized. */
+/** A section's heading, which minimizes and expands what's under it. `summary` shows while it's minimized; `action` is a
+ *  button beside the heading (not inside it, so tapping it doesn't minimize the section). */
 export default function Fold({
   id,
   title,
   summary,
   heading: Heading = "h3",
   headClass = "",
+  action,
   children,
 }: {
   id: string;
@@ -51,17 +53,19 @@ export default function Fold({
   summary?: ReactNode;
   heading?: "h2" | "h3" | "h4" | "h5";
   headClass?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   const folded = useSyncExternalStore(subscribe, () => minimized.has(id));
   return (
     <>
-      <Heading className={`fold-head ${headClass}`}>
+      <Heading className={`fold-head ${headClass} ${action ? "has-action" : ""}`}>
         <button type="button" className="fold-toggle" aria-expanded={!folded} title={folded ? "Expand" : "Minimize"} onClick={() => setMinimized([id], !folded)}>
           <span className="fold-title">{title}</span>
           {folded && summary !== undefined && <span className="fold-summary">{summary}</span>}
           <span className="fold-chevron" aria-hidden="true">▾</span>
         </button>
+        {action}
       </Heading>
       {/* Hidden rather than removed, so anything half typed in it is still there when you open it again. */}
       <div className="fold-body" hidden={folded}>

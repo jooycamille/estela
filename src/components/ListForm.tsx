@@ -1,21 +1,18 @@
 import { useEffect, useState } from "react";
-import { listTheme, THEME_EMOJI } from "../../shared/lists.ts";
+import { THEME_EMOJI, type ListTheme } from "../../shared/lists.ts";
+import { listThemeOf, THEME_ICON } from "../icons.ts";
+import Ico from "./Ico.tsx";
 import type { TripList, TripPlace } from "../../shared/types.ts";
 import { api } from "../api.ts";
-import { flag } from "./PlaceSelect.tsx";
 
-const EMOJIS = ["🌮", "🍽️", "☕", "🍸", "🏛️", "📸", "🛍️", "🌿", "🏖️", "🎉", "👨‍👩‍👧", "⭐", "📝"];
-const isEmoji = (g: string) => /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(g);
-/** The last emoji in what was typed or pasted ("🦜", "🇨🇴", "👨‍👩‍👧"), as one character. */
-function lastEmoji(text: string) {
-  const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((s) => s.segment);
-  return graphemes.filter(isEmoji).at(-1);
-}
-const SHORTCUT = /Mac/i.test(navigator.platform) ? "Ctrl ⌃ + Cmd ⌘ + Space" : "Windows key + .";
+const THEMES: { theme: ListTheme; label: string }[] = [
+  { theme: "food", label: "Food" }, { theme: "drinks", label: "Drinks" }, { theme: "sights", label: "Sights" }, { theme: "shopping", label: "Shopping" },
+  { theme: "nature", label: "Nature" }, { theme: "nightlife", label: "Nightlife" }, { theme: "general", label: "Other" },
+];
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const keyOf = (p: TripPlace) => `${p.type}|${p.name}|${p.countryCode}`;
 
-/** Create or rename a list ("Mexico Eats"): name, emoji, and the place it's about. */
+/** Create or rename a list ("Mexico Eats"): name, what it's about (its icon), and the place. */
 export default function ListForm({
   tripId,
   initial,
@@ -28,10 +25,8 @@ export default function ListForm({
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
-  const [emoji, setEmoji] = useState(initial?.emoji ?? "");
-  // Your own emoji (kept in its box even when you try a listed one, so you can switch back).
-  const [custom, setCustom] = useState(initial && !EMOJIS.includes(initial.emoji) ? initial.emoji : "");
-  const [customHint, setCustomHint] = useState(false);
+  // What it's about, from its name ("Mexico Eats" is food) until you choose. Saved as that theme's emoji, which older lists also have.
+  const [chosen, setChosen] = useState<ListTheme | undefined>(initial ? listThemeOf(initial) : undefined);
   const [place, setPlace] = useState<string>(initial?.place ? keyOf(initial.place) : "");
   const [placeTouched, setPlaceTouched] = useState(!!initial);
   const [options, setOptions] = useState<TripPlace[]>([]);
@@ -42,14 +37,14 @@ export default function ListForm({
     api.listPlaces(tripId).then(setOptions).catch(() => setOptions([]));
   }, [tripId]);
 
-  // "Mexico Eats" → about Mexico, 🌮 — until you choose yourself.
+  // "Mexico Eats" → about Mexico, until you choose yourself.
   useEffect(() => {
     if (placeTouched) return;
     const words = fold(name);
     const match = [...options].sort((a, b) => b.name.length - a.name.length).find((o) => words.includes(fold(o.name)));
     setPlace(match ? keyOf(match) : "");
   }, [name, options, placeTouched]);
-  const shownEmoji = emoji || THEME_EMOJI[listTheme(name)];
+  const theme = chosen ?? listThemeOf({ name, emoji: "" });
 
   return (
     <form
@@ -59,7 +54,7 @@ export default function ListForm({
         setBusy(true);
         setError(undefined);
         try {
-          await onSubmit({ name: name.trim(), emoji: shownEmoji, place: options.find((o) => keyOf(o) === place) ?? null });
+          await onSubmit({ name: name.trim(), emoji: THEME_EMOJI[theme], place: options.find((o) => keyOf(o) === place) ?? null });
         } catch (err) {
           setError((err as Error).message);
         } finally {
@@ -89,35 +84,19 @@ export default function ListForm({
             <option value="">Anywhere on this trip</option>
             {options.map((o) => (
               <option key={keyOf(o)} value={keyOf(o)}>
-                {flag(o.countryCode)} {o.type === "country" ? o.name : `   ${o.name}`}
+                {o.type === "country" ? o.name : `   ${o.name}`}
               </option>
             ))}
           </select>
         </label>
       </div>
-      <fieldset className="emoji-pick">
-        <legend>Icon</legend>
-        {EMOJIS.map((e) => (
-          <button key={e} type="button" className={`emoji ${shownEmoji === e ? "on" : ""}`} aria-pressed={shownEmoji === e} onClick={() => setEmoji(e)}>
-            {e}
+      <fieldset className="theme-pick">
+        <legend>Type</legend>
+        {THEMES.map((o) => (
+          <button key={o.theme} type="button" className={`chip ${theme === o.theme ? "on" : ""}`} aria-pressed={theme === o.theme} onClick={() => setChosen(o.theme)}>
+            <Ico icon={THEME_ICON[o.theme]} /> {o.label}
           </button>
         ))}
-        <input
-          className={`emoji-custom ${custom && shownEmoji === custom ? "on" : ""}`}
-          aria-label="Your own emoji"
-          placeholder="+ Your own"
-          title={`Type or paste any emoji (${SHORTCUT} opens the emoji keyboard)`}
-          value={custom}
-          onFocus={() => custom && setEmoji(custom)}
-          onChange={(e) => {
-            const picked = lastEmoji(e.target.value);
-            setCustomHint(!picked && e.target.value.trim() !== "");
-            setCustom(picked ?? "");
-            if (picked) setEmoji(picked);
-            else if (emoji === custom) setEmoji("");
-          }}
-        />
-        {customHint && <span className="muted tiny emoji-hint">Use an emoji. {SHORTCUT} opens the emoji keyboard.</span>}
       </fieldset>
       {error && <p className="error">{error}</p>}
       <div className="actions">

@@ -22,6 +22,7 @@ test("what you add goes in the group it belongs to", () => {
     ["Choose my seat", "Before each flight"],
     ["Print tour tickets", "For your activities"],
     ["Download apps", "Do soon"],
+    ["Get a metro card", "Public transport"],
   ];
   for (const [text, group] of todo) assert.equal(prepGroupFor("todo", text), group, text);
 });

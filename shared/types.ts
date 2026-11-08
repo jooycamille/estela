@@ -73,6 +73,8 @@ export interface Trip {
   party: TravelParty;
   styles: TravelStyle[];
   notes?: string;
+  dayTitles?: Record<string, string>; // your own heading for a day ("Day trip to the coast"), by YYYY-MM-DD
+  dayNotes?: Record<string, string>; // your own note for a day, by YYYY-MM-DD
   prep?: { checked: string[]; custom: PrepItem[] };
   ownerId?: string; // who made the trip (and can share or delete it)
   members?: TripMember[]; // people it's shared with
@@ -241,6 +243,7 @@ export interface ActivityItem extends ItemBase {
   fromReceipt?: boolean; // known only from an invoice or payment receipt
   broughtItems?: string[]; // "What to bring" items ticked off for this activity
   includes?: IncludedPlace[]; // places a tour takes you to, so they needn't be seen separately
+  placeFromWhere?: string; // the Where last added to includes, so a place you removed stays removed
   flightNumber?: string; // a ride (category "transfer"): the flight it's for
   transferLeg?: "pickup" | "dropoff" | "other";
 }
@@ -338,6 +341,16 @@ export interface ListEntry {
   addedAt: string;
   priceChecked?: boolean; // restaurants: the price has been looked for, or you've set it yourself: not looked up again
   noDescription?: boolean; // you cleared the description yourself, so it isn't filled in again
+  photo?: EntryPhoto | null; // a photo from the Wikipedia article about it; null: looked, none found
+  photoLooked?: number; // how photos were matched when this one was looked for (looked again when that improves)
+  descriptionChecked?: true; // a description from Wikipedia was checked for being about something else with the name
+}
+
+/** A picture of a place, from the Wikipedia article about it (shown with a link back to that article). */
+export interface EntryPhoto {
+  url: string;
+  page: string;
+  near?: true; // the article is on the map where the place is (photos without this were matched by name alone)
 }
 
 export interface TripList {
@@ -423,6 +436,30 @@ export interface SafetyTips {
   sourceName: string;
   sourceUrl: string;
   checked?: string; // YYYY-MM-DD these were last compared with the source
+}
+
+/** A day that names only a town or area, so there's more to suggest. */
+export interface ExplorePlace {
+  day: string;
+  name: string;
+  lat: number;
+  lon: number;
+  listId: string; // where a suggestion gets saved
+}
+
+export interface ExploreIdea {
+  title: string;
+  label: string;
+  lat: number;
+  lon: number;
+  address?: string;
+}
+
+export interface ExploreIdeas {
+  sights: ExploreIdea[];
+  toDo: ExploreIdea[];
+  eat: ExploreIdea[];
+  links: Link[];
 }
 
 /** An app worth having in a place, linked to where it was confirmed. */

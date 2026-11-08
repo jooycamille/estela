@@ -7,7 +7,7 @@ import type { ActivityItem, ItineraryItem, ListEntry, ListSuggestion, Trip, Trip
 
 process.env.DB_PATH = join(mkdtempSync(join(tmpdir(), "heyjoy-bydate-")), "db.json");
 const { db } = await import("../server/db.ts");
-const { planByDate } = await import("../server/lists.ts");
+const { daySuggestions, planByDate } = await import("../server/lists.ts");
 
 const trip = { id: "t", name: "Made-up trip", destination: "Mexico City", startDate: "2027-03-01", endDate: "2027-03-08", places: [{ type: "city", name: "Mexico City", countryCode: "MX", lat: 19.43, lon: -99.13 }] } as unknown as Trip;
 const tour = (id: string, day: string, title: string, includes: { title: string; lat?: number; lon?: number }[]) =>
@@ -178,6 +178,13 @@ test("taking one suggestion doesn't send the others to other dates", () => {
 test("something saved with a day in its name waits for that day", () => {
   const days = { ...trip, startDate: "2027-03-05", endDate: "2027-03-07" } as Trip; // Friday to Sunday
   assert.deepEqual(onDays(planByDate(setUp([thing("ride", { title: "Zefir Sunday ride" })]), days, []).byDate), { "2027-03-07": ["ride"] });
+});
+
+test("the itinerary gets each day's suggestions, and nothing for a full day", () => {
+  const short = { ...trip, styles: [], startDate: "2027-03-02", endDate: "2027-03-03" } as unknown as Trip;
+  setUp([pick("near", 19.432, -99.132), thing("mine")]);
+  const days = daySuggestions(short, [timed("full", "2027-03-02T05:00", "2027-03-02T19:00"), timed("short", "2027-03-03T09:00", "2027-03-03T12:00", { title: "Madeup Palace", lat: 19.434, lon: -99.134 })]);
+  assert.deepEqual(days.map((d) => [d.day, d.place, d.nearby.map((n) => n.id), d.things.map((n) => n.id)]), [["2027-03-03", "Mexico City", ["near"], ["mine"]]]);
 });
 
 test("a tour stop named by its street address reads as just the street", () => {

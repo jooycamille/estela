@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { ActivityGuide, ActivityItem, DraftItem } from "../../shared/types.ts";
 import { api } from "../api.ts";
 
-const LISTS: { key: keyof ActivityGuide; title: string; icon: string }[] = [
-  { key: "beforeYouGo", title: "Before you go", icon: "✅" },
-  { key: "itinerary", title: "Itinerary", icon: "🗺️" },
-  { key: "whatToBring", title: "What to bring", icon: "🎒" },
-  { key: "whatToWear", title: "What to wear", icon: "👟" },
-  { key: "dos", title: "Do's", icon: "👍" },
-  { key: "donts", title: "Don'ts / not allowed", icon: "🚫" },
-  { key: "goodToKnow", title: "Good to know", icon: "ℹ️" },
+const LISTS: { key: keyof ActivityGuide; title: string }[] = [
+  { key: "beforeYouGo", title: "Before you go" },
+  { key: "itinerary", title: "Itinerary" },
+  { key: "whatToBring", title: "What to bring" },
+  { key: "whatToWear", title: "What to wear" },
+  { key: "dos", title: "Do's" },
+  { key: "donts", title: "Don'ts / not allowed" },
+  { key: "goodToKnow", title: "Good to know" },
 ];
 
 const MEETING = "Meeting point / pickup";
@@ -37,7 +37,7 @@ function BringChecklist({ items, item, onChange }: { items: string[]; item?: Act
   const done = items.filter((x) => ticked.includes(x)).length;
   return (
     <section className="guide-section whatToBring">
-      <h5>🎒 What to bring <span className="muted tiny">{done} of {items.length}</span></h5>
+      <h5>What to bring <span className="muted tiny">{done} of {items.length}</span></h5>
       <ul className="bring-checklist">
         {items.map((x) => (
           <li key={x} className={ticked.includes(x) ? "done" : ""}>
@@ -96,7 +96,7 @@ export default function ActivityGuidePanel({ guide, item, onChange }: { guide: A
             <BringChecklist key={l.key} items={guide.whatToBring!} item={item} onChange={onChange} />
           ) : (
             <section key={l.key} className={`guide-section ${l.key}`}>
-              <h5>{l.icon} {l.title}</h5>
+              <h5>{l.title}</h5>
               <ul>
                 {(guide[l.key] as string[]).map((x, i) => <li key={i}>{x}</li>)}
               </ul>

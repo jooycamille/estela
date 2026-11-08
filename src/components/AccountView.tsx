@@ -17,7 +17,8 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
 
   return (
     <div className="account">
-      <h1>👤 You</h1>
+      <h1>Your account</h1>
+      {me.isAdmin && <p className="small"><a href="#/settings">Flight data settings</a></p>}
       {error && <p className="error">{error}</p>}
       {saved && <p className="notice">{saved}</p>}
       {(!me.email || !me.hasPassword) && (

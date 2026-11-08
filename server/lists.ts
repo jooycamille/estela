@@ -759,6 +759,24 @@ export function planByDate(list: TripList, trip: Trip, items: ItineraryItem[], i
   };
 }
 
+/** What could fit on each date of the trip, across its guides, for showing under the days of the itinerary. */
+export function daySuggestions(trip: Trip, items: ItineraryItem[]) {
+  return tripLists(trip.id)
+    .filter((l) => l.auto)
+    .flatMap((list) => {
+      const { byDate } = guideSuggestions(list, trip, items);
+      const days = new Map<string, { day: string; listId: string; place: string; free: DateCard["free"]; nearby: DateCard["nearby"]; things: DateCard["things"]; ideas: DateCard["ideas"] }>();
+      for (const c of byDate) {
+        const day = days.get(c.day) ?? { day: c.day, listId: list.id, place: list.name, free: c.free, nearby: [], things: [], ideas: [] };
+        day.nearby.push(...c.nearby);
+        day.things.push(...c.things);
+        day.ideas.push(...c.ideas);
+        days.set(c.day, day);
+      }
+      return [...days.values()].filter((d) => d.nearby.length + d.things.length + d.ideas.length > 0);
+    });
+}
+
 /** Which guide covers which dates, for choosing where a new place goes. */
 export function guideDays(trip: Trip, items: ItineraryItem[]) {
   const stops = guideDestinations(trip, items);

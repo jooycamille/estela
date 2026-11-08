@@ -11,6 +11,7 @@ const PACKING_GROUPS: [RegExp, string][] = [
   [/laptop|business|notebook|\bwork\b/i, "For work"],
 ];
 const TODO_GROUPS: [RegExp, string][] = [
+  [/\b(metro|subway|bus pass|train card|travel card|transit|public transport|ez-?link|beep card)\b/i, "Public transport"],
   [/visa\b|customs|immigration|arrival (card|form)|entry (form|permit)|\besta\b|\beta\b|declaration/i, "Border forms"],
   [/check.?in|boarding|flights?\b|baggage|luggage|\bseats?\b/i, "Before each flight"],
   [/\btours?\b|excursion|activit(y|ies)|tickets?\b/i, "For your activities"],

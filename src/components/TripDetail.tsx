@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DraftItem, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
-import { api, saveTripOffline, type DayPlans } from "../api.ts";
+import type { DraftItem, ExplorePlace, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
+import { api, type DaySuggestion, saveTripOffline, type DayPlans } from "../api.ts";
 import { rememberPlace, restoredPlace } from "../pagePlace.ts";
 import { formatDateRange, formatDay } from "../format.ts";
 import { flightForTransfer } from "../../shared/cancellation.ts";
 import { activityDays } from "../../shared/days.ts";
 import DayStrip, { dayId, type DayInfo } from "./DayStrip.tsx";
+import DaySuggestions from "./DaySuggestions.tsx";
+import { DayAddMenu, DayChecklist, DayNote, DayTextForm } from "./DayExtras.tsx";
+import PlaceCard from "./PlaceCard.tsx";
+import ExploreArea from "./ExploreArea.tsx";
 import Fold, { expand, FoldAll } from "./Fold.tsx";
+import Ico from "./Ico.tsx";
 import EmailImport from "./EmailImport.tsx";
 import ItemCard from "./ItemCard.tsx";
 import ItemForm, { KIND_LABEL, type Kind } from "./ItemForm.tsx";
@@ -17,12 +22,13 @@ import PlaceForm, { type AddedPlace } from "./PlaceForm.tsx";
 import PrepareView from "./PrepareView.tsx";
 import SpendSummary from "./SpendSummary.tsx";
 import TravellersPanel from "./TravellersPanel.tsx";
-import { itemIcon, KIND_ICON } from "../icons.ts";
+import { CalendarDays, ClipboardCheck, Pencil, Compass, Lightbulb, Mail, MapPin, BedDouble, Users, X } from "lucide-react";
+import { itemIcon, KIND_ICON, listIcon, type LucideIcon } from "../icons.ts";
 import { describePart, partOn, partRange, partySummary } from "../parts.ts";
 import Suggestions from "./Suggestions.tsx";
 import TripForm from "./TripForm.tsx";
 
-const CATEGORY_TABS = { all: "All", flight: `${KIND_ICON.flight} Flights`, stay: `${KIND_ICON.stay} Accommodation`, activity: `${KIND_ICON.activity} Activities` } as const;
+const CATEGORY_TABS = { all: "All", flight: "Flights", stay: "Accommodation", activity: "Activities" } as const;
 
 const startOf = (i: ItineraryItem) =>
   i.kind === "flight" ? i.live?.departureTime ?? i.departureTime : i.kind === "stay" ? i.checkIn : i.start;
@@ -44,6 +50,14 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const [panel, setPanel] = useState<Panel>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [version, setVersion] = useState(0);
+  const [explore, setExplore] = useState<ExplorePlace[]>([]);
+  const [suggested, setSuggested] = useState<DaySuggestion[]>([]);
+  useEffect(() => {
+    api.daySuggestions(tripId).then(setSuggested).catch(() => setSuggested([]));
+  }, [tripId, version]);
+  useEffect(() => {
+    api.explorePlaces(tripId).then(setExplore).catch(() => setExplore([]));
+  }, [tripId, version]);
   const [restored] = useState(restoredPlace); // after a reload, back to the tab and guide you had open
   const [category, setCategory] = useState<Category>((restored.category as Category | undefined) ?? "all");
   const [lists, setLists] = useState<TripList[]>([]);
@@ -54,6 +68,8 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   // In the Suggestions tab: Joy's tips, or one of the city guides / your lists (by id).
   const [ideaSection, setIdeaSection] = useState<string>(restored.section ?? "tips");
   const [emptyDay, setEmptyDay] = useState<string>(); // a day with nothing on it, picked in the date strip
+  const [headingDay, setHeadingDay] = useState<string>(); // the day whose heading you're typing
+  const [dayForm, setDayForm] = useState<{ day: string; kind: "note" | "todo" }>(); // a note or checklist item you're typing for a day
   const [openTodos, setOpenTodos] = useState(0);
   const [addedPlace, setAddedPlace] = useState<AddedPlace>(); // the note after adding one, with where to find it
 
@@ -118,6 +134,9 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
   const dayFold = (day: string) => `${trip.id}:day:${day}`;
   // Days where only accommodation is booked still need things to do.
   const addFor = (day: string, kind: Kind | "place") => {
+    // Pressing the same one again closes the form.
+    const open = panel && (panel.type === "place" || panel.type === "add") && panel.date === day && (kind === "place" ? panel.type === "place" : panel.type === "add" && panel.kind === kind);
+    if (open) return setPanel(null);
     expand(dayFold(day));
     // Open the form right there in that day, if it's showing, so you keep your place in the itinerary.
     const inline = byDay.has(day);
@@ -180,14 +199,14 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
     for (let d = new Date(`${trip.startDate}T12:00:00Z`); d <= new Date(`${trip.endDate}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) all.add(d.toISOString().slice(0, 10));
     return [...all].sort().map((day) => {
       const dayItems = byDay.get(day) ?? [];
-      // The same icon as each card: activities by their name ("Museum…" 🏛️, "Dinner…" 🍽️), homes 🏠.
-      const icons: string[] = [...new Set(dayItems.map((i) => itemIcon(i)))];
-      if (category === "all" && plans[day]) icons.push("📍");
-      // A night at a booked stay isn't a gap (🛏️), but nothing may be planned: tapping it offers to add something.
+      // The same icon as each card: activities by their name ("Museum…" a landmark, "Dinner…" a fork and knife), homes a house.
+      const icons: LucideIcon[] = [...new Set(dayItems.map((i) => itemIcon(i)))];
+      if (category === "all" && plans[day]) icons.push(MapPin);
+      // A night at a booked stay isn't a gap (a bed), but nothing may be planned: tapping it offers to add something.
       const planned = dayItems.length > 0 || (category === "all" && !!plans[day]);
       const stay = !planned && (category === "all" || category === "stay") ? stayOn(day) : undefined;
-      if (stay) icons.push("🛏️");
-      return { day, icons, hasContent: byDay.has(day), planned, staying: !!stay };
+      if (stay) icons.push(BedDouble);
+      return { day, icons, hasContent: byDay.has(day), planned, staying: !!stay, heading: trip.dayTitles?.[day] };
     });
   })();
   const openList = ideaSection !== "tips" ? lists.find((l) => l.id === ideaSection) : undefined;
@@ -220,7 +239,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           </div>
           <div className="head-actions">
             <button className={`ghost ${panel?.type === "travellers" ? "on" : ""}`} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
-              👥 Travellers{trip.members?.length ? ` · ${trip.members.length + 1}` : ""}
+              <Users aria-hidden="true" /> Travellers{trip.members?.length ? ` · ${trip.members.length + 1}` : ""}
             </button>
             {canEditTrip && <button className="ghost" onClick={() => setPanel({ type: "edit-trip" })}>Edit</button>}
             {data.role === "owner" && <button
@@ -238,13 +257,13 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
 
         <div className="views" role="tablist" aria-label="Trip view">
           <button role="tab" aria-selected={view === "itinerary"} className={`view-tab ${view === "itinerary" ? "on" : ""}`} onClick={() => setView("itinerary")}>
-            🗓️ Itinerary
+            <CalendarDays aria-hidden="true" /> Itinerary
           </button>
           <button role="tab" aria-selected={view === "prepare"} className={`view-tab ${view === "prepare" ? "on" : ""}`} onClick={() => setView("prepare")}>
-            ✅ Prepare{openTodos ? <span className="count">{openTodos} to do</span> : null}
+            <ClipboardCheck aria-hidden="true" /> Prepare{openTodos ? <span className="count">{openTodos} to do</span> : null}
           </button>
           <button role="tab" aria-selected={view === "ideas"} className={`view-tab ${view === "ideas" ? "on" : ""}`} onClick={() => setView("ideas")}>
-            ✨ Suggestions{ideaCount ? <span className="count">{ideaCount}</span> : null}
+            <Compass aria-hidden="true" /> Suggestions{ideaCount ? <span className="count">{ideaCount}</span> : null}
           </button>
         </div>
 
@@ -253,7 +272,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             {/* Joy's tips, a guide for each city you stay in, and your own lists. */}
             <div className="idea-nav categories" role="tablist" aria-label="Suggestions">
               <button role="tab" aria-selected={ideaSection === "tips"} className={`category ${ideaSection === "tips" ? "on" : ""}`} onClick={() => setIdeaSection("tips")}>
-                💡 Tips {ideaCount > 0 && <span className="count">{ideaCount}</span>}
+                <Lightbulb aria-hidden="true" /> Tips {ideaCount > 0 && <span className="count">{ideaCount}</span>}
               </button>
               {lists.map((l) => (
                 <button
@@ -264,14 +283,14 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
                   title={l.auto ? `Joy's guide to ${l.name}` : undefined}
                   onClick={() => setIdeaSection(l.id)}
                 >
-                  {l.emoji} {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
+                  <Ico icon={listIcon(l)} /> {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
                 </button>
               ))}
               <button
                 type="button"
                 className="category new-list edit-only"
                 aria-pressed={panel?.type === "new-list"}
-                onClick={() => setPanel({ type: "new-list" })}
+                onClick={() => setPanel(panel?.type === "new-list" ? null : { type: "new-list" })}
               >
                 + New list
               </button>
@@ -327,7 +346,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
           <TravellersPanel tripId={trip.id} tripName={trip.name} role={data.role} onClose={() => { setPanel(null); load(); }} onLeft={() => (location.hash = "#/")} />
         )}
         {!canEditTrip && (
-          <p className="view-only-note">👀 You can view this trip. Ask its owner if you'd like to make changes.</p>
+          <p className="view-only-note">You can view this trip. Ask its owner if you'd like to make changes.</p>
         )}
         <section className="add-panel edit-only" aria-label="Add to your trip">
           <h4>Add to your trip</h4>
@@ -335,8 +354,8 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             {(["flight", "stay", "activity"] as Kind[]).map((k) => {
               const on = panel?.type === "add" && !panel.inline && panel.kind === k;
               return (
-                <button key={k} className={`add-tile ${k} ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setPanel({ type: "add", kind: k }); setAddedPlace(undefined); }}>
-                  <span className="add-icon" aria-hidden="true">{KIND_ICON[k]}</span>
+                <button key={k} className={`add-tile ${k} ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setPanel(on ? null : { type: "add", kind: k }); setAddedPlace(undefined); }}>
+                  <span className="add-icon" aria-hidden="true"><Ico icon={KIND_ICON[k]} /></span>
                   <span>{KIND_LABEL[k]}</span>
                 </button>
               );
@@ -344,17 +363,17 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
             <button
               className={`add-tile place ${panel?.type === "place" && !panel.inline ? "on" : ""}`}
               aria-pressed={panel?.type === "place" && !panel.inline}
-              onClick={() => { setPanel({ type: "place" }); setAddedPlace(undefined); }}
+              onClick={() => { setPanel(panel?.type === "place" && !panel.inline ? null : { type: "place" }); setAddedPlace(undefined); }}
             >
-              <span className="add-icon" aria-hidden="true">📍</span>
+              <span className="add-icon" aria-hidden="true"><MapPin /></span>
               <span>Place</span>
             </button>
             <button
               className={`add-tile email ${panel?.type === "email" ? "on" : ""}`}
               aria-pressed={panel?.type === "email"}
-              onClick={() => { setPanel({ type: "email" }); setAddedPlace(undefined); }}
+              onClick={() => { setPanel(panel?.type === "email" ? null : { type: "email" }); setAddedPlace(undefined); }}
             >
-              <span className="add-icon" aria-hidden="true">✉️</span>
+              <span className="add-icon" aria-hidden="true"><Mail /></span>
               <span>Import from email</span>
             </button>
 
@@ -364,7 +383,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
         {(panel?.type === "add" || panel?.type === "place") && !panel.inline && addForm()}
         {addedPlace && (
           <p className="place-added small" role="status">
-            📍 <b>{addedPlace.title}</b> {addedPlace.day ? <>is on {formatDay(addedPlace.day)}.</> : <>is saved in {addedPlace.listName}, ready to plan for a day.</>}{" "}
+            <MapPin aria-hidden="true" /> <b>{addedPlace.title}</b> {addedPlace.day ? <>is on {formatDay(addedPlace.day)}.</> : <>is saved in {addedPlace.listName}, ready to plan for a day.</>}{" "}
             {addedPlace.day ? (
               <button type="button" className="link" onClick={() => document.getElementById(dayId(addedPlace.day!))?.scrollIntoView({ behavior: "smooth" })}>Show that day</button>
             ) : (
@@ -413,7 +432,7 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
         )}
         {category !== "all" && count(category) === 0 && (
           <div className="card empty">
-            <p>No {CATEGORY_TABS[category].replace(/^\S+ /, "").toLowerCase()} yet.</p>
+            <p>No {CATEGORY_TABS[category].toLowerCase()} yet.</p>
           </div>
         )}
 
@@ -431,19 +450,19 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
         {emptyDay && (
           <div className="card empty-day" id="empty-day">
             <div className="empty-day-head">
-              <b>📅 {formatDay(emptyDay)}</b>
+              <b>{formatDay(emptyDay)}</b>
               <button type="button" className="chip-x" aria-label="Close" onClick={() => setEmptyDay(undefined)}>×</button>
             </div>
-            {stayOn(emptyDay) && <p className="small staying">🛏️ Staying at <b>{stayOn(emptyDay)!.name}</b></p>}
+            {stayOn(emptyDay) && <p className="small staying"><BedDouble aria-hidden="true" /> Staying at <b>{stayOn(emptyDay)!.name}</b></p>}
             <p className="muted small">{stayOn(emptyDay) ? "No activities planned yet" : "Nothing planned yet"}{canEditTrip ? ". Add something for this day:" : "."}</p>
             {canEditTrip && (
               <div className="actions left">
                 {(stayOn(emptyDay) ? (["activity", "flight"] as Kind[]) : (["activity", "stay", "flight"] as Kind[])).map((k) => (
                   <button key={k} type="button" className={`secondary add-for-day ${k}`} onClick={() => addFor(emptyDay, k)}>
-                    {KIND_ICON[k]} {KIND_LABEL[k]}
+                    <Ico icon={KIND_ICON[k]} /> {KIND_LABEL[k]}
                   </button>
                 ))}
-                <button type="button" className="secondary add-for-day place" onClick={() => addFor(emptyDay, "place")}>📍 Place</button>
+                <button type="button" className="secondary add-for-day place" onClick={() => addFor(emptyDay, "place")}><MapPin aria-hidden="true" /> Place</button>
               </div>
             )}
           </div>
@@ -473,13 +492,60 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
               headClass="day-head"
               title={<>
                 {formatDay(day)}
+                {trip.dayTitles?.[day] && <span className="day-heading">{trip.dayTitles[day]}</span>}
                 {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> outside trip dates</span>}
               </>}
+              action={canEditTrip && (
+                <button
+                  type="button"
+                  className="prep-action day-heading-edit"
+                  title={trip.dayTitles?.[day] ? "Edit this day's heading" : "Add a heading for this day"}
+                  aria-label={trip.dayTitles?.[day] ? `Edit the heading for ${formatDay(day)}` : `Add a heading for ${formatDay(day)}`}
+                  onMouseDown={(e) => e.preventDefault()} // keeps the heading box from saving as you press: a second press cancels
+                  onClick={() => { expand(dayFold(day)); setHeadingDay(headingDay === day ? undefined : day); }}
+                >
+                  <Pencil aria-hidden="true" />
+                </button>
+              )}
               summary={(() => {
                 const n = dayItems.length + (plans[day]?.entries.length ?? 0);
                 return n ? `${n} item${n === 1 ? "" : "s"}` : "Nothing planned";
               })()}
             >
+            {headingDay === day && (
+              <DayHeadingForm
+                initial={trip.dayTitles?.[day] ?? ""}
+                onDone={async (title) => {
+                  setHeadingDay(undefined);
+                  if (title !== undefined && title !== (trip.dayTitles?.[day] ?? "")) await api.setDayTitle(trip.id, day, title).then(load);
+                }}
+              />
+            )}
+            {trip.dayNotes?.[day] && !(dayForm?.day === day && dayForm.kind === "note") && (
+              <DayNote
+                text={trip.dayNotes[day]}
+                canEdit={canEditTrip}
+                onEdit={() => setDayForm({ day, kind: "note" })}
+                onRemove={() => api.setDayNote(trip.id, day, "").then(load)}
+              />
+            )}
+            {dayForm?.day === day && dayForm.kind === "note" && trip.dayNotes?.[day] && (
+              <DayTextForm
+                multiline
+                initial={trip.dayNotes?.[day]}
+                placeholder="Note for this day"
+                onDone={async (text) => {
+                  setDayForm(undefined);
+                  if (text !== undefined && text !== (trip.dayNotes?.[day] ?? "")) await api.setDayNote(trip.id, day, text).then(load);
+                }}
+              />
+            )}
+            <DayChecklist
+              tripId={trip.id}
+              items={(trip.prep?.custom ?? []).filter((c) => c.due?.startsWith(day))}
+              checked={trip.prep?.checked ?? []}
+              onChange={load}
+            />
             {dayItems.map((item) => (
               <ItemCard
                 key={item.id}
@@ -494,54 +560,77 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
               // Nothing on this day yet: say so (and where you're sleeping), with quick ways to add something.
               <div className="no-activities nothing-yet">
                 {stayOn(day) ? (
-                  <span className="small">🛏️ Staying at <b>{stayOn(day)!.name}</b> · <span className="muted">no activities planned yet</span></span>
+                  <span className="small"><BedDouble aria-hidden="true" /> Staying at <b>{stayOn(day)!.name}</b> · <span className="muted">no activities planned yet</span></span>
                 ) : (
                   <span className="muted small">Nothing planned yet</span>
                 )}
-                <span className="nothing-yet-actions edit-only">
-                  <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Activity</button>
-                  <button type="button" className="link" onClick={() => addFor(day, "place")}>+ Place</button>
-                  {!stayOn(day) && <button type="button" className="link" onClick={() => addFor(day, "stay")}>+ Accommodation</button>}
-                  {!stayOn(day) && <button type="button" className="link" onClick={() => addFor(day, "flight")}>+ Flight</button>}
-                </span>
               </div>
             )}
             {category === "all" && dayItems.length > 0 && dayItems.every((i) => i.kind === "stay" || (i.kind === "activity" && i.category === "transfer")) && !plans[day] && (
               <p className="no-activities">
                 <span className="muted small">No activities planned yet</span>
-                <span className="edit-only nothing-yet-actions">
-                  <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Add activity</button>
-                  <button type="button" className="link" onClick={() => addFor(day, "place")}>+ Place</button>
-                </span>
               </p>
             )}
             {category === "all" && plans[day] && (
               <div className="day-plan">
                 <div className="day-plan-head">
-                  <b>📍 Places to visit</b>
+                  <b>Places to visit</b>
                   {plans[day].routeUrl && (
                     <a className="small" href={plans[day].routeUrl} target="_blank" rel="noopener noreferrer">Route in Maps ↗</a>
                   )}
                 </div>
-                <ol>
-                  {plans[day].entries.map((e) => (
-                    <li key={e.id}>
-                      <button type="button" className="link plain" onClick={() => openIdeas(e.listId)} title={`Open ${e.listName}`}>
-                        <span aria-hidden="true">{e.listEmoji}</span> {e.title}
-                      </button>
-                      {e.area && <span className="muted tiny"> · {e.area}</span>}
-                    </li>
+                <div className="place-cards">
+                  {plans[day].entries.map((e, n) => (
+                    <PlaceCard
+                      key={e.id}
+                      entry={e}
+                      number={plans[day].entries.length > 1 ? n + 1 : undefined}
+                      onOpen={() => openIdeas(e.listId)}
+                      onRemove={() => api.planDay(trip.id, null, [{ listId: e.listId, entryId: e.id }]).then(load)}
+                    />
                   ))}
-                </ol>
+                </div>
               </div>
             )}
-            {/* Days with the "nothing planned" lines above already offer these. */}
-            {(category === "all" || category === "activity") &&
-              !(category === "all" && !plans[day] && dayItems.every((i) => i.kind === "stay" || (i.kind === "activity" && i.category === "transfer"))) && (
-              <p className="day-add edit-only">
-                <button type="button" className="link" onClick={() => addFor(day, "activity")}>+ Activity</button>
-                <button type="button" className="link" onClick={() => addFor(day, "place")}>+ Place</button>
-              </p>
+            {category === "all" && suggested.filter((s) => s.day === day).map((s, _i, onDay) => (
+              <DaySuggestions
+                key={s.listId}
+                card={s}
+                place={onDay.length > 1 ? s.place : undefined}
+                onPlan={(on, entries) => api.planDay(trip.id, on, entries.map((e) => ({ listId: e.listId, entryId: e.id }))).then(load)}
+                onAddIdea={(idea) => api.addEntry(s.listId, { title: idea.title, kind: "activity", notes: idea.detail, links: idea.links, day }).then(load)}
+              />
+            ))}
+            {category === "all" && explore.filter((p) => p.day === day).map((p) => (
+              <ExploreArea key={p.name} tripId={trip.id} place={p} lists={lists} onAdded={load} />
+            ))}
+            {dayForm?.day === day && dayForm.kind === "note" && !trip.dayNotes?.[day] && (
+              <DayTextForm
+                multiline
+                initial={trip.dayNotes?.[day]}
+                placeholder="Note for this day"
+                onDone={async (text) => {
+                  setDayForm(undefined);
+                  if (text !== undefined && text !== (trip.dayNotes?.[day] ?? "")) await api.setDayNote(trip.id, day, text).then(load);
+                }}
+              />
+            )}
+            {dayForm?.day === day && dayForm.kind === "todo" && (
+              <DayTextForm
+                placeholder="Checklist item for this day, e.g. Buy bus tickets"
+                onDone={async (text) => {
+                  setDayForm(undefined);
+                  if (text) await api.addPrep(trip.id, "todo", text, day).then(load);
+                }}
+              />
+            )}
+            {canEditTrip && (category === "all" || category === "activity") && (
+              <DayAddMenu
+                day={day}
+                label={formatDay(day)}
+                extra={!stayOn(day)}
+                onPick={(what) => (what === "note" || what === "todo" ? (setPanel(null), setDayForm({ day, kind: what })) : addFor(day, what))}
+              />
             )}
             {(panel?.type === "add" || panel?.type === "place") && panel.inline && panel.date === day && (
               <div id="day-add-form" className="day-add-form">{addForm()}</div>
@@ -555,5 +644,25 @@ export default function TripDetail({ tripId, mockFlights, initialView }: { tripI
       </div>
 
     </div>
+  );
+}
+
+/** Your own heading for a day ("Day trip to the coast"). Enter or tapping away saves; Esc cancels; empty removes it. */
+function DayHeadingForm({ initial, onDone }: { initial: string; onDone: (title?: string) => void }) {
+  const [title, setTitle] = useState(initial);
+  return (
+    <form className="day-heading-form" onSubmit={(e) => { e.preventDefault(); onDone(title.trim()); }}>
+      <input
+        autoFocus
+        maxLength={80}
+        value={title}
+        placeholder="Heading for this day, e.g. Day trip to the coast"
+        aria-label="Heading for this day"
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && onDone()}
+        onBlur={() => onDone(title.trim())}
+      />
+      <button type="submit" onMouseDown={(e) => e.preventDefault()}>Save</button>
+    </form>
   );
 }

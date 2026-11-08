@@ -1,7 +1,6 @@
 import { partOn, type Trip, type TripPart } from "../shared/types.ts";
 import { formatDay } from "./format.ts";
 
-const PARTY_ICON: Record<TripPart["party"], string> = { solo: "🧍", couple: "💑", family: "👨‍👩‍👧", friends: "🧑‍🤝‍🧑", colleagues: "💼" };
 
 /** "solo, then family" — or just the trip's party when it has no parts. */
 export function partySummary(trip: Pick<Trip, "party" | "parts">) {
@@ -9,11 +8,11 @@ export function partySummary(trip: Pick<Trip, "party" | "parts">) {
   return parties.filter((p, i) => p !== parties[i - 1]).join(", then ");
 }
 
-/** "👨‍👩‍👧 With Partner & their family · kids on some days · staying with them" */
+/** "With Partner & their family · kids on some days · staying with them" */
 export function describePart(p: TripPart) {
   const who = p.party === "solo" ? "Solo" : p.companions ? `With ${p.companions.replace(/^with\s+/i, "")}` : p.party[0].toUpperCase() + p.party.slice(1);
   const bits = [
-    `${PARTY_ICON[p.party]} ${who}`,
+    who,
     p.kids === "some" ? "kids on some days" : p.kids === "all" ? "kids every day" : "",
     p.stayingWithHosts ? "staying with them" : "",
   ].filter(Boolean);

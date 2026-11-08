@@ -5,6 +5,7 @@ import { partySummary } from "../parts.ts";
 import { flag } from "./PlaceSelect.tsx";
 import SwipeActions from "./SwipeActions.tsx";
 import TripForm from "./TripForm.tsx";
+import { LogOut, Pencil, Plane, Trash2, Users } from "lucide-react";
 
 // Today in the traveller's own time zone ("2026-12-09"), to split upcoming from past trips.
 const today = () => new Date().toLocaleDateString("en-CA");
@@ -119,19 +120,19 @@ export default function TripList() {
         actions={
           <>
             {t.role !== "viewer" && (
-              <button type="button" className="swipe-edit" onClick={() => setEditing(t)} aria-label={`Edit ${t.name}`}>✏️<span>Edit</span></button>
+              <button type="button" className="swipe-edit" onClick={() => setEditing(t)} aria-label={`Edit ${t.name}`}><Pencil aria-hidden="true" /><span>Edit</span></button>
             )}
             {t.role === "owner" ? (
-              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={`Delete ${t.name}`}>🗑️<span>Delete</span></button>
+              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={`Delete ${t.name}`}><Trash2 aria-hidden="true" /><span>Delete</span></button>
             ) : (
-              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={`Leave ${t.name}`}>🚪<span>Leave</span></button>
+              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={`Leave ${t.name}`}><LogOut aria-hidden="true" /><span>Leave</span></button>
             )}
           </>
         }
       >
         <a href={`#/trip/${t.id}`} className={`card trip-card ${status}`}>
           <div className={`trip-flags ${countries.length > 3 ? "many" : ""}`} aria-hidden="true">
-            {countries.length ? countries.slice(0, 4).map((cc) => <span key={cc}>{flag(cc)}</span>) : <span>✈️</span>}
+            {countries.length ? countries.slice(0, 4).map((cc) => <span key={cc}>{flag(cc)}</span>) : <span><Plane /></span>}
           </div>
           <div className="trip-body">
             <div className="trip-card-head">
@@ -139,9 +140,9 @@ export default function TripList() {
               <span className={`tag ${t.purpose}`}>{t.purpose}</span>
             </div>
             <p className={`trip-when ${status}`}>
-              {status === "now" && "✈️ "}{when(t, now)}
+              {status === "now" && <Plane aria-hidden="true" />}{when(t, now)}
               {t.role !== "owner" && t.ownerName && <span className="shared-by">Shared by {t.ownerName}</span>}
-              {t.role === "owner" && t.travellers > 1 && <span className="shared-by">👥 {t.travellers} travellers</span>}
+              {t.role === "owner" && t.travellers > 1 && <span className="shared-by"><Users aria-hidden="true" /> {t.travellers} travellers</span>}
             </p>
             <p>
               <span className="muted">{t.destination}</span> · {formatDateRange(t.startDate, t.endDate)}

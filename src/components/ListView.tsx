@@ -6,7 +6,9 @@ import { formatDay } from "../format.ts";
 import Fold, { FoldAll } from "./Fold.tsx";
 import LodgingField from "./LodgingField.tsx";
 import { PricePicker, PriceTag } from "./Price.tsx";
-import { flag } from "./PlaceSelect.tsx";
+import Ico from "./Ico.tsx";
+import { listIcon } from "../icons.ts";
+import { Map as MapIcon, Sparkles } from "lucide-react";
 
 export const tripDays = (trip: Trip) => {
   const out: string[] = [];
@@ -76,9 +78,9 @@ export default function ListView({
     <div className="list-view">
       <div className="card list-head">
         <div>
-          <h2><span aria-hidden="true">{list.emoji}</span> {list.name}</h2>
+          <h2><Ico icon={listIcon(list)} /> {list.name}</h2>
           <p className="muted small">
-            {list.place ? <>{flag(list.place.countryCode)} {list.place.name} · </> : "Anywhere on this trip · "}
+            {list.place ? <>{list.place.name} · </> : "Anywhere on this trip · "}
             {list.entries.length ? `${list.entries.length} saved` : "Nothing on it yet"}
           </p>
           <FoldAll ids={[...columns.map(([kind]) => kind), ...(myAreas.length ? ["areas"] : []), "ideas"].map((key) => `${list.id}:${key}`)} />
@@ -126,16 +128,16 @@ export default function ListView({
         list={list}
         tripId={trip.id}
         options={[
-          { key: "place", kind: "place", label: `📍 ${labels.placeOne}` },
-          { key: "thing", kind: "thing", label: `✨ ${labels.thingOne}`, placeholder: labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night" },
-          ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: "🎯 Thing to do", placeholder: "e.g. Salsa class" }]),
+          { key: "place", kind: "place", label: labels.placeOne },
+          { key: "thing", kind: "thing", label: labels.thingOne, placeholder: labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night" },
+          ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: "Thing to do", placeholder: "e.g. Salsa class" }]),
         ]}
         onAdd={(body) => act(() => api.addEntry(list.id, body))}
       />
 
       {(myAreas.length > 0 || unlocated.length > 0) && (
         <section className="card areas">
-          <Fold id={`${list.id}:areas`} title="🗺️ Plan by area" summary={myAreas.length}>
+          <Fold id={`${list.id}:areas`} title={<><MapIcon aria-hidden="true" /> Plan by area</>} summary={myAreas.length}>
           <p className="muted small">
             Places close together, including ones from your other lists, so one day covers them. Pick a day and they'll show
             up in your itinerary in walking order.
@@ -148,7 +150,7 @@ export default function ListView({
           {unlocated.length > 0 && (
             <p className="muted tiny">
               Not found on the map yet, so not grouped: {unlocated.map((e) => e.title).join(", ")}. Edit the name, or plan them with
-              the 📅 menu.
+              the day menu.
             </p>
           )}
           </Fold>
@@ -156,7 +158,7 @@ export default function ListView({
       )}
 
       <section className="card list-ideas">
-        <Fold id={`${list.id}:ideas`} title={<>✨ Joy's ideas for {list.name}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
+        <Fold id={`${list.id}:ideas`} title={<><Sparkles aria-hidden="true" /> Joy's ideas for {list.name}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
         {!ideas && <p className="muted small">Thinking…</p>}
         {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
           <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
@@ -177,7 +179,7 @@ export default function ListView({
         </ul>
         {ideas && ideas.styleIdeas.length > 0 && (
           <div className="style-ideas">
-            <h4>🎯 Things to do for your travel style</h4>
+            <h4>Things to do for your travel style</h4>
             <p className="muted small">
               Matched to your trip's styles:{" "}
               {ideas.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}
@@ -250,8 +252,8 @@ export function EntryRow({
             onChange={(e) => onDay(e.target.value || null)}
             aria-label={`Day for ${entry.title}`}
           >
-            <option value="">📅 Plan a day…</option>
-            {days.map((d) => <option key={d} value={d}>📅 {formatDay(d)}</option>)}
+            <option value="">Plan a day…</option>
+            {days.map((d) => <option key={d} value={d}>{formatDay(d)}</option>)}
           </select>
           <button type="button" className="link" onClick={onAddToItinerary}>+ Itinerary</button>
           {onPrice && <PricePicker value={entry.price} onChange={onPrice} />}
@@ -409,7 +411,7 @@ export function AddEntry({
           )}
         </label>
       </div>
-      {kind === "place" && picked.address && <p className="muted tiny">📍 {picked.address}</p>}
+      {kind === "place" && picked.address && <p className="muted tiny">{picked.address}</p>}
       <div className="actions">
         <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Save"}</button>
       </div>
@@ -431,7 +433,7 @@ export function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; li
       <ol className="area-stops">
         {group.entries.map((e) => (
           <li key={e.id} className={e.listId === listId ? "" : "other-list"} title={e.listId === listId ? undefined : `From ${e.listName}`}>
-            <span aria-hidden="true">{e.listEmoji}</span> {e.title}
+            {e.title}
           </li>
         ))}
       </ol>
@@ -465,7 +467,7 @@ export function IdeaCard({
     <li className="idea">
       <div className="idea-top">
         <span className="idea-kind muted tiny">
-          {idea.style ? STYLE_LABELS[idea.style] : idea.kind === "place" ? `📍 ${labels.placeOne}` : idea.kind === "activity" ? "🎯 Thing to do" : `✨ ${labels.thingOne}`}
+          {idea.style ? STYLE_LABELS[idea.style] : idea.kind === "place" ? labels.placeOne : idea.kind === "activity" ? "Thing to do" : labels.thingOne}
         </span>
         {idea.tag && <span className="idea-tag">{idea.tag}</span>}
       </div>

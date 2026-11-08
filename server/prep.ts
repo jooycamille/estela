@@ -1,3 +1,4 @@
+import { publicTransport } from "./publicTransport.ts";
 import { healthAdvice } from "./travelHealth.ts";
 import { cancellationOf } from "../shared/cancellation.ts";
 import type { ActivityItem, FlightItem, ItineraryItem, Link, PrepItem, Trip } from "../shared/types.ts";
@@ -247,6 +248,7 @@ export function buildPrep(
   const healthTodo = healthAdvice(foreign, places.stops.map((s) => s.city), activities.filter((a) => a.category !== "transfer"), countryName, list, home);
   todoItem({ group: "Do soon", ...healthTodo.clinic, due: `${minusDays(trip.startDate, 30)}T09:00` });
   if (healthTodo.yellowFever) todoItem({ group: "Do soon", ...healthTodo.yellowFever });
+  for (const { from, ...ride } of publicTransport(places.stops)) todoItem({ group: "Public transport", ...ride, when: "arrival", due: `${from}T12:00` });
   // Activities' own to-dos (pay cash, confirm pickup…), due the day before each activity.
   for (const a of activities) {
     for (const step of a.guide?.beforeYouGo ?? []) {

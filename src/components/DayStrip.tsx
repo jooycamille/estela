@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { LucideIcon } from "../icons.ts";
 
 // A strip of the trip's days that stays at the top while you scroll the itinerary: tap a day to jump to it. The day
 // you're looking at is highlighted (and kept in view on a phone). Days with nothing on them are greyed out, so gaps
@@ -6,10 +7,11 @@ import { useEffect, useRef, useState } from "react";
 
 export type DayInfo = {
   day: string;
-  icons: string[];
+  icons: LucideIcon[];
   hasContent: boolean; // a section for this day in the itinerary to jump to
   planned?: boolean; // bookings or planned places on this day (greyed out without, unless you're staying somewhere)
   staying?: boolean; // a night at a booked stay (not a gap, though nothing may be planned)
+  heading?: string; // your own heading for the day
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -100,12 +102,13 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
               aria-selected={active === d.day}
               aria-label={`${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}${d.hasContent ? "" : ", nothing planned"}`}
               className={`day-chip ${active === d.day ? "on" : ""} ${(d.planned ?? d.hasContent) || d.staying ? "" : "empty"} ${d.day === today ? "today" : ""}`}
+              title={d.heading}
               onClick={() => jump(d.day)}
             >
               <span className="day-chip-month">{newMonth ? MONTHS[date.getUTCMonth()] : " "}</span>
               <span className="day-chip-weekday">{WEEKDAYS[date.getUTCDay()]}</span>
               <span className="day-chip-date">{date.getUTCDate()}</span>
-              <span className="day-chip-icons" aria-hidden="true">{d.icons.slice(0, 3).join("") || "·"}</span>
+              <span className="day-chip-icons" aria-hidden="true">{d.icons.length ? d.icons.slice(0, 3).map((I, n) => <I key={n} />) : "·"}</span>
             </button>
           );
         })}

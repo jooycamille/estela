@@ -33,7 +33,7 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
   return (
     <section className="card travellers">
       <div className="travellers-head">
-        <h3>👥 Travellers</h3>
+        <h3>Travellers</h3>
         <button type="button" className="link" onClick={onClose}>Close</button>
       </div>
       <p className="muted small">
