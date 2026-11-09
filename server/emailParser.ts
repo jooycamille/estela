@@ -4,7 +4,7 @@ import { aiEnabled, extract } from "./ai.ts";
 import { parseActivity } from "./activityHeuristics.ts";
 import { parseTransfer } from "./transferHeuristics.ts";
 import { parseEventTicket } from "./eventHeuristics.ts";
-import { findConfirmation, findTotalPrice, parseFlights, parseStay } from "./emailHeuristics.ts";
+import { findBaggage, findConfirmation, findTotalPrice, parseFlights, parseStay } from "./emailHeuristics.ts";
 import { findLinks } from "./emailLinks.ts";
 
 // Flat schema keeps structured output simple; mapped to typed drafts below.
@@ -18,6 +18,8 @@ const ExtractedSchema = z.object({
       from: z.string().nullable().describe("Departure airport IATA code"),
       to: z.string().nullable().describe("Arrival airport IATA code"),
       seat: z.string().nullable(),
+      baggageCabin: z.string().nullable().describe("Flights: cabin/carry-on allowance for this flight as stated, short, e.g. '1 × 10 kg', 'Personal item only'"),
+      baggageChecked: z.string().nullable().describe("Flights: checked baggage allowance for this flight as stated, short, e.g. '1 × 23 kg', '2 pieces', 'None'"),
       name: z.string().nullable().describe("Property name (e.g. 'Hotel Santa Lucía'), never the email subject or booking site; or the activity title"),
       address: z.string().nullable().describe("Full street address as printed in the email"),
       start: z.string().nullable().describe("Local time YYYY-MM-DDTHH:mm: departure, check-in or activity start"),
@@ -56,6 +58,7 @@ const ExtractedSchema = z.object({
 
 const SYSTEM = `You extract travel bookings from confirmation emails.
 Return one item per flight segment, per accommodation booking, and per booked activity/tour/restaurant/event.
+For each flight, give the baggage allowance the email states (cabin and checked), short and as written; null when it doesn't say. Never guess it from the airline or fare name.
 Tickets to a concert, show or game are activities: the event's name as the title, its date and start time, and the venue as the address.
 An invoice or payment receipt counts as a booking even when it's all there is: use the date of the activity itself, never the
 invoice, due or payment date; if the activity's date isn't stated, set dateEstimated to true and use the trip's first day.
@@ -122,6 +125,7 @@ function toDraft(x: Extracted): DraftItem[] {
         departureTime: x.start,
         arrivalTime: x.end ?? undefined,
         seat: x.seat ?? undefined,
+        baggage: x.baggageCabin || x.baggageChecked ? { cabin: x.baggageCabin ?? undefined, checked: x.baggageChecked ?? undefined } : undefined,
       },
     ];
   }
@@ -199,8 +203,10 @@ function heuristicParse(text: string, raw: string, trip?: Trip): EmailParseResul
 
   // Flights: one item per segment (flight number + departure + arrival).
   const flights = parseFlights(text, year);
+  // One allowance stated for the whole booking applies to each of its flights.
+  const baggage = flights.length ? findBaggage(text) : undefined;
   for (const f of flights) {
-    items.push({ kind: "flight", source: "email", ...f });
+    items.push({ kind: "flight", source: "email", ...f, ...(baggage && { baggage }) });
   }
 
   // Stays

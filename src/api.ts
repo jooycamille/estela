@@ -1,4 +1,4 @@
-import type { ExploreIdeas, ExplorePlace, DateCard, PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import type { PhotoChoice, DayLegs, Expense, Money, TripMapData, ExploreIdeas, ExplorePlace, DateCard, PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
 
 /** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
 export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
@@ -65,7 +65,7 @@ export type PrepData = {
 
 export type TripInput = Omit<Trip, "id" | "createdAt">;
 export type TripSummary = Trip & { itemCount: number; role: TripRole; ownerName?: string; travellers: number };
-export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean; tourPending?: boolean };
+export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean; tourPending?: boolean; homeTimeZone?: string | null };
 export type Device = { id: string; device: string; lastSeenAt: string; current: boolean };
 export type InviteLink = { name: string; url: string; expiresInDays: number };
 export type Travellers = { travellers: TravellerView[]; contacts: { id: string; name: string }[] };
@@ -88,10 +88,14 @@ export type ListSuggestions = {
   bookedIdeas?: string[]; // ideas left out because they're on the itinerary already
   bookedPicks?: { id: string; title: string; bookedAs: string; inTour: boolean }[]; // your saved picks that have since been booked
 };
-export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }>;
+export type DayPlans = Record<string, { entries: AreaGroup["entries"]; routeUrl?: string; custom?: boolean }>;
 export type EntryInput = Partial<Omit<ListEntry, "id" | "addedAt" | "day" | "price" | "noDescription" | "priceChecked">> & { autoDescribe?: boolean; day?: string | null; price?: PriceLevel | null };
 
 export type DaySuggestion = Pick<DateCard, "day" | "free" | "nearby" | "things" | "ideas"> & { listId: string; place: string };
+export type DayWeather = { high: number; low: number; rain: number; code: number };
+export type DayInfo = { city?: string; lat: number; lon: number; tz?: string; weather?: DayWeather };
+export type TripDays = { days: Record<string, DayInfo>; airports: Record<string, string>; home: string | null };
+export type ExpenseInput = Omit<Expense, "id" | "addedBy" | "createdAt">;
 export type UpcomingReminder = { at: string; label: string; item: string };
 
 export const api = {
@@ -111,6 +115,10 @@ export const api = {
   listPlaces: (tripId: string) => request<TripPlace[]>(`/trips/${tripId}/list-places`),
   areas: (tripId: string) => request<AreaGroup[]>(`/trips/${tripId}/areas`),
   dayPlans: (tripId: string) => request<DayPlans>(`/trips/${tripId}/day-plans`),
+  setGetAround: (tripId: string, mode: "transit" | "car") => request<{ getAround: string }>(`/trips/${tripId}/get-around`, json("PUT", { mode })),
+  setNightStay: (tripId: string, days: string[], stayId: string) => request<Record<string, string>>(`/trips/${tripId}/night-stay`, json("PUT", { days, stayId })),
+  orderDay: (tripId: string, day: string, entries: { listId: string; entryId: string }[] | null) =>
+    request<void>(`/trips/${tripId}/day-order`, json("POST", { day, entries })),
   planDay: (tripId: string, day: string | null, entries: { listId: string; entryId: string }[]) =>
     request<void>(`/trips/${tripId}/plan-day`, json("POST", { day, entries })),
   searchPlaces: (q: string, near?: { lat: number; lon: number }, tripId?: string, date?: string) =>
@@ -143,6 +151,21 @@ export const api = {
   setHomeCountry: (country: string) => request<{ homeCountry: string }>("/settings/home-country", json("PUT", { country })),
   trips: () => request<TripSummary[]>("/trips"),
   trip: (id: string) => request<{ trip: Trip; items: ItineraryItem[]; role: TripRole }>(`/trips/${id}`),
+  calendarLink: (tripId: string, reset = false) =>
+    request<{ url: string; webcal: string; reachable: boolean }>(`/trips/${tripId}/calendar`, json("POST", { reset })),
+  addExpense: (tripId: string, e: ExpenseInput) => request<Expense>(`/trips/${tripId}/expenses`, json("POST", e)),
+  updateExpense: (tripId: string, id: string, e: ExpenseInput) => request<Expense>(`/trips/${tripId}/expenses/${id}`, json("PUT", e)),
+  deleteExpense: (tripId: string, id: string) => request<void>(`/trips/${tripId}/expenses/${id}`, json("DELETE")),
+  addSpendPerson: (tripId: string, name: string) => request<{ id: string; name: string }>(`/trips/${tripId}/spend-people`, json("POST", { name })),
+  removeSpendPerson: (tripId: string, id: string) => request<void>(`/trips/${tripId}/spend-people/${id}`, json("DELETE")),
+  setBudget: (tripId: string, budget: Money | null) => request<{ budget: Money | null }>(`/trips/${tripId}/budget`, json("PUT", { budget })),
+  dayLegs: (tripId: string) => request<DayLegs>(`/trips/${tripId}/day-legs`),
+  entryPhotos: (listId: string, entryId: string) => request<PhotoChoice[]>(`/lists/${listId}/entries/${entryId}/photos`),
+  searchPhotos: (q: string) => request<PhotoChoice[]>(`/photo-search?${new URLSearchParams({ q })}`),
+  setEntryPhoto: (listId: string, entryId: string, body: { pick: { url: string; page: string } } | { upload: { filename: string; contentType: string; data: string } } | { none: true }) =>
+    request<ListEntry>(`/lists/${listId}/entries/${entryId}/photo`, json("PUT", body)),
+  map: (tripId: string) => request<TripMapData>(`/trips/${tripId}/map`),
+  days: (tripId: string) => request<TripDays>(`/trips/${tripId}/days`),
   daySuggestions: (tripId: string) => request<DaySuggestion[]>(`/trips/${tripId}/day-suggestions`),
   explorePlaces: (tripId: string) => request<ExplorePlace[]>(`/trips/${tripId}/explore`),
   exploreIdeas: (tripId: string, place: Pick<ExplorePlace, "lat" | "lon" | "name">) =>
@@ -160,7 +183,7 @@ export const api = {
   redeem: (token: string) => request<{ user: Me }>("/auth/redeem", json("POST", { token })),
   invite: (token: string) => request<{ tripName: string; invitedBy: string; invitedName?: string }>(`/auth/invite/${token}`),
   acceptInvite: (token: string) => request<{ tripId: string }>("/auth/accept-invite", json("POST", { token })),
-  updateMe: (body: { name?: string; email?: string }) => request<{ user: Me }>("/auth/me", json("PATCH", body)),
+  updateMe: (body: { name?: string; email?: string; homeTimeZone?: string }) => request<{ user: Me }>("/auth/me", json("PATCH", body)),
   tourDone: () => request<{ user: Me }>("/auth/tour-done", json("POST", {})),
   changePassword: (current: string | undefined, password: string) => request<{ ok: true }>("/auth/password", json("POST", { current, password })),
   signOut: () => request<void>("/auth/signout", json("POST")),
@@ -180,6 +203,8 @@ export const api = {
   setDayNote: (tripId: string, day: string, text: string) => request<Record<string, string>>(`/trips/${tripId}/day-note`, json("PUT", { day, text })),
   deleteTrip: (id: string) => request<void>(`/trips/${id}`, json("DELETE")),
   addItems: (tripId: string, items: DraftItem[]) => request<ItineraryItem[]>(`/trips/${tripId}/items`, json("POST", items)),
+  setItemSplit: (id: string, split: { paidBy: string; split: string[] } | null) => request<ItineraryItem>(`/items/${id}/split`, json("PUT", { split })),
+  setItemPrice: (id: string, price: Money | null) => request<ItineraryItem>(`/items/${id}/price`, json("PUT", { price })),
   updateItem: (id: string, item: DraftItem) => request<ItineraryItem>(`/items/${id}`, json("PUT", item)),
   deleteItem: (id: string) => request<void>(`/items/${id}`, json("DELETE")),
   parseEmail: (email: string, tripId?: string, attachments: { filename: string; contentType: string; data: string }[] = []) =>
@@ -219,7 +244,7 @@ export async function saveTripOffline(tripId: string, items: ItineraryItem[], li
   const urls = [
     "/api/health", "/api/fx", "/api/trips",
     `/api/trips/${tripId}`, `/api/trips/${tripId}/lists`, `/api/trips/${tripId}/prep`, `/api/trips/${tripId}/day-plans`,
-    `/api/trips/${tripId}/areas`, `/api/trips/${tripId}/suggestions`,
+    `/api/trips/${tripId}/areas`, `/api/trips/${tripId}/suggestions`, `/api/trips/${tripId}/days`, `/api/trips/${tripId}/map`, `/api/trips/${tripId}/day-legs`,
     ...lists.map((l) => `/api/lists/${l.id}/suggestions`),
     ...items.flatMap((i) => (i.attachments ?? []).map((a) => `/api/attachments/${a.id}`)),
     // Last: the first lookup of nearby essentials can take a while.

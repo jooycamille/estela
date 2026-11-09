@@ -7,6 +7,8 @@ import SwipeActions from "./SwipeActions.tsx";
 import TripForm from "./TripForm.tsx";
 import { LogOut, Pencil, Plane, Trash2, Users } from "lucide-react";
 
+const tomorrowOf = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400_000).toISOString().slice(0, 10);
+
 // Today in the traveller's own time zone ("2026-12-09"), to split upcoming from past trips.
 const today = () => new Date().toLocaleDateString("en-CA");
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
@@ -49,6 +51,9 @@ export default function TripList() {
   const now = today();
   // Upcoming: the trip you're on first, then soonest first. Past: most recent first.
   const upcoming = (trips ?? []).filter((t) => t.endDate >= now).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  // A trip that's on (or starts tomorrow) comes first: opening it shows today's plan.
+  const happening = upcoming.filter((t) => t.startDate <= tomorrowOf(now));
+  const later = upcoming.filter((t) => !happening.includes(t));
   const past = (trips ?? []).filter((t) => t.endDate < now).sort((a, b) => b.endDate.localeCompare(a.endDate));
 
   if (editing) {
@@ -89,10 +94,16 @@ export default function TripList() {
         </div>
       )}
       {error && <p className="error">{error}</p>}
-      {upcoming.length > 0 && (
+      {happening.length > 0 && (
+        <section className="trip-section">
+          <h2>Happening now</h2>
+          <div className="trip-grid">{happening.map(card)}</div>
+        </section>
+      )}
+      {later.length > 0 && (
         <section className="trip-section">
           <h2>Upcoming trips</h2>
-          <div className="trip-grid">{upcoming.map(card)}</div>
+          <div className="trip-grid">{later.map(card)}</div>
         </section>
       )}
       {trips && trips.length > 0 && upcoming.length === 0 && (
@@ -148,6 +159,7 @@ export default function TripList() {
               <span className="muted">{t.destination}</span> · {formatDateRange(t.startDate, t.endDate)}
             </p>
             <p className="muted small">{t.itemCount} {t.itemCount === 1 ? "item" : "items"} · {partySummary(t)}{t.styles.length ? ` · ${t.styles.join(", ")}` : ""}</p>
+            {happening.includes(t) && <p className="today-link small">Open today's plan →</p>}
             {tripAlerts.length > 0 && status !== "past" && (
               <p className="alert-inline">⚠︎ Estela spotted a change to {tripAlerts.map((a) => a.flightNumber).join(", ")}</p>
             )}

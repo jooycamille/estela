@@ -2,13 +2,13 @@
 // checklist, essentials and tickets without a connection. Data is always fetched fresh when your Mac is reachable;
 // the saved copy is only used when it isn't. Changes (adding, ticking…) need a connection.
 
-const VERSION = "estela-v3"; // a new name (and icons): caches from before are cleared
+const VERSION = "estela-v4"; // a new name (and icons): caches from before are cleared
 const SHELL = `${VERSION}-shell`;
 const DATA = `${VERSION}-data`;
 const SAVED_AT = "X-Joy-Saved-At"; // marks a response that came from the saved copy
 
 // Never saved: live lookups that are useless offline or must be fresh.
-const NO_CACHE = [/^\/api\/flights\/lookup/, /^\/api\/lodging\//, /^\/api\/inbox/, /^\/api\/trips\/[^/]+\/inbox/];
+const NO_CACHE = [/^\/api\/calendar\//, /^\/api\/flights\/lookup/, /^\/api\/lodging\//, /^\/api\/inbox/, /^\/api\/trips\/[^/]+\/inbox/];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

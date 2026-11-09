@@ -75,9 +75,32 @@ export interface Trip {
   notes?: string;
   dayTitles?: Record<string, string>; // your own heading for a day ("Day trip to the coast"), by YYYY-MM-DD
   dayNotes?: Record<string, string>; // your own note for a day, by YYYY-MM-DD
+  getAround?: "transit" | "car"; // how you get between places further than a walk (none: public transport)
+  nightStay?: Record<string, string>; // when two stays cover a night (YYYY-MM-DD), the one that's your base (its id)
   prep?: { checked: string[]; custom: PrepItem[] };
+  expenses?: Expense[]; // spending during the trip (meals, taxis, tickets bought there)
+  spendPeople?: { id: string; name: string }[]; // trip-mates who don't use Estela, for sharing costs (ids start "p_")
+  budget?: Money; // the whole trip, bookings included
   ownerId?: string; // who made the trip (and can share or delete it)
   members?: TripMember[]; // people it's shared with
+  createdAt: string;
+}
+
+// ---------- Spending during the trip ----------
+
+export const EXPENSE_CATEGORIES = ["food", "transport", "shopping", "fun", "other"] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+/** Something paid for during the trip, by one traveller, shared equally by some of them. */
+export interface Expense {
+  id: string;
+  title: string;
+  amount: Money;
+  day: string; // YYYY-MM-DD
+  category: ExpenseCategory;
+  paidBy: string; // user id, or a trip-mate's id from spendPeople
+  split: string[]; // who shares it equally (the payer too, unless it was for others)
+  addedBy: string;
   createdAt: string;
 }
 
@@ -101,6 +124,7 @@ export interface User {
   claimedAt?: string; // the admin: when they signed up (until then, the first visitor can set Estela up)
   homeCountry?: string;
   displayCurrency?: string;
+  homeTimeZone?: string; // IANA zone where you live, for "07:10 there, 01:10 at home"
   tourPending?: boolean; // a new account that hasn't seen the welcome tour yet (accounts from before it never do)
   createdAt: string;
 }
@@ -142,6 +166,8 @@ interface ItemBase {
   emailId?: string; // inbox message this item was imported from
   confirmationCode?: string;
   price?: Money; // total paid / payable
+  paidBy?: string; // who paid for it (a user id, or a trip-mate's from spendPeople), when it's split
+  split?: string[]; // who shares its cost equally, for Settle up
   links?: Link[]; // e.g. "Manage booking", "Ticket"
   attachments?: StoredAttachment[];
   notes?: string;
@@ -179,6 +205,12 @@ export interface FlightChange {
   acknowledged: boolean;
 }
 
+/** A flight's baggage allowance as the booking says it: "1 × 23 kg", "7 kg", "Personal item only". */
+export interface Baggage {
+  cabin?: string;
+  checked?: string;
+}
+
 export interface FlightItem extends ItemBase {
   kind: "flight";
   flightNumber: string; // e.g. "QF1"
@@ -188,6 +220,7 @@ export interface FlightItem extends ItemBase {
   departureTime: string; // scheduled local time, YYYY-MM-DDTHH:mm
   arrivalTime?: string;
   seat?: string;
+  baggage?: Baggage; // what you can take, from the booking (or typed in)
   live?: FlightLive;
   changes: FlightChange[];
 }
@@ -339,10 +372,12 @@ export interface ListEntry {
   links?: Link[]; // where to try it, map, tour searches — from Estela
   done: boolean; // been there / tried it
   day?: string; // YYYY-MM-DD it's planned for
+  dayOrder?: number; // your own place in that day's route (you dragged it there); none: walking order
   addedAt: string;
   priceChecked?: boolean; // restaurants: the price has been looked for, or you've set it yourself: not looked up again
   noDescription?: boolean; // you cleared the description yourself, so it isn't filled in again
   photo?: EntryPhoto | null; // a photo from the Wikipedia article about it; null: looked, none found
+  photoPicked?: true; // you chose this photo (or no photo): never replaced by one Estela finds
   photoLooked?: number; // how photos were matched when this one was looked for (looked again when that improves)
   descriptionChecked?: true; // a description from Wikipedia was checked for being about something else with the name
 }
@@ -350,8 +385,16 @@ export interface ListEntry {
 /** A picture of a place, from the Wikipedia article about it (shown with a link back to that article). */
 export interface EntryPhoto {
   url: string;
-  page: string;
+  page?: string; // where it comes from (Wikipedia or Wikimedia Commons); none for your own
   near?: true; // the article is on the map where the place is (photos without this were matched by name alone)
+  own?: true; // a photo you uploaded
+}
+
+/** A photo you could pick for a place: from Wikimedia Commons (free to use, credited by linking its page). */
+export interface PhotoChoice {
+  url: string; // a 640 px wide version
+  page: string;
+  title: string;
 }
 
 export interface TripList {
@@ -477,3 +520,45 @@ export interface Essentials {
   tips?: SafetyTips;
   apps?: LocalApp[];
 }
+
+// ---------- The trip on a map ----------
+
+export interface MapPoint {
+  id: string;
+  kind: "stay" | "activity" | "place";
+  title: string;
+  lat: number;
+  lon: number;
+  day?: string; // YYYY-MM-DD: when it happens (a stay: its first night)
+  until?: string; // a stay: the morning you leave
+  sub?: string; // the address or area
+  listId?: string; // a saved place: the guide or list it's in
+  done?: boolean;
+}
+
+export interface MapFlight {
+  id: string;
+  title: string; // "AV 123 BOG → MDE"
+  day: string;
+  from: { code: string; lat: number; lon: number };
+  to: { code: string; lat: number; lon: number };
+}
+
+export interface TripMapData {
+  points: MapPoint[];
+  flights: MapFlight[];
+  missing: number; // bookings with no position yet (an activity with no place picked, a stay that couldn't be found)
+}
+
+/** Getting from one stop of a day to the next. */
+export interface DayLeg {
+  mode: "walk" | "drive" | "transit";
+  minutes: number; // for public transport, an estimate (see server/routing.ts)
+  km: number;
+  url: string; // directions for this way of going
+  transitUrl?: string; // by car: directions by public transport too
+  driveUrl?: string; // by public transport: directions by car too
+}
+
+/** A day's legs, by "fromId>toId" (a booking's id, a planned place's id, or "stay" for where you sleep that night). */
+export type DayLegs = Record<string, Record<string, DayLeg>>;

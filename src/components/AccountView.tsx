@@ -2,6 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { api, signOutHere, type Device, type Me } from "../api.ts";
 import QrLink from "./QrLink.tsx";
 
+const ZONES: string[] = (() => {
+  try {
+    return Intl.supportedValuesOf("timeZone");
+  } catch {
+    return [Intl.DateTimeFormat().resolvedOptions().timeZone];
+  }
+})();
+
 /** You: your name (as travel companions see it), your signed-in devices, signing in another device, signing out. */
 export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; onChanged: (me: Me) => void; onSignedOut: () => void }) {
   const [name, setName] = useState(me.name);
@@ -49,6 +57,27 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
           </label>
           <button type="submit" disabled={!name.trim() || (name.trim() === me.name && email.trim() === (me.email ?? ""))}>Save</button>
         </form>
+      </section>
+
+      <section className="card">
+        <h3>Home time zone</h3>
+        <p className="muted small">Flight times and time differences on your trips are shown against this.</p>
+        <select
+          aria-label="Home time zone"
+          value={me.homeTimeZone ?? ""}
+          onChange={async (e) => {
+            setError(undefined);
+            try {
+              onChanged((await api.updateMe({ homeTimeZone: e.target.value })).user);
+              setSaved("Saved.");
+            } catch (err) {
+              setError((err as Error).message);
+            }
+          }}
+        >
+          {!me.homeTimeZone && <option value="">Choose…</option>}
+          {ZONES.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ").replace("/", " / ")}</option>)}
+        </select>
       </section>
 
       <section className="card">

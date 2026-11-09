@@ -396,7 +396,7 @@ li.done .prep-text { text-decoration: line-through; color: var(--muted); }
 }
 .place-added { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); }
 .place-added .chip-x { margin-left: auto; }
-.day { scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + 96px); }
+.day { scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + var(--bar-h, 0px) + 96px); }
 
 /* 3. Filters: a small, neutral segmented switch — "narrow what I see". */
 .list-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px; margin: 6px 0 18px; border-bottom: 1px solid var(--border); }
@@ -628,7 +628,7 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .price-field input { flex: 0 1 110px; min-width: 70px; }
 
 /* Date strip: jump to a day */
-.day-strip { position: sticky; top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px)); z-index: 1; background: var(--bg); margin: 0 -4px 12px; padding: 6px 4px 8px; border-bottom: 1px solid var(--border); }
+.day-strip { position: sticky; top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + var(--bar-h, 0px)); z-index: 1; background: var(--bg); margin: 0 -4px 12px; padding: 6px 4px 8px; border-bottom: 1px solid var(--border); }
 .day-strip-row { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 /* With a mouse the dates can be dragged sideways */
 @media (pointer: fine) { .day-strip-row, .day-strip-row .day-chip { cursor: grab; } }
@@ -649,7 +649,7 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .day-chip.on .day-chip-weekday, .day-chip.on .day-chip-month { color: var(--btn-text); opacity: 0.8; }
 .day-chip.today:not(.on) { border-color: var(--accent); }
 .day-chip-today { justify-content: center; color: var(--accent); border-color: var(--accent); font-weight: 700; font-size: 0.8rem; }
-.day { scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + 96px); }
+.day { scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + var(--bar-h, 0px) + 96px); }
 
 /* Back to top */
 .scroll-top { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px)); z-index: 5; width: 46px; height: 46px; padding: 0; border-radius: 50%; font-size: 1.3rem; line-height: 1; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25); opacity: 0; transform: translateY(12px) scale(0.9); pointer-events: none; transition: opacity 0.2s, transform 0.2s; }
@@ -661,7 +661,7 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .empty-day-head { display: flex; justify-content: space-between; align-items: center; }
 .empty-day p { margin: 4px 0 8px; }
 .add-for-day { padding: 6px 12px; font-size: 0.85rem; }
-.empty-day { scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + 96px); }
+.empty-day { scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + var(--bar-h, 0px) + 96px); }
 
 .no-activities { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: -2px 0 8px; padding: 8px 14px; border: 1px dashed var(--border); border-radius: var(--radius); }
 .empty-day .staying { margin: 6px 0 0; }
@@ -676,7 +676,7 @@ select, input, textarea { max-width: 100%; min-width: 0; }
 .cancel-tag.partial { background: var(--warn-bg); color: var(--warn); }
 .cancel-tag.closed { background: var(--danger-bg); color: var(--danger); }
 .day-add { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; margin: 6px 0 0; font-size: 0.85rem; }
-.day-add-form { margin-top: 10px; scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + 96px); scroll-margin-bottom: 16px; }
+.day-add-form { margin-top: 10px; scroll-margin-top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px) + var(--bar-h, 0px) + 96px); scroll-margin-bottom: 16px; }
 .included-places { margin-top: 6px; }
 .included-places ul { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 4px; padding: 0; }
 .included-places li { display: inline-flex; align-items: center; gap: 2px; }
@@ -804,12 +804,12 @@ button.link.fold-all { color: var(--muted); font-size: 0.78rem; }
 .day-text-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .day-text-actions button { padding: 6px 14px; }
 
-/* Places planned for a day, as cards: side by side, scrolling sideways when there are more than fit */
-.place-cards { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 260px); gap: 10px; overflow-x: auto; padding: 6px 2px 8px; scroll-snap-type: x mandatory; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.place-card { scroll-snap-align: start; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.place-photo { position: relative; height: 128px; background: var(--border); }
+/* Places planned for a day: a route down the page, from where you sleep and back, with the way between each */
+.place-cards { display: flex; flex-direction: column; padding: 4px 0 2px; }
+.place-card { display: flex; flex-direction: row-reverse; align-items: stretch; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; min-height: 104px; }
+.place-photo { position: relative; flex: 0 0 132px; background: var(--border); }
 .place-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.place-photo.none { display: grid; place-items: center; height: 72px; background: var(--accent-soft); color: var(--accent); }
+.place-photo.none { display: grid; place-items: center; flex-basis: 72px; background: var(--accent-soft); color: var(--accent); }
 .place-photo.none svg.lucide { width: 26px; height: 26px; vertical-align: 0; }
 .place-number { position: absolute; left: 8px; top: 8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--card); color: var(--text); font-size: 0.75rem; font-weight: 700; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
 .place-remove { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.45); color: #fff; box-shadow: none; }
@@ -913,8 +913,9 @@ body:has(.chat-fab) .scroll-top { bottom: max(80px, calc(env(safe-area-inset-bot
 }
 
 /* Spending: category colours (fixed order, checked for colour-blind readers in light and dark) */
-:root { --cat-flight: #2f6aa3; --cat-stay: #c27a2c; --cat-activity: #8f4c86; }
-@media (prefers-color-scheme: dark) { :root { --cat-flight: #5590cf; --cat-stay: #c68239; --cat-activity: #a965a0; } }
+:root { --cat-flight: #2f6aa3; --cat-stay: #c27a2c; --cat-activity: #8f4c86; --cat-trip: #2e8f52; }
+@media (prefers-color-scheme: dark) { :root { --cat-flight: #5590cf; --cat-stay: #c68239; --cat-activity: #a965a0; --cat-trip: #47a96b; } }
+.cat-trip { --cat: var(--cat-trip); }
 .cat-flight { --cat: var(--cat-flight); }
 .cat-stay { --cat: var(--cat-stay); }
 .cat-activity { --cat: var(--cat-activity); }
@@ -940,7 +941,6 @@ p.spend-note { margin: 4px 0 0; }
 .cat-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 0.92rem; }
 .cat-amount { font-variant-numeric: tabular-nums; font-size: 0.92rem; font-weight: 500; }
 .cat-share { width: 44px; text-align: right; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-.unpriced li { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.88rem; }
 .spend-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; align-items: start; }
 /* Across the trip: a column per day, split by category */
 .chart-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 12px; padding: 0; font-size: 0.8rem; color: var(--muted); }
@@ -1028,3 +1028,310 @@ p.spend-note { margin: 4px 0 0; }
 /* On a short screen the tour card scrolls rather than running off the bottom */
 .tour-backdrop { overflow-y: auto; }
 .tour { margin: auto; }
+
+/* ---------- Weather and time zones in the itinerary ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.day-weather { display: inline-flex; align-items: center; gap: 4px; margin-left: 12px; font-size: 0.8rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text); font-variant-numeric: tabular-nums; }
+.day-weather svg { width: 15px; height: 15px; stroke-width: 1.6; color: var(--muted); }
+.day-weather .muted { font-weight: 400; }
+.day-rain { margin-left: 4px; color: var(--flight-text); font-weight: 400; }
+.zone-note, .rain-note { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 0 0 10px; }
+.zone-note svg, .rain-note svg, .flight-times svg { width: 14px; height: 14px; flex: none; stroke-width: 1.6; vertical-align: -2px; }
+.rain-note { color: var(--flight-text); margin: 6px 0 0; }
+.flight-times { gap: 4px 14px; }
+
+/* ---------- Today (while a trip is on) ---------- */
+.today-card { padding: 22px 24px; margin-bottom: 22px; border-color: var(--accent); }
+.today-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.today-head h2 { margin: 2px 0 0; font-family: var(--serif); font-weight: 500; font-size: 1.6rem; }
+.today-where { color: var(--muted); }
+.today-kicker, .today-label { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.today-label { color: var(--muted); margin-bottom: 6px; }
+.today-card .day-weather { margin: 6px 0 0; font-size: 0.9rem; }
+.today-next { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.today-next-main { display: flex; gap: 12px; align-items: flex-start; }
+.today-next-main b { display: block; font-size: 1.05rem; }
+.today-when { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
+.today-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; }
+a.button { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.85rem; border-radius: 999px; padding: 7px 14px; text-decoration: none; }
+a.button.secondary { color: var(--text); border: 1px solid var(--border); }
+a.button.secondary:hover { border-color: var(--text); }
+a.button svg { width: 15px; height: 15px; stroke-width: 1.7; }
+.today-ref { font-size: 0.85rem; color: var(--muted); }
+.today-ref b { color: var(--text); letter-spacing: 0.04em; user-select: all; }
+.today-none { margin: 16px 0 0; }
+.today-rest { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.today-rest ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.today-rest li.done { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
+.today-time { display: inline-block; min-width: 3.4em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.today-note { margin: 10px 0 0; color: var(--muted); white-space: pre-line; }
+.today-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); }
+.today-foot span { display: inline-flex; align-items: center; gap: 6px; }
+.today-foot b { color: var(--text); font-weight: 500; }
+.today-foot svg { width: 15px; height: 15px; stroke-width: 1.6; }
+.today-foot .link { margin-left: auto; }
+@media (max-width: 600px) {
+  .today-card { padding: 18px 16px; }
+  .today-head h2 { font-size: 1.35rem; }
+  .today-foot .link { margin-left: 0; }
+}
+.today-link { color: var(--accent); font-weight: 500; margin: 6px 0 0; }
+
+/* ---------- The trip map ---------- */
+.map-switch svg { width: 15px; height: 15px; }
+.trip-map { margin-top: 6px; }
+.map-days { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; margin-bottom: 12px; }
+.map-days::-webkit-scrollbar { display: none; }
+.map-days .category { flex: none; }
+.map-days .quiet-day:not(.on) { color: var(--muted); opacity: 0.7; }
+.map-box { height: min(62vh, 560px); min-height: 320px; border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; background: var(--accent-soft); z-index: 0; }
+/* The map's colours, quietened to match the page; in dark mode, a dark map. */
+.map-box .leaflet-tile-pane { filter: grayscale(0.85) sepia(0.12) brightness(1.03) contrast(0.92); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .map-box .leaflet-tile-pane { filter: invert(1) grayscale(1) brightness(0.78) contrast(0.92); } }
+:root[data-theme="dark"] .map-box .leaflet-tile-pane { filter: invert(1) grayscale(1) brightness(0.78) contrast(0.92); }
+.leaflet-container { font-family: var(--sans); background: var(--accent-soft); }
+.leaflet-control-attribution { font-size: 10px; background: color-mix(in srgb, var(--card) 85%, transparent) !important; color: var(--muted); }
+.leaflet-control-attribution a { color: var(--muted); }
+.leaflet-bar a { background: var(--card); color: var(--text); border-color: var(--border); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card); color: var(--text); box-shadow: var(--shadow); border-radius: 10px; }
+.leaflet-popup-content { margin: 12px 14px; font-size: 0.85rem; line-height: 1.4; }
+.map-popup { display: grid; gap: 2px; min-width: 170px; }
+.map-popup-kind { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.map-popup b { font-size: 0.95rem; font-weight: 600; }
+.map-popup span { color: var(--muted); }
+.map-popup-links { display: flex; gap: 14px; margin-top: 8px; align-items: center; }
+.map-popup-links a { color: var(--accent); font-size: 0.85rem; font-weight: 500; }
+.map-pin { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); color: #fff; font: 600 11px/1 var(--sans); font-style: normal; }
+/* The same colours as the Spending charts (checked for colour-blind readers in light and dark). */
+.map-pin.stay { background: var(--cat-stay); }
+.map-pin.activity { background: var(--cat-activity); }
+.map-pin.place { background: var(--cat-trip); }
+.map-pin.unplanned { background: var(--card); border-color: var(--cat-trip); box-shadow: none; }
+.map-pin.done { opacity: 0.55; }
+.map-airport span { display: inline-block; padding: 1px 5px; border-radius: 4px; background: var(--card); border: 1px solid var(--cat-flight); color: var(--text); font: 600 10px/1.3 var(--sans); letter-spacing: 0.04em; }
+.map-flight { stroke: var(--cat-flight); }
+.map-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.map-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 9px; border-radius: 999px; background: transparent; color: var(--text); border: 1px solid var(--border); font-size: 0.8rem; font-weight: 500; box-shadow: none; }
+.map-chip:hover:not(:disabled) { background: var(--accent-soft); }
+.map-chip-count { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.map-chip.off { color: var(--muted); border-style: dashed; }
+.map-chip.off .map-pin, .map-chip.off .map-line { opacity: 0.3; }
+.map-legend .map-pin { width: 11px; height: 11px; border-width: 1.5px; box-shadow: none; flex: none; }
+.map-line { display: inline-block; width: 16px; border-top: 1.5px dashed var(--cat-flight); flex: none; }
+
+/* ---------- Calendar ---------- */
+a.button:not(.secondary) { background: var(--btn-gradient); color: var(--btn-text); border: 1px solid transparent; }
+a.button:not(.secondary):hover { background: var(--btn-gradient-hover); }
+.calendar-panel .panel-head { display: flex; justify-content: space-between; align-items: center; }
+.calendar-panel h3 { margin: 0; }
+.calendar-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.calendar-options button { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; padding: 7px 14px; }
+.calendar-options svg { width: 15px; height: 15px; stroke-width: 1.7; }
+.calendar-help { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 4px; }
+.calendar-help b { color: var(--text); font-weight: 500; }
+
+/* ---------- Spending during the trip, budget, settling up ---------- */
+.spending > .card, .spending > section { margin-bottom: 18px; }
+.expenses .spend-heading-row { align-items: center; }
+.expense-day { margin-top: 12px; }
+.expense-day-head { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); padding-bottom: 4px; }
+.expense-day ul { list-style: none; margin: 0; padding: 0; }
+.expense { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); }
+.expense-icon { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.expense-icon svg { width: 15px; height: 15px; stroke-width: 1.7; }
+.expense .cat-name { flex: 1; min-width: 0; display: grid; }
+.expense-actions { display: inline-flex; flex: none; }
+.expense-actions svg { width: 15px; height: 15px; }
+@media (hover: hover) { .expense-actions { opacity: 0; transition: opacity 0.15s; } .expense:hover .expense-actions, .expense:focus-within .expense-actions { opacity: 1; } }
+.expense-editing { list-style: none; border-top: 1px solid var(--border); padding-top: 10px; }
+.expense-form { display: grid; gap: 12px; margin: 14px 0 6px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.expense-form-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.expense-form-row label { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); flex: 1 1 140px; }
+.expense-form-row label.grow { flex: 3 1 220px; }
+.expense-form-row label.amount { flex: 1 1 100px; }
+.expense-form-row label.cur { flex: 0 1 100px; }
+.expense-split { border: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.expense-split legend { font-size: 0.8rem; color: var(--muted); padding: 0; margin-bottom: 6px; }
+.expense-split label.check { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 0.9rem; margin: 0; }
+.budget { margin-top: 14px; }
+.budget-bar { height: 8px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
+.budget-used { height: 100%; border-radius: 999px; background: var(--accent); }
+.budget-used.over { background: var(--danger); }
+.budget .spend-note b { color: var(--text); font-weight: 600; }
+.budget .over-text { color: var(--danger) !important; }
+.budget-set { margin-top: 10px; }
+.budget-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 14px; }
+.budget-form label { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+.settle-rows { list-style: none; margin: 0 0 8px; padding: 0; }
+.settle-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); }
+.settle-rows li:first-child { border-top: none; }
+.settle-rows b { font-weight: 600; }
+
+/* ---------- Essentials: phrases ---------- */
+.essentials-view > .card { margin-bottom: 18px; }
+.phrase-list { list-style: none; margin: 12px 0; padding: 0; }
+.phrase-list li { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 4px 16px; align-items: center; padding: 9px 0; border-top: 1px solid var(--border); }
+.phrase-list li:first-child { border-top: none; }
+.phrase-en { color: var(--muted); font-size: 0.9rem; }
+.phrase-say { font-size: 1.02rem; font-weight: 500; display: grid; gap: 1px; }
+.phrase-sound { font-size: 0.85rem; font-weight: 400; font-style: italic; color: var(--accent); }
+.phrase-like { font-size: 0.88rem; font-weight: 400; color: var(--muted); letter-spacing: 0.01em; }
+.phrase-like::before { content: "/"; color: var(--muted); margin-right: 1px; }
+.phrase-like::after { content: "/"; color: var(--muted); margin-left: 1px; }
+.phrase-like b, .phrase-key b { font-weight: 650; color: var(--text); }
+.phrase-note { font-size: 0.78rem; font-weight: 400; color: var(--muted); }
+@media (max-width: 520px) {
+  .phrase-list li { grid-template-columns: minmax(0, 1fr); }
+  .phrase-en { grid-column: 1 / -1; font-size: 0.8rem; }
+}
+.baggage { align-items: center; gap: 4px 14px; }
+.baggage > svg { width: 14px; height: 14px; stroke-width: 1.6; color: var(--muted); margin-right: -8px; }
+.baggage b { font-weight: 500; }
+
+/* The filter bar sticks under the tabs (the date strip sticks under it). */
+.detail-main > .list-bar { position: sticky; top: calc(var(--topbar-h, 60px) + var(--tabs-h, 0px)); z-index: 2; background: var(--bg); margin-left: -4px; margin-right: -4px; padding-left: 4px; padding-right: 4px; }
+/* Five tabs on a phone: the row scrolls sideways, fading at the edge so it's clear there's more. */
+@media (max-width: 520px) {
+  .views { padding-right: 28px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+}
+/* Between two cards: a thinner add line that takes almost no room until you point at it. */
+.day-add-line.between { height: 16px; margin: -5px 0 5px; }
+.day-add-line.between .day-add-plus { width: 20px; height: 20px; }
+.day-add-line.between .day-add-plus svg.lucide { width: 12px; height: 12px; }
+/* On touch screens (no pointing), the ones between cards are fainter than the one ending the day. */
+@media (hover: none) { .day-add-line.between:not(.open) .day-add-plus { opacity: 0.25; } }
+
+/* Between two stops: how far, on foot or by car, along a dotted line */
+.day-leg { display: flex; align-items: stretch; gap: 10px; min-height: 30px; padding-left: 18px; }
+.day-leg-line { flex: none; width: 0; border-left: 2px dotted var(--border); }
+.day-leg-text { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 6px 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.day-leg-text svg { width: 14px; height: 14px; stroke-width: 1.7; margin-right: -2px; }
+.day-leg-text a { color: var(--accent); }
+.day-leg-text a.muted { color: var(--muted); }
+/* Between two booking cards the cards' own spacing is the gap: the line sits in it. */
+.day .item + .day-leg { margin-top: -4px; margin-bottom: 4px; }
+@media (max-width: 520px) {
+  .place-photo { flex-basis: 104px; }
+  .day-leg { padding-left: 12px; }
+}
+.place-photo img { position: absolute; inset: 0; }
+.place-card + .place-card { margin-top: 8px; }
+
+/* ---------- Changing a place's photo ---------- */
+.place-photo-change { position: absolute; right: 38px; top: 6px; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.45); color: #fff; box-shadow: none; }
+.place-photo-change:hover:not(:disabled) { background: rgba(0, 0, 0, 0.65); }
+.place-photo.none .place-photo-change { position: static; margin: 0 auto; background: var(--card); color: var(--muted); }
+.place-photo.none { gap: 6px; }
+.place-photo-change svg.lucide { width: 14px; height: 14px; vertical-align: 0; }
+@media (hover: hover) { .place-photo:not(.none) .place-photo-change { opacity: 0; transition: opacity 0.15s; } .place-card:hover .place-photo-change, .place-photo-change:focus-visible { opacity: 1; } }
+.photo-picker { position: relative; width: min(760px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; margin: auto; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px 18px; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35); display: grid; gap: 14px; }
+.photo-picker-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.photo-picker h2 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 1.5rem; }
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.photo-choice { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.photo-choice button { padding: 0; border-radius: 10px; overflow: hidden; aspect-ratio: 4 / 3; background: var(--border); border: 2px solid transparent; }
+.photo-choice button:hover:not(:disabled), .photo-choice.on button { border-color: var(--accent); background: var(--border); }
+.photo-choice img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-choice figcaption { font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-choice figcaption a { color: var(--muted); }
+.photo-none { aspect-ratio: 4 / 3; display: grid; place-content: center; justify-items: center; gap: 6px; background: var(--accent-soft); color: var(--muted); border-radius: 10px; font-weight: 500; }
+.photo-none:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.photo-none svg { width: 20px; height: 20px; }
+.photo-search { display: flex; gap: 8px; }
+.photo-search input { flex: 1; }
+.photo-search button, .photo-upload button { display: inline-flex; align-items: center; gap: 6px; }
+.photo-search svg, .photo-upload svg { width: 15px; height: 15px; }
+.photo-upload { display: grid; gap: 10px; justify-items: start; }
+@media (max-width: 520px) { .photo-picker { padding: 18px 16px 14px; border-radius: 14px; } .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+
+/* ---------- Reordering a day's places ---------- */
+.route-stop { position: relative; display: flex; align-items: stretch; gap: 6px; transition: transform 0.18s ease; }
+.route-stop > .place-card { flex: 1; min-width: 0; }
+.route-stop.lifted { z-index: 3; transition: none; }
+.route-stop.lifted > .place-card { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); border-color: var(--accent); }
+.route-leg:empty { height: 8px; }
+.place-cards.dragging .route-leg { visibility: hidden; }
+.route-handle { flex: none; align-self: center; width: 22px; height: 40px; padding: 0; display: grid; place-items: center; background: none; border: none; box-shadow: none; color: var(--muted); border-radius: 6px; cursor: grab; touch-action: none; }
+.route-handle:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.place-cards.dragging, .place-cards.dragging * { cursor: grabbing; user-select: none; }
+.route-handle svg.lucide { width: 16px; height: 16px; vertical-align: 0; }
+.day-plan-actions { display: inline-flex; align-items: center; gap: 14px; }
+.route-stop + .route-leg .day-leg, .route-leg + .route-stop { margin-left: 0; }
+.place-cards > .route-leg:first-child .day-leg, .place-cards .route-leg .day-leg { padding-left: 46px; }
+@media (max-width: 520px) { .place-cards .route-leg .day-leg { padding-left: 40px; } }
+
+/* ---------- Two stays on one night ---------- */
+.night-stay { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 10px; color: var(--muted); }
+.night-stay b { color: var(--text); font-weight: 500; }
+.night-stay svg, .night-stay-options svg { width: 15px; height: 15px; stroke-width: 1.6; }
+.night-stay-choice { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.night-stay-choice p { margin: 0 0 10px; }
+.night-stay-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.night-stay-options button.secondary { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--card); font-weight: 500; }
+.night-stay-options button.secondary .tiny { margin-left: 4px; }
+.night-stay-options button.on { border-color: var(--accent); }
+/* A place without a photo: room for its number, the ✕ and the camera without crowding the pin. */
+.place-photo.none { flex-basis: 96px; padding-top: 30px; align-content: center; }
+.place-photo.none .place-photo-change { margin-top: 2px; }
+
+/* ---------- Bookings without a price ---------- */
+.spend-count { margin-left: 6px; color: var(--muted); font-weight: 400; letter-spacing: 0; }
+.unpriced-card .spend-note { margin-bottom: 8px; }
+.unpriced li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 0.9rem; }
+.unpriced li:first-child { border-top: none; }
+.unpriced-icon { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--cat) 14%, transparent); color: var(--cat); }
+.unpriced-icon svg.lucide { width: 14px; height: 14px; stroke-width: 1.8; vertical-align: 0; }
+.unpriced-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unpriced-day { color: var(--muted); font-size: 0.8rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.unpriced-add { white-space: nowrap; }
+.unpriced-form { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.unpriced-form input { width: 110px; }
+.unpriced-form select { width: auto; }
+.unpriced-form button[type="submit"] { padding: 6px 14px; }
+.unpriced-more { margin-top: 8px; }
+@media (hover: hover) { .unpriced li .unpriced-add { opacity: 0; transition: opacity 0.15s; } .unpriced li:hover .unpriced-add, .unpriced-add:focus-visible { opacity: 1; } }
+
+/* ---------- Budget card ---------- */
+.budget-card .budget-head { display: flex; justify-content: space-between; align-items: baseline; }
+.budget-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.budget-empty .spend-note { margin: 4px 0 0; }
+.budget-status { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 4px 11px 4px 9px; border-radius: 999px; font-size: 0.82rem; font-weight: 600; }
+.budget-status svg { width: 15px; height: 15px; stroke-width: 2; }
+.budget-status.on-track { background: var(--ok-bg); color: var(--ok); }
+.budget-status.close { background: var(--warn-bg); color: var(--warn); }
+.budget-status.over { background: var(--danger-bg); color: var(--danger); }
+.budget-figures { margin: 0 0 8px; font-size: 1.05rem; }
+.budget-figures b { font-weight: 600; }
+.budget-card .budget-bar { position: relative; height: 10px; overflow: visible; }
+.budget-card .budget-used { border-radius: 999px; }
+.budget-card.on-track .budget-used { background: var(--ok); }
+.budget-card.close .budget-used { background: var(--warn); }
+.budget-card.over .budget-used { background: var(--danger); }
+.budget-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--card); border-radius: 1px; }
+.budget-card .spend-note { margin-top: 8px; }
+.budget-form label { flex: 1 1 260px; }
+
+/* ---------- Who's sharing costs ---------- */
+.sharing { margin: 10px 0 4px; }
+.sharing-label { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.sharing-people { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sharing-people li { display: inline-flex; align-items: center; gap: 4px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.85rem; }
+.sharing-people li.extra { border-style: dashed; padding-right: 5px; }
+.sharing-people li.sharing-add { border: none; padding: 0 4px; }
+.sharing-add form { display: flex; gap: 6px; align-items: center; }
+.sharing-add input { width: 150px; padding: 5px 10px; }
+.sharing .spend-note { margin: 6px 0 0; }
+
+/* ---------- Splitting a booking's cost ---------- */
+.split-fields { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 4px 0 0; display: grid; gap: 10px; }
+.split-fields label.check { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; color: var(--text); font-size: 0.9rem; }
+.split-fields input[type="checkbox"] { width: auto; margin: 0; }
+.split-paid { display: flex; flex-direction: row; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--muted); }
+.split-paid select { width: auto; }
+.split-who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.split-label { font-size: 0.85rem; color: var(--muted); }
+.largest li { flex-wrap: wrap; }
+.largest li .booking-split { white-space: nowrap; }
+.booking-split-form { flex: 1 1 100%; display: grid; gap: 8px; padding: 4px 0 6px; }
+.booking-split-form .split-fields { margin: 0; }
+@media (hover: hover) { .largest li:not(.editing) .booking-split:not(:focus-visible) { opacity: 0; transition: opacity 0.15s; } .largest li:hover .booking-split { opacity: 1; } }

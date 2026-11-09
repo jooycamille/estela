@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import "./env.ts";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type ListEntry, type PrepItem, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
+import { EXPENSE_CATEGORIES, TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type Expense, type ListEntry, type PrepItem, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
 import { listTheme } from "../shared/lists.ts";
 import { aiEnabled } from "./ai.ts";
 import { askEstela, tripContext } from "./chat.ts";
@@ -26,10 +26,16 @@ import { areaGroups, daySuggestions, dayPlans, ensureGuides, entryLinks, fillEnt
 import { positionOn, propertiesAt, searchLodging } from "./lodging.ts";
 import { assumedStops, tripPlaces } from "./tripPlaces.ts";
 import { stopWeather } from "./weather.ts";
+import { airportZones, dayInfo } from "./dayInfo.ts";
+import { tripMap } from "./tripMap.ts";
+import { isCommonsPhoto, photosNear, searchPhotos } from "./photos.ts";
+import { dayLegs } from "./dayLegs.ts";
+import { tripCalendar } from "./calendar.ts";
+import { randomBytes } from "node:crypto";
 import { AirLabsError } from "./airlabs.ts";
 import { AviationstackError } from "./aviationstack.ts";
 import { FLIGHT_PROVIDERS, flightServices, saveSettings, settings, usage } from "./settings.ts";
-import { dropEmptyAttachments, getAttachment, MAX_ATTACHMENT_BYTES, pruneAttachments, storeAttachment } from "./attachmentStore.ts";
+import { dropEmptyAttachments, getAttachment, MAX_ATTACHMENT_BYTES, pruneAttachments, removeIfUnused, storeAttachment } from "./attachmentStore.ts";
 import { attachmentsText, relevantAttachments } from "./attachments.ts";
 import { db, itemStart, newId, now, save } from "./db.ts";
 import { normaliseFlightNumber, parseEmail } from "./emailParser.ts";
@@ -97,6 +103,15 @@ const TripInput = z.object({
 });
 
 const getTrip = (id: string) => db.trips.find((t) => t.id === id);
+
+/** A booking's split only names people on its trip; without a payer or anyone sharing, it isn't split. */
+function keepSplitOnTrip<T extends { paidBy?: string; split?: string[] }>(tripId: string, input: T): T {
+  const trip = getTrip(tripId);
+  const people = trip ? tripPeople(trip) : new Set<string>();
+  const split = input.split?.filter((id) => people.has(id));
+  const ok = !!input.paidBy && people.has(input.paidBy) && !!split?.length;
+  return { ...input, paidBy: ok ? input.paidBy : undefined, split: ok ? split : undefined };
+}
 const getItem = (id: string) => db.items.find((i) => i.id === id);
 const tripItems = (tripId: string) =>
   db.items.filter((i) => i.tripId === tripId).sort((a, b) => itemStart(a).localeCompare(itemStart(b)));
@@ -128,7 +143,15 @@ app.get("/api/health", (_req, res) => {
 const Token = z.string().min(20).max(100);
 const Email = z.string().trim().max(200).email("Enter a valid email address");
 const Name = z.string().trim().min(1, "Enter your name").max(40);
-const userView = (u: UserRecord) => ({ id: u.id, name: u.name, email: u.email ?? null, isAdmin: u.isAdmin, hasPassword: !!u.passwordHash, tourPending: !!u.tourPending });
+const validZone = (tz: string) => {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+const userView = (u: UserRecord) => ({ id: u.id, name: u.name, email: u.email ?? null, isAdmin: u.isAdmin, hasPassword: !!u.passwordHash, tourPending: !!u.tourPending, homeTimeZone: u.homeTimeZone ?? null });
 const fail = (res: Response, r: { error: string; status: number }) => void res.status(r.status).json({ error: r.error });
 
 app.get("/api/auth/me", (req, res) => {
@@ -203,8 +226,9 @@ app.post("/api/auth/tour-done", (_req, res) => {
 });
 
 app.patch("/api/auth/me", (req, res) => {
-  const input = z.object({ name: Name.optional(), email: Email.optional() }).parse(req.body);
+  const input = z.object({ name: Name.optional(), email: Email.optional(), homeTimeZone: z.string().max(60).refine(validZone, "Unknown time zone").optional() }).parse(req.body);
   const user = userFrom(res);
+  if (input.homeTimeZone) user.homeTimeZone = input.homeTimeZone;
   if (input.email) {
     const email = normaliseEmail(input.email);
     const taken = findByEmail(email);
@@ -381,6 +405,108 @@ for (const [path, field, max] of [["day-title", "dayTitles", 80], ["day-note", "
   });
 }
 
+// ---------- Spending during the trip, and a budget ----------
+
+const MoneyInput = z.object({ amount: z.number().positive().max(100_000_000), currency: z.string().regex(/^[A-Z]{3}$/) });
+const ExpenseInput = z.object({
+  title: z.string().trim().min(1, "Say what it was").max(120),
+  amount: MoneyInput,
+  day: date,
+  category: z.enum(EXPENSE_CATEGORIES),
+  paidBy: z.string().min(1),
+  split: z.array(z.string().min(1)).min(1, "Choose who it's shared by").max(30),
+});
+const tripPeople = (trip: Trip) =>
+  new Set([trip.ownerId, ...(trip.members ?? []).map((m) => m.userId), ...(trip.spendPeople ?? []).map((p) => p.id)].filter(Boolean) as string[]);
+function expenseInput(trip: Trip, body: unknown) {
+  const input = ExpenseInput.parse(body);
+  const people = tripPeople(trip);
+  if (!people.has(input.paidBy) || input.split.some((id) => !people.has(id))) throw new z.ZodError([{ code: "custom", path: ["split"], message: "Only people on this trip", input: undefined }]);
+  return { ...input, split: [...new Set(input.split)] };
+}
+
+app.post("/api/trips/:id/expenses", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const expense: Expense = { ...expenseInput(trip, req.body), id: newId(), addedBy: userFrom(res).id, createdAt: now() };
+  trip.expenses = [...(trip.expenses ?? []), expense];
+  save();
+  res.status(201).json(expense);
+});
+
+app.put("/api/trips/:id/expenses/:expenseId", (req, res) => {
+  const trip = getTrip(req.params.id);
+  const expense = trip?.expenses?.find((e) => e.id === req.params.expenseId);
+  if (!trip || !expense) return void res.status(404).json({ error: "Not found" });
+  Object.assign(expense, expenseInput(trip, req.body));
+  save();
+  res.json(expense);
+});
+
+app.delete("/api/trips/:id/expenses/:expenseId", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  trip.expenses = trip.expenses?.filter((e) => e.id !== req.params.expenseId);
+  if (!trip.expenses?.length) delete trip.expenses;
+  save();
+  res.status(204).end();
+});
+
+// Trip-mates who don't use Estela: names to share costs with (they can't sign in or see the trip).
+app.post("/api/trips/:id/spend-people", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const { name } = z.object({ name: z.string().trim().min(1, "Add their name").max(40) }).parse(req.body);
+  const person = { id: `p_${newId()}`, name };
+  trip.spendPeople = [...(trip.spendPeople ?? []), person].slice(0, 30);
+  save();
+  res.status(201).json(person);
+});
+
+app.delete("/api/trips/:id/spend-people/:personId", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const id = req.params.personId;
+  const inUse = trip.expenses?.some((e) => e.paidBy === id || e.split.includes(id)) || tripItems(trip.id).some((i) => i.paidBy === id || i.split?.includes(id));
+  if (inUse) return void res.status(409).json({ error: "They're part of some of your spending or a split booking. Take them off those first." });
+  trip.spendPeople = trip.spendPeople?.filter((p) => p.id !== id);
+  if (!trip.spendPeople?.length) delete trip.spendPeople;
+  save();
+  res.status(204).end();
+});
+
+app.put("/api/trips/:id/budget", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const { budget } = z.object({ budget: MoneyInput.nullable() }).parse(req.body);
+  if (budget) trip.budget = budget;
+  else delete trip.budget;
+  save();
+  res.json({ budget: trip.budget ?? null });
+});
+
+// How you get around on this trip, beyond walking distance: public transport or a car.
+app.put("/api/trips/:id/get-around", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  trip.getAround = z.object({ mode: z.enum(["transit", "car"]) }).parse(req.body).mode;
+  save();
+  res.json({ getAround: trip.getAround });
+});
+
+// Two stays on the same nights: which is your base (for those nights).
+app.put("/api/trips/:id/night-stay", (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const { days, stayId } = z.object({ days: z.array(date).min(1).max(60), stayId: z.string() }).parse(req.body);
+  const stay = db.items.find((i) => i.id === stayId && i.tripId === trip.id && i.kind === "stay");
+  if (!stay) return void res.status(400).json({ error: "That stay isn't on this trip" });
+  trip.nightStay = { ...trip.nightStay };
+  for (const d of days) trip.nightStay[d] = stayId;
+  save();
+  res.json(trip.nightStay);
+});
+
 app.delete("/api/trips/:id", async (req, res) => {
   await deleteInbox(req.params.id);
   db.trips = db.trips.filter((t) => t.id !== req.params.id);
@@ -396,7 +522,7 @@ app.delete("/api/trips/:id", async (req, res) => {
 app.post("/api/trips/:id/items", async (req, res) => {
   const trip = getTrip(req.params.id);
   if (!trip) return void res.status(404).json({ error: "Trip not found" });
-  const inputs = z.array(ItemInput).parse(Array.isArray(req.body) ? req.body : [req.body]);
+  const inputs = z.array(ItemInput).parse(Array.isArray(req.body) ? req.body : [req.body]).map((i) => keepSplitOnTrip(trip.id, i));
   const created = inputs.map((i) => createItem(trip.id, i));
   db.items.push(...created);
   save();
@@ -408,7 +534,7 @@ app.post("/api/trips/:id/items", async (req, res) => {
 app.put("/api/items/:id", async (req, res) => {
   const item = getItem(req.params.id);
   if (!item) return void res.status(404).json({ error: "Item not found" });
-  const input = ItemInput.parse({ ...req.body, kind: item.kind });
+  const input = keepSplitOnTrip(item.tripId, ItemInput.parse({ ...req.body, kind: item.kind }));
   const flightChanged =
     item.kind === "flight" && input.kind === "flight" &&
     (item.flightNumber !== input.flightNumber || item.departureTime.slice(0, 10) !== input.departureTime.slice(0, 10));
@@ -419,6 +545,28 @@ app.put("/api/items/:id", async (req, res) => {
     item.changes = [];
     await refreshFlight(item).catch(() => {});
   }
+  save();
+  res.json(item);
+});
+
+// Who paid for a booking and who shares it (from Spending), or not split (null).
+app.put("/api/items/:id/split", (req, res) => {
+  const item = getItem(req.params.id);
+  if (!item) return void res.status(404).json({ error: "Item not found" });
+  const { split } = z.object({ split: z.object({ paidBy: z.string(), split: z.array(z.string()).min(1).max(30) }).nullable() }).parse(req.body);
+  const kept = split && keepSplitOnTrip(item.tripId, { ...split });
+  item.paidBy = kept?.paidBy;
+  item.split = kept?.split;
+  save();
+  res.json(item);
+});
+
+// Just a booking's price (from Spending), leaving everything else as it is.
+app.put("/api/items/:id/price", (req, res) => {
+  const item = getItem(req.params.id);
+  if (!item) return void res.status(404).json({ error: "Item not found" });
+  const { price } = z.object({ price: z.object({ amount: z.number().positive().max(100_000_000), currency: z.string().regex(/^[A-Z]{3}$/) }).nullable() }).parse(req.body);
+  item.price = price ?? undefined;
   save();
   res.json(item);
 });
@@ -628,6 +776,59 @@ app.get("/api/trips/:id/prep", async (req, res) => {
     custom: (trip.prep?.custom ?? []).map((c) => (c.group === "Your items" ? { ...c, group: prepGroupFor(c.section, c.text) } : c)), // added before they were sorted
     checked: trip.prep?.checked ?? [],
   });
+});
+
+// Day by day: where you are, its time zone and (within about two weeks) the forecast. Plus each flight's airport zones
+// and your home zone, so times can be shown both ways.
+app.get("/api/trips/:id/days", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const items = tripItems(trip.id);
+  res.json({ days: await dayInfo(trip, items), airports: airportZones(items), home: userFrom(res).homeTimeZone ?? null });
+});
+
+// How far it is between a day's stops (walking or driving), for the itinerary.
+app.get("/api/trips/:id/day-legs", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  res.json(await dayLegs(trip, tripItems(trip.id), db.lists.filter((l) => l.tripId === trip.id)));
+});
+
+// The trip on a map: stays, bookings, saved places and flights.
+app.get("/api/trips/:id/map", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  res.json(await tripMap(trip, tripItems(trip.id), db.lists.filter((l) => l.tripId === trip.id)));
+});
+
+// ---------- Calendar ----------
+
+// Your private calendar link for a trip: Apple Calendar (or any calendar that can reach this Mac) subscribes and keeps
+// it up to date. Each person on the trip has their own link, and it stops working if they leave the trip.
+app.post("/api/trips/:id/calendar", async (req, res) => {
+  const trip = getTrip(req.params.id);
+  if (!trip) return void res.status(404).json({ error: "Trip not found" });
+  const { reset } = z.object({ reset: z.boolean().optional() }).parse(req.body ?? {});
+  const user = userFrom(res);
+  const tokens = (user.calendarTokens ??= {});
+  if (reset || !tokens[trip.id]) {
+    tokens[trip.id] = randomBytes(24).toString("base64url");
+    save();
+  }
+  const url = `${await publicUrl(req)}/api/calendar/${tokens[trip.id]}.ics`;
+  res.json({ url, webcal: url.replace(/^https?:/, "webcal:"), reachable: !/\/\/(localhost|127\.0\.0\.1)/.test(url) });
+});
+
+// The calendar itself, fetched by a calendar app (no sign-in: the link's secret is the key).
+app.get("/api/calendar/:file", (req, res) => {
+  const token = req.params.file.replace(/\.ics$/, "");
+  if (tooMany(`calendar:${clientAddress(req)}`, 120, 60)) return void res.status(429).end();
+  const user = token.length >= 20 ? db.users.find((u) => Object.values(u.calendarTokens ?? {}).includes(token)) : undefined;
+  const tripId = user && Object.entries(user.calendarTokens ?? {}).find(([, t]) => t === token)?.[0];
+  const trip = tripId ? getTrip(tripId) : undefined;
+  if (!user || !trip || !tripRole(user, trip)) return void res.status(404).type("text/plain").send("This calendar link no longer works.");
+  res.set({ "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": `inline; filename="${trip.name.replace(/[^\w -]/g, "").trim() || "trip"}.ics"`, "Cache-Control": "no-store" });
+  void publicUrl(req).then((base) => res.send(tripCalendar(trip, tripItems(trip.id), base)));
 });
 
 /** The checklist without weather (enough for reminders), for the trip owner's home country. */
@@ -960,6 +1161,61 @@ app.post("/api/lists/:id/entries", async (req, res) => {
   res.status(201).json(entry);
 });
 
+// ---------- Choosing a place's photo ----------
+
+// Photos taken at or near a place (Wikimedia Commons), with the one it has now first. No position: found by its name.
+app.get("/api/lists/:id/entries/:entryId/photos", async (req, res) => {
+  const list = getList(req.params.id);
+  const entry = list?.entries.find((e) => e.id === req.params.entryId);
+  if (!list || !entry) return void res.status(404).json({ error: "Not found" });
+  try {
+    const found = entry.lat !== undefined && entry.lon !== undefined ? await photosNear(entry.lat, entry.lon) : [];
+    const more = found.length < 4 ? await searchPhotos([entry.title, list.place?.name].filter(Boolean).join(" ")) : [];
+    const seen = new Set<string>();
+    res.json([...found, ...more].filter((p) => (seen.has(p.page) ? false : (seen.add(p.page), true))).slice(0, 24));
+  } catch (err) {
+    res.status(502).json({ error: `Couldn't reach Wikimedia Commons just now (${(err as Error).message}). Try again in a moment.` });
+  }
+});
+
+app.get("/api/photo-search", async (req, res) => {
+  const q = z.string().trim().min(2).max(120).parse(req.query.q);
+  try {
+    res.json(await searchPhotos(q));
+  } catch (err) {
+    res.status(502).json({ error: `Couldn't reach Wikimedia Commons just now (${(err as Error).message}).` });
+  }
+});
+
+// Set a place's photo: one picked from Commons, one you upload (a JPEG, PNG or WebP, shrunk on your device first), or
+// none. Your choice stays: Estela doesn't look for another.
+app.put("/api/lists/:id/entries/:entryId/photo", (req, res) => {
+  const list = getList(req.params.id);
+  const entry = list?.entries.find((e) => e.id === req.params.entryId);
+  if (!list || !entry) return void res.status(404).json({ error: "Not found" });
+  const input = z
+    .union([
+      z.object({ pick: z.object({ url: z.string().url().max(1000), page: z.string().url().max(1000) }) }),
+      z.object({ upload: z.object({ filename: z.string().max(200), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), data: z.string().max(8_000_000) }) }),
+      z.object({ none: z.literal(true) }),
+    ])
+    .parse(req.body);
+  const before = entry.photo?.own ? entry.photo.url.match(/^\/api\/attachments\/([\w-]+)$/)?.[1] : undefined;
+  if ("pick" in input) {
+    if (!isCommonsPhoto(input.pick.url, input.pick.page)) return void res.status(400).json({ error: "Only photos from Wikimedia can be chosen here. Upload your own instead." });
+    entry.photo = { url: input.pick.url, page: input.pick.page, near: true };
+  } else if ("upload" in input) {
+    const stored = storeAttachment({ filename: input.upload.filename, contentType: input.upload.contentType, data: Buffer.from(input.upload.data, "base64") }, undefined, userFrom(res).id);
+    entry.photo = { url: `/api/attachments/${stored.id}`, near: true, own: true };
+  } else {
+    entry.photo = null;
+  }
+  entry.photoPicked = true;
+  save();
+  if (before) removeIfUnused(before); // a photo of yours it replaced
+  res.json(entry);
+});
+
 app.patch("/api/lists/:id/entries/:entryId", async (req, res) => {
   const list = getList(req.params.id);
   const trip = list && getTrip(list.tripId);
@@ -1084,8 +1340,26 @@ app.post("/api/trips/:id/plan-day", (req, res) => {
     .parse(req.body);
   for (const { listId, entryId } of entries) {
     const entry = getList(listId)?.entries.find((e) => e.id === entryId);
-    if (entry && getList(listId)!.tripId === req.params.id) entry.day = day ?? undefined;
+    if (entry && getList(listId)!.tripId === req.params.id && entry.day !== (day ?? undefined)) {
+      entry.day = day ?? undefined;
+      delete entry.dayOrder; // a new day: it joins that day's route in walking order
+    }
   }
+  save();
+  res.status(204).end();
+});
+
+// Your own order for a day's places (dragged into place), or back to walking order (entries: null).
+app.post("/api/trips/:id/day-order", (req, res) => {
+  const { day, entries } = z
+    .object({ day: date, entries: z.array(z.object({ listId: z.string(), entryId: z.string() })).max(100).nullable() })
+    .parse(req.body);
+  const onDay = db.lists.filter((l) => l.tripId === req.params.id).flatMap((l) => l.entries.filter((e) => e.day === day));
+  for (const e of onDay) delete e.dayOrder;
+  (entries ?? []).forEach(({ listId, entryId }, n) => {
+    const entry = getList(listId)?.tripId === req.params.id ? getList(listId)!.entries.find((e) => e.id === entryId && e.day === day) : undefined;
+    if (entry) entry.dayOrder = n;
+  });
   save();
   res.status(204).end();
 });

@@ -4,6 +4,7 @@ import { GUIDE_LIST_KEYS, GUIDE_TEXT_KEYS, type ActivityGuide, type DraftItem, t
 import FlightForm from "./FlightForm.tsx";
 import LodgingField from "./LodgingField.tsx";
 import PriceField, { priceValue, toMoney } from "./PriceField.tsx";
+import SplitFields, { useSharers, type Split } from "./SplitFields.tsx";
 
 export type Kind = ItineraryItem["kind"];
 
@@ -44,6 +45,7 @@ export default function ItemForm(props: Parameters<typeof GenericItemForm>[0]) {
       <FlightForm
         initial={props.initial as Extract<DraftItem, { kind: "flight" }> | undefined}
         defaultDate={props.defaultDate}
+        tripId={props.tripId}
         submitLabel={props.submitLabel ?? "Save"}
         onSubmit={props.onSubmit}
         onCancel={props.onCancel}
@@ -83,6 +85,8 @@ function GenericItemForm({
     return v;
   });
   const [price, setPrice] = useState(() => priceValue(initial?.price));
+  const sharers = useSharers(tripId);
+  const [split, setSplit] = useState<Split>(initial?.paidBy && initial.split?.length ? { paidBy: initial.paidBy, split: initial.split } : null);
   const initialLinks: Link[] = initial?.links ?? [];
   const [bookingLink, setBookingLink] = useState(initialLinks[0]?.url ?? "");
   const initialGuide = initial && "guide" in initial ? (initial.guide as ActivityGuide | undefined) : undefined;
@@ -136,6 +140,8 @@ function GenericItemForm({
             source: initial?.source ?? "manual",
             emailId: initial?.emailId,
             price: toMoney(price) ?? null,
+            paidBy: toMoney(price) && split ? split.paidBy : null,
+            split: toMoney(price) && split ? split.split : null,
             links,
             ...(initial?.attachments ? { attachments: initial.attachments } : {}),
             // Saving an activity confirms its date (it may have been estimated from the email).
@@ -245,6 +251,7 @@ function GenericItemForm({
           <input type="url" placeholder="https://…" value={bookingLink} onChange={(e) => setBookingLink(e.target.value)} />
         </label>
       </div>
+      {toMoney(price) && <SplitFields people={sharers} value={split} onChange={setSplit} />}
       <label>
         Notes
         <textarea

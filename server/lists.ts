@@ -1,3 +1,4 @@
+import { stayFor } from "../shared/stays.ts";
 import { z } from "zod";
 import { listTheme, type ListTheme } from "../shared/lists.ts";
 import type { ActivityItem, AreaGroup, DateCard, TravelStyle, ItineraryItem, Link, ListEntry, ListSuggestion, PriceLevel, StayItem, Trip, TripList, TripPlace } from "../shared/types.ts";
@@ -381,8 +382,8 @@ function located(tripId: string, filter: (e: ListEntry) => boolean): Located[] {
 }
 
 /** Where you sleep on a night, if the stay has a map position. */
-function stayOn(items: ItineraryItem[], day: string): LatLon | undefined {
-  const stay = items.find((i): i is StayItem => i.kind === "stay" && i.checkIn.slice(0, 10) <= day && i.checkOut.slice(0, 10) > day);
+function stayOn(trip: Trip, items: ItineraryItem[], day: string): LatLon | undefined {
+  const stay = stayFor(trip, items, day);
   return stay?.lat !== undefined && stay.lon !== undefined ? { lat: stay.lat, lon: stay.lon } : undefined;
 }
 
@@ -487,14 +488,21 @@ export function areaGroups(trip: Trip, items: ItineraryItem[], leaveOut?: Set<st
 
 /** Places planned for each day, in walking order from where you're staying, with a route link. */
 export function dayPlans(trip: Trip, items: ItineraryItem[]) {
-  const out: Record<string, { entries: AreaGroup["entries"]; routeUrl?: string }> = {};
+  const out: Record<string, { entries: AreaGroup["entries"]; routeUrl?: string; custom?: boolean }> = {};
   const all = tripLists(trip.id).flatMap((l) => l.entries.filter((e) => e.day).map((e) => ({ ...e, listId: l.id, listEmoji: l.emoji, listName: l.name })));
   for (const day of [...new Set(all.map((e) => e.day!))]) {
     const onDay = all.filter((e) => e.day === day);
     const withPos = onDay.filter((e): e is Located => e.lat !== undefined && e.lon !== undefined);
-    const stay = stayOn(items, day);
-    const ordered = walkingOrder(withPos, stay);
-    out[day] = { entries: [...ordered, ...onDay.filter((e) => e.lat === undefined)], routeUrl: routeUrl(ordered, stay) };
+    const stay = stayOn(trip, items, day);
+    // Your own order, if you've dragged places around (any not placed yet follow, in walking order); else walking order.
+    const custom = onDay.some((e) => e.dayOrder !== undefined);
+    const walk = walkingOrder(withPos, stay);
+    const rest = onDay.filter((e) => e.lat === undefined);
+    const entries = custom
+      ? [...onDay.filter((e) => e.dayOrder !== undefined).sort((a, b) => a.dayOrder! - b.dayOrder!), ...walk.filter((e) => e.dayOrder === undefined), ...rest.filter((e) => e.dayOrder === undefined)]
+      : [...walk, ...rest];
+    const route = entries.filter((e): e is Located => e.lat !== undefined && e.lon !== undefined);
+    out[day] = { entries, routeUrl: routeUrl(route, stay), ...(custom && { custom: true }) };
   }
   return out;
 }

@@ -11,7 +11,9 @@ import ActivityGuidePanel from "./ActivityGuidePanel.tsx";
 import { itemIcon } from "../icons.ts";
 import { attachmentUrl, fileToBase64, formatSize } from "../files.ts";
 import Ico from "./Ico.tsx";
-import { Link2, Paperclip } from "lucide-react";
+import { Clock, CloudRain, Link2, Luggage, Paperclip } from "lucide-react";
+import { differenceText, msToWall, wallToMs, zoneCity } from "../zones.ts";
+import { isOutdoor, useTripDays } from "../tripDays.tsx";
 
 /** "Free cancellation until Tue, 8 Dec, 7:39 PM", "Non-refundable"… as a tag on the card. */
 function CancelTag({ terms }: { terms?: Cancellation }) {
@@ -159,6 +161,52 @@ function CoveredLists({ item, onChange }: { item: ActivityItem; onChange: () => 
   );
 }
 
+/** What you can take: from the booking, or a link to look it up when it isn't known. */
+function BaggageLine({ f }: { f: FlightItem }) {
+  const b = f.baggage;
+  const airline = f.airline ?? f.flightNumber.match(/^[A-Z0-9]{2}/)?.[0] ?? "";
+  return (
+    <div className="row small baggage">
+      <Luggage aria-hidden="true" />
+      {b ? (
+        <>
+          {b.cabin && <span>Cabin <b>{b.cabin}</b></span>}
+          {b.checked && <span>Checked <b>{b.checked}</b></span>}
+        </>
+      ) : (
+        <span className="muted">
+          Baggage allowance not known.{" "}
+          <a href={`https://www.google.com/search?q=${encodeURIComponent(`${airline} baggage allowance`)}`} target="_blank" rel="noopener noreferrer">Check {f.airline ?? "the airline"}'s rules ↗</a>
+          <span className="edit-only">, then add it with Edit</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+const span = (min: number) => `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`;
+
+/**
+ * The real flight time (the two times are in different zones), the clock change on landing, and the time at home
+ * when you land, when home is somewhere else.
+ */
+function FlightTimes({ dep, arr, from, to }: { dep: string; arr?: string; from?: string; to?: string }) {
+  const home = useTripDays()?.home ?? undefined;
+  if (!arr || !from || !to) return null;
+  const leaves = wallToMs(dep, from), lands = wallToMs(arr, to);
+  const minutes = Math.round((lands - leaves) / 60_000);
+  if (minutes <= 0 || minutes > 30 * 60) return null; // times that don't add up (a typo, or a missing date change)
+  const clocks = differenceText(to, from, zoneCity(from), lands);
+  const atHome = home && home !== to ? msToWall(lands, home) : undefined;
+  return (
+    <div className="row small muted flight-times">
+      <span><Clock aria-hidden="true" /> {span(minutes)} in the air</span>
+      {clocks && <span>{zoneCity(to)} is {clocks}</span>}
+      {atHome && <span>Lands at {formatTimeOn(atHome, arr)} home time</span>}
+    </div>
+  );
+}
+
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Scheduled", on_time: "On time", delayed: "Delayed", boarding: "Boarding", departed: "Departed",
   landed: "Landed", cancelled: "Cancelled", diverted: "Diverted", unknown: "Unknown",
@@ -171,6 +219,8 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
   const arr = f.live?.arrivalTime ?? f.arrivalTime;
   const depMoved = f.live?.departureTime && f.live.departureTime !== f.departureTime;
   const pending = f.changes.filter((c) => !c.acknowledged);
+  const days = useTripDays();
+  const zones = { from: days?.airports[f.from.toUpperCase()], to: days?.airports[f.to.toUpperCase()] };
 
   return (
     <>
@@ -186,9 +236,11 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
           {f.live?.departureTerminal && ` · T${f.live.departureTerminal}`}
           {f.live?.departureGate && ` · Gate ${f.live.departureGate}`}
         </span>
-        {arr && <span>Arrives <b>{formatTimeOn(arr, f.departureTime)}</b></span>}
+        {arr && <span>Arrives <b>{formatTimeOn(arr, f.departureTime)}</b>{zones.to && zones.from && zones.to !== zones.from ? " local" : ""}</span>}
         {f.seat && <span>Seat {f.seat}</span>}
       </div>
+      <FlightTimes dep={dep} arr={arr} from={zones.from} to={zones.to} />
+      <BaggageLine f={f} />
       {pending.length > 0 && (
         <div className="change-alert">
           <strong>Estela noticed a change to {f.flightNumber}</strong>
@@ -212,6 +264,7 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
 
 export default function ItemCard({ item, day, mockFlights, onChange, linkedFlight }: { item: ItineraryItem; day?: string; mockFlights: boolean; onChange: () => void; linkedFlight?: FlightItem }) {
   const [editing, setEditing] = useState(false);
+  const days = useTripDays();
   // An activity over several days has a card on each: which day of it this is.
   const runsOn = item.kind === "activity" ? activityDays(item) : [];
   const dayIndex = runsOn.length > 1 && day ? runsOn.indexOf(day) : -1;
@@ -293,6 +346,13 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
                 </a>
               )}
             </div>
+            {(() => {
+              // Rain likely on the day of something outdoors.
+              const w = day ? days?.days[day]?.weather : undefined;
+              return w && w.rain >= 60 && isOutdoor(item) && !isLaterDay ? (
+                <p className="rain-note small"><CloudRain aria-hidden="true" /> {w.rain}% chance of rain this day. Worth packing a rain jacket{item.price ? " or checking the operator's rain policy" : ""}.</p>
+              ) : null;
+            })()}
             {item.dateEstimated && (
               <p className="warning small estimate">
                 ⚠︎ Estimated date — the email didn't say when this is. Check your booking, then Edit and save to confirm.

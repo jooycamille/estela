@@ -15,13 +15,21 @@ const items = [
 test("a stay is spread over its nights; flights and activities fall on their day", () => {
   const days = spendByDay(items, (i) => i.price?.amount);
   assert.deepEqual(Object.fromEntries(days), {
-    "2027-03-01": { flight: 300, stay: 200, activity: 0 },
-    "2027-03-02": { flight: 0, stay: 200, activity: 50 },
-    "2027-03-03": { flight: 0, stay: 200, activity: 0 },
+    "2027-03-01": { flight: 300, stay: 200, activity: 0, trip: 0 },
+    "2027-03-02": { flight: 0, stay: 200, activity: 50, trip: 0 },
+    "2027-03-03": { flight: 0, stay: 200, activity: 0, trip: 0 },
   });
 });
 
 test("a booking without a price (or a rate) adds nothing", () => {
   const days = spendByDay(items, (i) => (i.kind === "activity" ? i.price?.amount : undefined));
   assert.deepEqual([...days.keys()], ["2027-03-02"]);
+});
+
+test("budget status: on track, close from 85%, over past it", async () => {
+  const { budgetStatus } = await import("../src/components/SpendingView.tsx");
+  assert.equal(budgetStatus(500, 1000), "on-track");
+  assert.equal(budgetStatus(850, 1000), "close");
+  assert.equal(budgetStatus(1000, 1000), "close");
+  assert.equal(budgetStatus(1001, 1000), "over");
 });

@@ -75,6 +75,13 @@ export default function App() {
     addEventListener("joy-signed-out", out);
     return () => removeEventListener("joy-signed-out", out);
   }, []);
+  // Your home time zone, for "lands 07:10 there, 01:10 at home": the first device you use is taken to be at home
+  // (you can change it under Account).
+  useEffect(() => {
+    if (!me || me.homeTimeZone) return;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) api.updateMe({ homeTimeZone: tz }).then((r) => setMe(r.user)).catch(() => undefined);
+  }, [me]);
   const signedIn = useCallback((user: Me, trip?: string) => {
     setMe(user);
     location.replace(trip ? `#/trip/${trip}` : "#/"); // drop the used link from the address bar and history

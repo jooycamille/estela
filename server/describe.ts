@@ -187,7 +187,7 @@ async function placeArticle(name: string, at?: { lat?: number; lon?: number }): 
 
 // Raised when the way photos are matched changes, so places looked up the old way are looked up again.
 export const PHOTO_VERSION = 3;
-export const photoDue = (entry: ListEntry) => entry.photoLooked !== PHOTO_VERSION;
+export const photoDue = (entry: ListEntry) => !entry.photoPicked && entry.photoLooked !== PHOTO_VERSION;
 
 /** Looks for an entry's photo once, and fills in a description for a place that has none: Estela's guide, or the article
  *  about this very place. A failed lookup leaves it to try again next time. */

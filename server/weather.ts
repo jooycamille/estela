@@ -138,3 +138,35 @@ export async function stopWeather(stop: Stop): Promise<StopWeather> {
   writeFileSync(PATH, JSON.stringify(cache));
   return value;
 }
+
+// ---------- Day by day (for the itinerary) ----------
+
+/** One day's forecast. code: the WMO weather code Open-Meteo gives (0 clear … 95 thunderstorm). */
+export interface DayWeather {
+  high: number;
+  low: number;
+  rain: number; // highest chance of rain that day, 0–100
+  code: number;
+}
+
+const FORECAST_DAYS = 16;
+const forecasts = new Map<string, { at: number; days: Record<string, DayWeather> }>();
+
+/** The next 16 days at a place (local dates), kept for 3 hours. Nearby places (~1 km) share one forecast. */
+export async function dailyForecast(lat: number, lon: number): Promise<Record<string, DayWeather>> {
+  const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const hit = forecasts.get(key);
+  if (hit && Date.now() - hit.at < 3 * 3600_000) return hit.days;
+  const d = await daily(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&timezone=auto&forecast_days=${FORECAST_DAYS}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max`,
+  );
+  const days: Record<string, DayWeather> = {};
+  const dates = d.time as unknown as string[];
+  dates.forEach((day, i) => {
+    const high = d.temperature_2m_max[i], low = d.temperature_2m_min[i];
+    if (high === null || low === null) return;
+    days[day] = { high: Math.round(high), low: Math.round(low), rain: d.precipitation_probability_max[i] ?? 0, code: d.weather_code[i] ?? 0 };
+  });
+  forecasts.set(key, { at: Date.now(), days });
+  return days;
+}

@@ -387,3 +387,38 @@ export function parseFlights(text: string, year: number): FlightSegment[] {
   }
   return segments.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 }
+
+// ---------- Baggage allowance ----------
+
+/** "1PC" → "1 piece", "1 x 23KG" → "1 × 23 kg", "Not included" as is. Undefined when it doesn't look like an allowance. */
+function tidyAllowance(raw: string): string | undefined {
+  const v = raw.split(/\n|\s{3,}|\s[|·]\s/)[0].trim().replace(/[.;,]+$/, "");
+  if (!v || v.length > 40) return undefined;
+  if (/^(none|nil|0\s*(pc|pcs|pieces?|kg)?|not included|no checked bag.*)$/i.test(v)) return "None";
+  if (/^(included|personal item( only)?|1 personal item)$/i.test(v)) return v[0].toUpperCase() + v.slice(1).toLowerCase();
+  if (!/\d/.test(v)) return undefined;
+  return v
+    .replace(/(\d+)\s*(?:pc|pcs|piece)s?\b/gi, (_m, n) => `${n} piece${n === "1" ? "" : "s"}`)
+    .replace(/(\d+)\s*kgs?\b/gi, "$1 kg")
+    .replace(/(\d+)\s*(?:lbs?|pounds)\b/gi, "$1 lb")
+    .replace(/(\d+)\s*[x×*]\s*(?=\d)/gi, "$1 × ")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * The baggage allowance a booking email states: cabin (carry-on, hand) and checked (hold). Only when it says so, and
+ * one allowance for the booking: tables that list several different ones aren't guessed at.
+ */
+export function findBaggage(text: string): { cabin?: string; checked?: string } | undefined {
+  const find = (label: RegExp) => {
+    const found = new Set<string>();
+    for (const m of text.matchAll(new RegExp(`(?:${label.source})\\s*(?:allowance)?\\s*(?:\\([^)]*\\))?\\s*[:\\-–]?\\s*([^\\n]{1,60})`, "gi"))) {
+      const v = tidyAllowance(m[1]);
+      if (v) found.add(v);
+    }
+    return found.size === 1 ? [...found][0] : undefined;
+  };
+  const cabin = find(/\b(?:cabin|carry[- ]?on|hand)\s+(?:baggage|bags?|luggage)/);
+  const checked = find(/\b(?:checked|check[- ]in|hold|registered)\s+(?:baggage|bags?|luggage)/) ?? find(/\bbaggage allowance|\bfree baggage/);
+  return cabin || checked ? { ...(cabin && { cabin }), ...(checked && { checked }) } : undefined;
+}

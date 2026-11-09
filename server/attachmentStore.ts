@@ -43,11 +43,26 @@ export function dropEmptyAttachments() {
 
 /** Delete stored files no item refers to any more. */
 export function pruneAttachments() {
-  const used = new Set(db.items.flatMap((i) => i.attachments?.map((a) => a.id) ?? []));
+  const used = new Set([
+    ...db.items.flatMap((i) => i.attachments?.map((a) => a.id) ?? []),
+    // Your own photos of places on your lists.
+    ...db.lists.flatMap((l) => l.entries.map((e) => e.photo?.url.match(/^\/api\/attachments\/([\w-]+)$/)?.[1]).filter((id): id is string => !!id)),
+  ]);
   const unused = db.attachments.filter((a) => !used.has(a.id) && !a.emailId);
   for (const a of unused) rmSync(join(DIR, a.id), { recursive: true, force: true });
   if (unused.length) {
     db.attachments = db.attachments.filter((a) => !unused.includes(a));
     save();
   }
+}
+
+/** Deletes one stored file, if nothing (a booking or a place's photo) uses it any more. */
+export function removeIfUnused(id: string) {
+  const url = `/api/attachments/${id}`;
+  const used = db.items.some((i) => i.attachments?.some((a) => a.id === id)) || db.lists.some((l) => l.entries.some((e) => e.photo?.url === url));
+  const record = db.attachments.find((a) => a.id === id);
+  if (used || !record) return;
+  rmSync(join(DIR, id), { recursive: true, force: true });
+  db.attachments = db.attachments.filter((a) => a.id !== id);
+  save();
 }

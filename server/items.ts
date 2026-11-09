@@ -34,6 +34,9 @@ const common = {
   emailId: z.string().optional(),
   confirmationCode: opt,
   price: Price.optional().nullable().transform((p) => p ?? undefined),
+  // Splitting the cost between people on the trip (checked against who's on it when saved).
+  paidBy: z.string().max(60).optional().nullable().transform((p) => p ?? undefined),
+  split: z.array(z.string().max(60)).max(30).optional().nullable().transform((s) => (s?.length ? [...new Set(s)] : undefined)),
   links: z.array(LinkInput).max(10).optional().transform((l) => (l?.length ? l : undefined)),
   attachments: z.array(AttachmentRef).max(20).optional().transform((a) => (a?.length ? a : undefined)),
   notes: opt,
@@ -49,6 +52,10 @@ export const ItemInput = z.discriminatedUnion("kind", [
     departureTime: dateTime,
     arrivalTime: dateTime.optional().or(z.literal("").transform(() => undefined)),
     seat: opt,
+    baggage: z
+      .object({ cabin: opt, checked: opt })
+      .optional()
+      .transform((b) => (b && (b.cabin || b.checked) ? { ...(b.cabin && { cabin: b.cabin }), ...(b.checked && { checked: b.checked }) } : undefined)),
   }),
   z.object({ kind: z.literal("stay"), ...common, name: z.string().trim().min(1), address: opt, lat: z.number().min(-90).max(90).optional(), lon: z.number().min(-180).max(180).optional(), checkIn: dateTime, checkOut: dateTime }),
   z.object({
@@ -196,6 +203,8 @@ export async function upsertFromEmail(tripId: string, drafts: DraftItem[], email
     // Keep files already attached (including ones the user added) and add new ones.
     const merged = [...(existing.attachments ?? []), ...(input.attachments ?? [])];
     existing.attachments = merged.filter((f, i) => merged.findIndex((g) => g.id === f.id) === i);
+    // A follow-up email that only mentions checked bags keeps the cabin allowance you already had.
+    if (existing.kind === "flight" && input.kind === "flight" && input.baggage) defined.baggage = { ...existing.baggage, ...input.baggage };
     if (existing.kind === "activity" && input.kind === "activity") {
       // Never replace a real or user-confirmed time with an estimate.
       if (input.dateEstimated && !existing.dateEstimated) {

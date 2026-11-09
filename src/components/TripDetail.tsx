@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { DraftItem, ExplorePlace, ItineraryItem, ListEntry, Trip, TripList, TripRole } from "../../shared/types.ts";
-import { api, type DaySuggestion, saveTripOffline, type DayPlans } from "../api.ts";
+import type { DayLegs } from "../../shared/types.ts";
+import { api, type DaySuggestion, saveTripOffline, type DayPlans, type TripDays } from "../api.ts";
+import { DayWeatherChip, TripDaysContext } from "../tripDays.tsx";
+import { differenceText, wallToMs } from "../zones.ts";
 import { rememberPlace, restoredPlace } from "../pagePlace.ts";
 import { formatDateRange, formatDay } from "../format.ts";
 import { flightForTransfer } from "../../shared/cancellation.ts";
 import { activityDays } from "../../shared/days.ts";
+import { overlapNights, stayFor, staysOn } from "../../shared/stays.ts";
 import DayStrip, { dayId, useStickBelowHeader, type DayInfo } from "./DayStrip.tsx";
 import DaySuggestions from "./DaySuggestions.tsx";
 import { DayAddMenu, DayChecklist, DayNote, DayTextForm } from "./DayExtras.tsx";
-import PlaceCard from "./PlaceCard.tsx";
 import AskEstela from "./AskEstela.tsx";
 import ExploreArea from "./ExploreArea.tsx";
 import Fold, { expand, FoldAll } from "./Fold.tsx";
@@ -22,12 +25,29 @@ import ListView from "./ListView.tsx";
 import PlaceForm, { type AddedPlace } from "./PlaceForm.tsx";
 import PrepareView from "./PrepareView.tsx";
 import SpendingView from "./SpendingView.tsx";
+import TodayCard from "./TodayCard.tsx";
+import LegLine from "./LegLine.tsx";
+import DayRoute from "./DayRoute.tsx";
+import EssentialsView from "./EssentialsView.tsx";
+import CalendarPanel from "./CalendarPanel.tsx";
+const TripMap = lazy(() => import("./TripMap.tsx")); // the map library loads only when you open the map
 import TravellersPanel from "./TravellersPanel.tsx";
-import { CalendarDays, ClipboardCheck, Pencil, Wallet, RefreshCw, Trash2, Compass, Lightbulb, Mail, MapPin, BedDouble, Users, X } from "lucide-react";
+import { Car, TramFront, LifeBuoy, Map as MapIcon, List, CalendarPlus, CalendarDays, Clock, ClipboardCheck, Pencil, Wallet, RefreshCw, Trash2, Compass, Lightbulb, Mail, MapPin, BedDouble, Users, X } from "lucide-react";
 import { itemIcon, KIND_ICON, listIcon, type LucideIcon } from "../icons.ts";
 import { describePart, partOn, partRange, partySummary } from "../parts.ts";
 import Suggestions from "./Suggestions.tsx";
 import TripForm from "./TripForm.tsx";
+
+const itemTitle = (i: ItineraryItem) => (i.kind === "flight" ? i.flightNumber : i.kind === "stay" ? i.name : i.title);
+
+/** A time just after a card on a day ("HH:mm"): when it ends or lands, else an hour after it starts (at most 22:00). */
+function timeAfter(i: ItineraryItem, day: string) {
+  const end = i.kind === "flight" ? i.live?.arrivalTime ?? i.arrivalTime : i.kind === "activity" ? i.end : undefined;
+  if (end?.startsWith(day)) return end.slice(11, 16);
+  const start = i.kind === "flight" ? i.live?.departureTime ?? i.departureTime : i.kind === "stay" ? (i.checkIn.startsWith(day) ? i.checkIn : `${day}T09:00`) : i.start.startsWith(day) ? i.start : `${day}T09:00`;
+  const [h, m] = start.slice(11, 16).split(":").map(Number);
+  return `${String(Math.min(h + 1, 22)).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -37,13 +57,14 @@ const startOf = (i: ItineraryItem) =>
   i.kind === "flight" ? i.live?.departureTime ?? i.departureTime : i.kind === "stay" ? i.checkIn : i.start;
 
 type Panel =
-  | { type: "add"; kind: Kind; initial?: Partial<DraftItem>; date?: string; inline?: boolean } // inline: opened from that day
-  | { type: "place"; date?: string; inline?: boolean }
+  | { type: "add"; kind: Kind; initial?: Partial<DraftItem>; date?: string; inline?: boolean; afterId?: string } // inline: opened from that day (afterId: below that card)
+  | { type: "place"; date?: string; inline?: boolean; afterId?: string }
   | { type: "email" }
   | { type: "edit-trip" }
   | { type: "new-list" }
   | { type: "edit-list"; list: TripList }
   | { type: "travellers" }
+  | { type: "calendar" }
   | null;
 type Category = "all" | Kind; // filters the itinerary
 
@@ -66,7 +87,10 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
   const [lists, setLists] = useState<TripList[]>([]);
   const [listsLoaded, setListsLoaded] = useState(false);
   const [plans, setPlans] = useState<DayPlans>({});
-  const [view, setView] = useState<"itinerary" | "prepare" | "ideas" | "spending">((restored.view as "itinerary" | "prepare" | "ideas" | "spending" | undefined) ?? initialView ?? "itinerary");
+  const [tripDays, setTripDays] = useState<TripDays>();
+  const [legs, setLegs] = useState<DayLegs>({}); // how far between a day's stops
+  const [mapView, setMapView] = useState(restored.map === "1"); // the itinerary as a map instead of a list
+  const [view, setView] = useState<"itinerary" | "prepare" | "essentials" | "ideas" | "spending">((restored.view as "itinerary" | "prepare" | "essentials" | "ideas" | "spending" | undefined) ?? initialView ?? "itinerary");
   const [ideaCount, setIdeaCount] = useState(0);
   // In the Suggestions tab: Estela's tips, or one of the city guides / your lists (by id).
   const [ideaSection, setIdeaSection] = useState<string>(restored.section ?? "tips");
@@ -79,31 +103,42 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
   // The tabs stick under the header: measure them, so what sticks below them (the date strip) sits right under.
   useStickBelowHeader();
   useEffect(() => {
+    // The filter bar (All · Flights · …) sticks under the tabs too, and the date strip under it.
     const place = () => {
       const h = document.querySelector(".views")?.getBoundingClientRect().height ?? 0;
+      const bar = document.querySelector(".detail-main > .list-bar")?.getBoundingClientRect().height ?? 0;
       document.documentElement.style.setProperty("--tabs-h", `${Math.round(h)}px`);
+      document.documentElement.style.setProperty("--bar-h", `${Math.round(bar)}px`);
     };
     place();
     const watch = new ResizeObserver(place);
-    const tabs = document.querySelector(".views");
-    if (tabs) watch.observe(tabs);
+    for (const el of document.querySelectorAll(".views, .detail-main > .list-bar")) watch.observe(el);
     addEventListener("resize", place);
     return () => {
       watch.disconnect();
       removeEventListener("resize", place);
       document.documentElement.style.setProperty("--tabs-h", "0px");
+      document.documentElement.style.setProperty("--bar-h", "0px");
     };
-  }, [data !== undefined]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data !== undefined, data?.items.length !== 0, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(() => {
     api.trip(tripId).then((d) => { setData(d); setVersion((v) => v + 1); }).catch((e) => setError(e.message));
     api.lists(tripId).then((l) => { setLists(l); setListsLoaded(true); }).catch(() => undefined);
     api.dayPlans(tripId).then(setPlans).catch(() => undefined);
+    api.days(tripId).then(setTripDays).catch(() => undefined);
+    api.dayLegs(tripId).then(setLegs).catch(() => undefined);
   }, [tripId]);
 
+  // On a phone the tabs scroll sideways: keep the open one in view.
   useEffect(() => {
-    rememberPlace({ view, section: ideaSection, category });
-  }, [view, ideaSection, category]);
+    const tab = document.querySelector<HTMLElement>(".views .view-tab.on");
+    const row = tab?.parentElement;
+    if (tab && row && row.scrollWidth > row.clientWidth) row.scrollTo({ left: tab.offsetLeft - row.clientWidth / 2 + tab.clientWidth / 2, behavior: "smooth" });
+  }, [view, data !== undefined]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    rememberPlace({ view, section: ideaSection, category, map: mapView ? "1" : undefined });
+  }, [view, ideaSection, category, mapView]);
 
   useEffect(() => {
     load();
@@ -152,17 +187,20 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
   const days = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
   // Where you're sleeping on a night (checked in before, checking out after or on that day).
   const stayOn = (day: string) =>
-    items.find((i): i is Extract<ItineraryItem, { kind: "stay" }> => i.kind === "stay" && i.checkIn.slice(0, 10) <= day && i.checkOut.slice(0, 10) > day);
+    stayFor(trip, items, day);
   const dayFold = (day: string) => `${trip.id}:day:${day}`;
   // Days where only accommodation is booked still need things to do.
-  const addFor = (day: string, kind: Kind | "place") => {
+  const addFor = (day: string, kind: Kind | "place", after?: ItineraryItem) => {
     // Pressing the same one again closes the form.
-    const open = panel && (panel.type === "place" || panel.type === "add") && panel.date === day && (kind === "place" ? panel.type === "place" : panel.type === "add" && panel.kind === kind);
+    const open = panel && (panel.type === "place" || panel.type === "add") && panel.date === day && panel.afterId === after?.id && (kind === "place" ? panel.type === "place" : panel.type === "add" && panel.kind === kind);
     if (open) return setPanel(null);
     expand(dayFold(day));
-    // Open the form right there in that day, if it's showing, so you keep your place in the itinerary.
+    // Open the form right there in that day, if it's showing, so you keep your place in the itinerary. From between two
+    // cards, an activity starts when the one above ends, so it lands in that spot.
     const inline = byDay.has(day);
-    setPanel(kind === "place" ? { type: "place", date: day, inline } : { type: "add", kind, date: day, inline });
+    const afterId = after?.id;
+    const at = after && kind === "activity" ? timeAfter(after, day) : undefined;
+    setPanel(kind === "place" ? { type: "place", date: day, inline, afterId } : { type: "add", kind, date: day, inline, afterId, ...(at && { initial: { kind: "activity", start: `${day}T${at}` } as Partial<DraftItem> }) });
     setAddedPlace(undefined);
     setEmptyDay(undefined);
     if (inline) requestAnimationFrame(() => document.getElementById("day-add-form")?.scrollIntoView({ block: "nearest" }));
@@ -171,6 +209,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
   // From a guide: over to that day in the itinerary.
   const showDay = (day: string) => {
     setView("itinerary");
+    setMapView(false);
     setCategory("all");
     expand(dayFold(day));
     setTimeout(() => document.getElementById(dayId(day))?.scrollIntoView(), 100);
@@ -245,7 +284,25 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
   const hasFlights = items.some((i) => i.kind === "flight");
   const count = (k: Kind) => items.filter((i) => i.kind === k).length;
 
+  // Where the clocks change: the first day in a new time zone (and the first day, if it isn't home time).
+  const zoneNote = (day: string) => {
+    if (!tripDays) return undefined;
+    const info = tripDays.days;
+    const tz = info[day]?.tz;
+    if (!tz || day < trip.startDate) return undefined;
+    const before = Object.keys(info).filter((d) => d < day).sort().pop();
+    const prev = before ? info[before].tz : tripDays.home ?? undefined;
+    if (!prev || prev === tz) return undefined;
+    const at = wallToMs(`${day}T12:00`, tz);
+    const vsHome = tripDays.home && tripDays.home !== tz ? differenceText(tz, tripDays.home, "home", at) : undefined;
+    const vsPrev = before && prev !== tripDays.home ? differenceText(tz, prev, info[before].city ?? "the day before", at) : undefined;
+    const where = info[day].city ?? tz.split("/").pop()!.replace(/_/g, " ");
+    if (!vsHome && !vsPrev) return before ? `Back on home time in ${where}` : undefined;
+    return `Local time in ${where}: ${[vsHome, vsPrev].filter(Boolean).join(", ")}`;
+  };
+
   return (
+    <TripDaysContext.Provider value={tripDays}>
     <div className={`detail ${canEditTrip ? "" : "view-only"}`}>
       {ai && <AskEstela trip={trip} />}
       <div className="detail-main">
@@ -265,6 +322,9 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
             <button className={`quiet ${panel?.type === "travellers" ? "on" : ""}`} aria-pressed={panel?.type === "travellers"} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
               <Users aria-hidden="true" /> Travellers{trip.members?.length ? ` · ${trip.members.length + 1}` : ""}
             </button>
+            <button className={`quiet ${panel?.type === "calendar" ? "on" : ""}`} aria-pressed={panel?.type === "calendar"} onClick={() => setPanel(panel?.type === "calendar" ? null : { type: "calendar" })}>
+              <CalendarPlus aria-hidden="true" /> Calendar
+            </button>
             {canEditTrip && <button className="quiet" onClick={() => setPanel({ type: "edit-trip" })}><Pencil aria-hidden="true" /> Edit</button>}
             {/* Deleting is rare: a small bin that only turns red when you point at it. */}
             {data.role === "owner" && <button
@@ -282,12 +342,21 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
           </div>
         </div>
 
+        {/* The header's own panels open right under it, whichever tab you're on. */}
+        {panel?.type === "travellers" && (
+          <TravellersPanel tripId={trip.id} tripName={trip.name} role={data.role} onClose={() => { setPanel(null); load(); }} onLeft={() => (location.hash = "#/")} />
+        )}
+        {panel?.type === "calendar" && <CalendarPanel tripId={trip.id} onClose={() => setPanel(null)} />}
+
         <div className="views" role="tablist" aria-label="Trip view">
           <button role="tab" aria-selected={view === "itinerary"} className={`view-tab ${view === "itinerary" ? "on" : ""}`} onClick={() => setView("itinerary")}>
             <CalendarDays aria-hidden="true" /> Itinerary
           </button>
           <button role="tab" aria-selected={view === "prepare"} className={`view-tab ${view === "prepare" ? "on" : ""}`} onClick={() => setView("prepare")}>
             <ClipboardCheck aria-hidden="true" /> Prepare{openTodos ? <span className="count">{openTodos} to do</span> : null}
+          </button>
+          <button role="tab" aria-selected={view === "essentials"} className={`view-tab ${view === "essentials" ? "on" : ""}`} onClick={() => setView("essentials")}>
+            <LifeBuoy aria-hidden="true" /> Essentials
           </button>
           <button role="tab" aria-selected={view === "ideas"} className={`view-tab ${view === "ideas" ? "on" : ""}`} onClick={() => setView("ideas")}>
             <Compass aria-hidden="true" /> Suggestions{ideaCount ? <span className="count">{ideaCount}</span> : null}
@@ -368,14 +437,13 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
         <div hidden={view !== "ideas" || ideaSection !== "tips"}>
           <Suggestions tripId={trip.id} version={version} onCount={setIdeaCount} />
         </div>
-        {view === "spending" && <SpendingView trip={trip} items={items} />}
-        {view === "ideas" || view === "spending" ? null : view === "prepare" ? (
+        {view === "spending" && <SpendingView trip={trip} items={items} canEdit={canEditTrip} onChanged={load} />}
+        {view === "essentials" && <EssentialsView trip={trip} lists={lists} loaded={listsLoaded} />}
+        {view === "ideas" || view === "spending" || view === "essentials" ? null : view === "prepare" ? (
           <PrepareView version={version} tripId={trip.id} onCounts={setOpenTodos} />
         ) : (
         <>
-        {panel?.type === "travellers" && (
-          <TravellersPanel tripId={trip.id} tripName={trip.name} role={data.role} onClose={() => { setPanel(null); load(); }} onLeft={() => (location.hash = "#/")} />
-        )}
+        <TodayCard trip={trip} items={items} plans={plans} days={tripDays} onShowDay={showDay} />
         {!canEditTrip && (
           <p className="view-only-note">You can view this trip. Ask its owner if you'd like to make changes.</p>
         )}
@@ -444,7 +512,21 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               ))}
             </div>
             <span className="list-bar-actions">
-            {hasFlights && (
+            {/* How you get between places further than a walk: switches every day's travel times. */}
+            {canEditTrip && (
+              <button
+                type="button"
+                className="quiet map-switch"
+                title={`Getting around by ${trip.getAround === "car" ? "car" : "public transport"}. Tap to switch to ${trip.getAround === "car" ? "public transport" : "car"}`}
+                onClick={() => api.setGetAround(trip.id, trip.getAround === "car" ? "transit" : "car").then(load)}
+              >
+                {trip.getAround === "car" ? <><Car aria-hidden="true" /> By car</> : <><TramFront aria-hidden="true" /> Public transport</>}
+              </button>
+            )}
+            <button type="button" className={`quiet map-switch ${mapView ? "on" : ""}`} aria-pressed={mapView} onClick={() => setMapView(!mapView)}>
+              {mapView ? <><List aria-hidden="true" /> List</> : <><MapIcon aria-hidden="true" /> Map</>}
+            </button>
+            {hasFlights && !mapView && (
               <button
                 className="check-flights edit-only"
                 title="Check live status for your flights"
@@ -458,7 +540,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                 <RefreshCw aria-hidden="true" className={refreshing ? "spin" : ""} /> {refreshing ? "Checking…" : "Check flights"}
               </button>
             )}
-            <FoldAll ids={days.map(([day]) => dayFold(day))} />
+            {!mapView && <FoldAll ids={days.map(([day]) => dayFold(day))} />}
             </span>
           </div>
         )}
@@ -468,8 +550,13 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
           </div>
         )}
 
+        {mapView && (
+          <Suspense fallback={<p className="muted small">Opening the map…</p>}>
+            <TripMap trip={trip} version={version} onShowDay={showDay} />
+          </Suspense>
+        )}
         {/* Always the trip's dates, even before anything's booked. */}
-        {stripDays.length > 0 && (
+        {!mapView && stripDays.length > 0 && (
           <DayStrip
             days={stripDays}
             onJump={(day) => expand(dayFold(day))}
@@ -479,7 +566,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
             }}
           />
         )}
-        {emptyDay && (
+        {emptyDay && !mapView && (
           <div className="card empty-day" id="empty-day">
             <div className="empty-day-head">
               <b>{formatDay(emptyDay)}</b>
@@ -505,7 +592,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
           </div>
         )}
 
-        {days.map(([day, dayItems], i) => {
+        {!mapView && days.map(([day, dayItems], i) => {
           // A header where a new part of the trip begins.
           const part = partOn(trip, day);
           const startsPart = part && (i === 0 || partOn(trip, days[i - 1][0])?.id !== part.id);
@@ -525,6 +612,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               title={<>
                 {formatDay(day)}
                 {trip.dayTitles?.[day] && <span className="day-heading">{trip.dayTitles[day]}</span>}
+                {tripDays?.days[day]?.weather && <DayWeatherChip w={tripDays.days[day].weather!} />}
                 {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> outside trip dates</span>}
               </>}
               action={canEditTrip && (
@@ -544,6 +632,14 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                 return n ? `${n} item${n === 1 ? "" : "s"}` : "Nothing planned";
               })()}
             >
+            <NightStayChoice
+              trip={trip}
+              items={items}
+              day={day}
+              canEdit={canEditTrip}
+              onPick={(stayId) => api.setNightStay(trip.id, overlapNights(items, day), stayId).then(load)}
+            />
+            {zoneNote(day) && <p className="zone-note small"><Clock aria-hidden="true" /> {zoneNote(day)}</p>}
             {headingDay === day && (
               <DayHeadingForm
                 initial={trip.dayTitles?.[day] ?? ""}
@@ -578,15 +674,30 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               checked={trip.prep?.checked ?? []}
               onChange={load}
             />
-            {dayItems.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                day={day}
-                mockFlights={mockFlights}
-                onChange={load}
-                linkedFlight={item.kind === "activity" && item.category === "transfer" ? flightForTransfer(item, items.filter((i): i is Extract<ItineraryItem, { kind: "flight" }> => i.kind === "flight")) : undefined}
-              />
+            {dayItems.map((item, n) => (
+              <Fragment key={item.id}>
+                <ItemCard
+                  item={item}
+                  day={day}
+                  mockFlights={mockFlights}
+                  onChange={load}
+                  linkedFlight={item.kind === "activity" && item.category === "transfer" ? flightForTransfer(item, items.filter((i): i is Extract<ItineraryItem, { kind: "flight" }> => i.kind === "flight")) : undefined}
+                />
+                {/* Between this card and the next: how far it is, and a place to add something right here. */}
+                {category === "all" && n < dayItems.length - 1 && <LegLine leg={legs[day]?.[`${item.id}>${dayItems[n + 1].id}`]} />}
+                {canEditTrip && n < dayItems.length - 1 && (category === "all" || category === "activity") && (
+                  <DayAddMenu
+                    between
+                    day={day}
+                    label={`${formatDay(day)}, after ${itemTitle(item)}`}
+                    extra={!stayOn(day)}
+                    onPick={(what) => (what === "note" || what === "todo" ? (setPanel(null), setDayForm({ day, kind: what })) : addFor(day, what, item))}
+                  />
+                )}
+                {(panel?.type === "add" || panel?.type === "place") && panel.inline && panel.date === day && panel.afterId === item.id && (
+                  <div id="day-add-form" className="day-add-form">{addForm()}</div>
+                )}
+              </Fragment>
             ))}
             {category === "all" && dayItems.length === 0 && !plans[day] && (
               // Nothing on this day yet: say so (and where you're sleeping), with quick ways to add something.
@@ -607,21 +718,28 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               <div className="day-plan">
                 <div className="day-plan-head">
                   <b>Places to visit</b>
-                  {plans[day].routeUrl && (
-                    <a className="small" href={plans[day].routeUrl} target="_blank" rel="noopener noreferrer">Route in Maps ↗</a>
-                  )}
+                  <span className="day-plan-actions">
+                    {plans[day].custom && canEditTrip && (
+                      <button type="button" className="link" title="Put the places back in the order that's shortest to walk" onClick={() => api.orderDay(trip.id, day, null).then(load)}>
+                        Best walking order
+                      </button>
+                    )}
+                    {plans[day].routeUrl && (
+                      <a className="small" href={plans[day].routeUrl} target="_blank" rel="noopener noreferrer">Route in Maps ↗</a>
+                    )}
+                  </span>
                 </div>
-                <div className="place-cards">
-                  {plans[day].entries.map((e, n) => (
-                    <PlaceCard
-                      key={e.id}
-                      entry={e}
-                      number={plans[day].entries.length > 1 ? n + 1 : undefined}
-                      onOpen={() => openIdeas(e.listId)}
-                      onRemove={() => api.planDay(trip.id, null, [{ listId: e.listId, entryId: e.id }]).then(load)}
-                    />
-                  ))}
-                </div>
+                {/* A route through the day: from where you sleep, place to place, and back. Drag to reorder. */}
+                <DayRoute
+                  entries={plans[day].entries}
+                  legs={legs[day]}
+                  home={stayOn(day)?.name}
+                  canEdit={canEditTrip}
+                  onOrder={(ordered) => api.orderDay(trip.id, day, ordered.map((e) => ({ listId: e.listId, entryId: e.id }))).then(load)}
+                  onOpen={(e) => openIdeas(e.listId)}
+                  onRemove={(e) => api.planDay(trip.id, null, [{ listId: e.listId, entryId: e.id }]).then(load)}
+                  onPhotoChanged={load}
+                />
               </div>
             )}
             {category === "all" && suggested.filter((s) => s.day === day).map((s, _i, onDay) => (
@@ -664,7 +782,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                 onPick={(what) => (what === "note" || what === "todo" ? (setPanel(null), setDayForm({ day, kind: what })) : addFor(day, what))}
               />
             )}
-            {(panel?.type === "add" || panel?.type === "place") && panel.inline && panel.date === day && (
+            {(panel?.type === "add" || panel?.type === "place") && panel.inline && panel.date === day && !panel.afterId && (
               <div id="day-add-form" className="day-add-form">{addForm()}</div>
             )}
             </Fold>
@@ -675,6 +793,53 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
         )}
       </div>
 
+    </div>
+    </TripDaysContext.Provider>
+  );
+}
+
+/**
+ * When two stays cover the same night: which is your base. Asked on the first of those nights until you choose (one
+ * choice covers all of them); after that, a quiet line on each with a way to change it.
+ */
+function NightStayChoice({ trip, items, day, canEdit, onPick }: { trip: Trip; items: ItineraryItem[]; day: string; canEdit: boolean; onPick: (stayId: string) => void }) {
+  const [changing, setChanging] = useState(false);
+  const all = staysOn(items, day);
+  if (all.length < 2) return null;
+  const nights = overlapNights(items, day);
+  const chosen = all.find((s) => s.id === trip.nightStay?.[day]);
+  const base = stayFor(trip, items, day)!;
+  if (chosen && !changing) {
+    return (
+      <p className="night-stay small">
+        <BedDouble aria-hidden="true" /> Base tonight: <b>{chosen.name}</b>
+        <span className="muted"> · also booked: {all.filter((s) => s !== chosen).map((s) => s.name).join(", ")}</span>
+        {canEdit && <> · <button type="button" className="link" onClick={() => setChanging(true)}>Change</button></>}
+      </p>
+    );
+  }
+  if (!canEdit || (!changing && nights[0] !== day)) {
+    return <p className="night-stay small muted"><BedDouble aria-hidden="true" /> {all.length} places booked for this night{canEdit ? " (choose your base on the first of them)" : ""}.</p>;
+  }
+  return (
+    <div className="night-stay-choice" role="group" aria-label="Which stay is your base">
+      <p className="small">
+        <b>{all.length} places are booked for {nights.length > 1 ? `these ${nights.length} nights` : "this night"}.</b> Which is your base? Your day's route, weather and Today start from it.
+      </p>
+      <div className="night-stay-options">
+        {all.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`secondary ${chosen?.id === s.id || (!chosen && changing && s === base) ? "on" : ""}`}
+            onClick={() => { setChanging(false); onPick(s.id); }}
+          >
+            <BedDouble aria-hidden="true" /> {s.name}
+            <span className="muted tiny">{formatDay(s.checkIn)} – {formatDay(s.checkOut)}</span>
+          </button>
+        ))}
+        {changing && <button type="button" className="link" onClick={() => setChanging(false)}>Cancel</button>}
+      </div>
     </div>
   );
 }

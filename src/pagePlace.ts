@@ -2,7 +2,7 @@
 // this by itself, because the page is still short when it tries (your trip loads a moment later). Kept for this tab
 // only, and only a reload goes back to it: opening the app or following a reminder starts as normal.
 
-type Place = { y?: number; view?: string; section?: string; category?: string };
+type Place = { y?: number; view?: string; section?: string; category?: string; map?: string };
 
 const STORE = "joy-page-place";
 const MAX_WAIT_MS = 8000; // the saved copy can take up to 6s to answer when your Mac is out of reach

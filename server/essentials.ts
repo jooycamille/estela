@@ -148,3 +148,24 @@ export async function essentialsFor(stays: StayItem[], near: LatLon, countryCode
   for (const s of stays) out.push(await stayEssentials(s, near));
   return { emergency: emergencyFor(countryCode), stays: out, tips: safetyTips(countryCode, city), apps: localApps(countryCode, city) };
 }
+
+const positions = new Map<string, LatLon | null>();
+
+/**
+ * A stay's map position for the trip map: its own, one already found for its essentials, or a fresh lookup (kept
+ * while the server runs). Undefined when it can't be found.
+ */
+export async function stayPosition(stay: StayItem, near: LatLon): Promise<LatLon | undefined> {
+  if (stay.lat !== undefined && stay.lon !== undefined) return { lat: stay.lat, lon: stay.lon };
+  const key = `${stay.id}|${stay.name}|${stay.address ?? ""}`;
+  if (positions.has(key)) return positions.get(key) ?? undefined;
+  const known = Object.values(cache).find((c) => c.value.stayId === stay.id && c.value.stayName === stay.name && c.value.directionsFrom)?.value.directionsFrom;
+  if (known) {
+    const [lat, lon] = known.split(",").map(Number);
+    positions.set(key, { lat, lon });
+    return { lat, lon };
+  }
+  const found = await locateStay(stay, near).catch(() => undefined);
+  positions.set(key, found?.at ?? null);
+  return found?.at;
+}

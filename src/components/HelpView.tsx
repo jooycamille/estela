@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardCheck, Compass, Mail, MessageCircle, Plane, Smartphone, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
+import { LifeBuoy, CalendarDays, ClipboardCheck, Compass, Mail, MessageCircle, Plane, Smartphone, UserRound, Users, Wallet, type LucideIcon } from "lucide-react";
 import Ico from "./Ico.tsx";
 
 // Help: what each part of Estela does, in plain words, one topic at a time. Each topic opens and closes on its own.
@@ -32,8 +32,17 @@ const TOPICS: Topic[] = [
       "Your trip, day by day. The dates at the top jump to a day: tap one, or drag them sideways to see more.",
       "Point at the line under a day (on a phone, tap the faint +) to add a note, an activity, a place or a checklist item for that day.",
       "The pencil beside a date gives the day a heading of its own, like “Day trip to the coast”.",
-      "Places you plan for a day show as cards in walking order, with a route in Maps. ✕ takes one off the day and keeps it in your guide.",
+      "Places you plan for a day show in walking order, from where you're staying and back, with how long each walk or drive takes. ✕ takes one off the day and keeps it in your guide.",
+      "Between bookings, a line shows how far the next one is on foot or by car, with directions and public transport.",
+      "Tap the camera on a place's photo to change it: one taken there, one you search for, your own, or none.",
+      "Drag a place by its handle to change the order you'll visit; Best walking order puts it back.",
+      "Public transport or By car, above your itinerary, sets how the longer trips between stops are shown.",
+      "If two stays cover the same night, choose which is your base on the first of those nights.",
       "Minimize all folds every day to its date, so a long trip is easy to scan.",
+      "While a trip is on, Today at the top shows what's next and how long until it, directions, your booking reference and tickets, and where you sleep tonight.",
+      "Each day shows its weather forecast about two weeks ahead, and a note where the clocks change, with how far that is from home.",
+      "Map, above the itinerary, shows your stays, bookings and planned places on a map. Pick a day to see just that day, in order.",
+      "Calendar, at the top of a trip, adds it to Apple Calendar (it keeps itself up to date) or gives you a file for Google Calendar or Outlook.",
     ],
   },
   {
@@ -42,6 +51,7 @@ const TOPICS: Topic[] = [
     points: [
       "Flights are followed by their number and date. Delays, new times, cancellations and gate or terminal changes show on the flight.",
       "Check flights, above your itinerary, looks again right away.",
+      "Each flight shows its time in the air, the time at home when you land, and your baggage allowance. Add the allowance with Edit if the booking email didn't include it.",
     ],
   },
   {
@@ -54,11 +64,19 @@ const TOPICS: Topic[] = [
     ],
   },
   {
+    icon: LifeBuoy,
+    title: "Essentials",
+    points: [
+      "For each city you stay in: the emergency number, pharmacies, hospitals, police and ATMs near your stay, useful apps and safety tips.",
+      "Phrases to learn for each language on your trip that isn't English. Tap the speaker to hear one.",
+    ],
+  },
+  {
     icon: Compass,
     title: "Suggestions and city guides",
     points: [
       "Tips for your trip: gaps in your plans, ideas for your travel style and things worth booking ahead.",
-      "Each city you stay in gets a guide: essentials near where you sleep (emergency number, pharmacies, hospitals, ATMs), safety tips, useful apps, places to see, food to try and restaurants.",
+      "Each city you stay in gets a guide: places to see, food to try and restaurants, matched to your travel style.",
       "Plan by date shows what fits each day around what's booked. Add anything to a day with one tap.",
       "Make your own lists too, like “Coffee spots”, with + New list.",
     ],
@@ -68,6 +86,11 @@ const TOPICS: Topic[] = [
     title: "Spending",
     points: [
       "Everything you've booked, added up in the currency you choose (tap the currency code to change it).",
+      "Add what you spend along the way under On the trip: what it was, who paid and who it's shared by. Settle up shows who owes whom.",
+      "Set a budget to see if you're on track, close to it or over, with what's left and about how much a day.",
+      "Travelling with someone who doesn't use Estela? Add them under Sharing costs to split spending with them too.",
+      "Add a price to any booking that's missing one, right in Spending.",
+      "Sharing a booking's cost? Tap Split on it in Spending (or use Split this cost when you edit it), and Settle up includes it.",
       "See it by category and across your days, with your largest bookings and any that still need a price.",
       "Other currencies are converted at today's rates, so totals are estimates.",
     ],

@@ -28,6 +28,7 @@ export interface AttachmentRecord extends StoredAttachment {
 export interface UserRecord extends User {
   passwordHash?: string; // scrypt; see server/auth.ts
   placeholder?: boolean; // invited to a trip, hasn't created their account yet
+  calendarTokens?: Record<string, string>; // trip id → the secret in your private calendar link for it
 }
 
 /** A signed-in device. Only a hash of its secret is stored. */

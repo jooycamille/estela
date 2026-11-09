@@ -14,7 +14,7 @@ import type { LucideIcon } from "../icons.ts";
 import { Banknote, LifeBuoy, CalendarDays, Hospital, Hotel, Landmark, MapPin, Pill, ScrollText, ShieldCheck, Smartphone, Soup, Star, Stethoscope, Ticket, TriangleAlert, Utensils } from "lucide-react";
 
 // A destination guide Estela makes for each city you stay in: what to eat, do and see (matched to your travel styles),
-// your saved picks, and the pharmacies, clinics, police and ATMs near where you're staying.
+// and your saved picks. (What's near where you're staying is in the Essentials tab.)
 
 type SectionKey = "restaurants" | "food" | "activities" | "sights";
 const SECTIONS: { key: SectionKey; icon: LucideIcon; title: string; one: string; add: Pick<ListEntry, "kind" | "section"> }[] = [
@@ -107,7 +107,6 @@ export default function GuideView({
       <SectionBar
         listId={list.id}
         sections={[
-          { key: "essentials", label: "Essentials" },
           ...(dateCards.length || areasLeft.length ? [{ key: "dates", label: "Plan by date" }] : []),
           { key: "picks", label: "Your picks" },
           ...(ideas?.guide ? SECTIONS.map((s) => ({ key: s.key, label: s.title.replace(" for your style", "") })) : []),
@@ -116,8 +115,6 @@ export default function GuideView({
 
       {error && <p className="error">{error}</p>}
 
-      {/* Safety first: emergency number, pharmacies, hospitals, police and ATMs near where you're staying. */}
-      <EssentialsCard list={list} />
 
       {(dateCards.length > 0 || areasLeft.length > 0) && (
         <section id={`${list.id}-dates`} className="card areas by-date guide-part">
@@ -404,7 +401,8 @@ function SectionBar({ listId, sections }: { listId: string; sections: { key: str
   );
 }
 
-function EssentialsCard({ list }: { list: TripList }) {
+/** Emergency number, pharmacies, hospitals, police and ATMs near where you're staying, useful apps and safety tips. */
+export function EssentialsCard({ list }: { list: TripList }) {
   const [data, setData] = useState<Essentials>();
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -417,7 +415,7 @@ function EssentialsCard({ list }: { list: TripList }) {
 
   return (
     <section id={`${list.id}-essentials`} className="card essentials">
-      <Fold id={`${list.id}:essentials`} title={<><LifeBuoy aria-hidden="true" /> Essentials</>} summary={data?.emergency ? `Emergency: ${data.emergency.number}` : undefined}>
+      <Fold id={`${list.id}:essentials`} title={<><LifeBuoy aria-hidden="true" /> {list.name}</>} summary={data?.emergency ? `Emergency: ${data.emergency.number}` : undefined}>
       {data?.emergency && (
         <p className="emergency">
           Emergency number in {list.name}: <a href={`tel:${data.emergency.number}`}><b>{data.emergency.number}</b></a>

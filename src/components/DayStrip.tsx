@@ -1,3 +1,5 @@
+import { useTripDays } from "../tripDays.tsx";
+import { nowIn } from "../zones.ts";
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "../icons.ts";
 
@@ -37,7 +39,11 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
   const strip = useRef<HTMLDivElement>(null);
   const row = useRef<HTMLDivElement>(null);
   useDragToScroll(row);
-  const today = new Date().toLocaleDateString("en-CA");
+  // Today where you are on the trip (it may still be yesterday there), else on this device.
+  const tripDays = useTripDays();
+  const deviceToday = new Date().toLocaleDateString("en-CA");
+  const zone = tripDays?.days[deviceToday]?.tz;
+  const today = zone ? nowIn(zone).slice(0, 10) : deviceToday;
   const onTrip = days.some((d) => d.day === today);
 
   useStickBelowHeader();

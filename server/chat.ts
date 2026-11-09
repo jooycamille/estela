@@ -34,7 +34,8 @@ const clip = (s: string | undefined, n: number) => (s && s.length > n ? `${s.sli
 function itemLine(i: ItineraryItem) {
   if (i.kind === "flight") {
     const dep = i.live?.departureTime ?? i.departureTime;
-    return `${day(dep)} ${time(dep)} Flight ${i.flightNumber} ${i.from} → ${i.to}${i.arrivalTime ? `, lands ${time(i.arrivalTime)}${day(i.arrivalTime) !== day(dep) ? ` on ${day(i.arrivalTime)}` : ""}` : ""}`;
+    const bags = i.baggage ? `; baggage: ${[i.baggage.cabin && `cabin ${i.baggage.cabin}`, i.baggage.checked && `checked ${i.baggage.checked}`].filter(Boolean).join(", ")}` : "";
+    return `${day(dep)} ${time(dep)} Flight ${i.flightNumber} ${i.from} → ${i.to}${i.arrivalTime ? `, lands ${time(i.arrivalTime)}${day(i.arrivalTime) !== day(dep) ? ` on ${day(i.arrivalTime)}` : ""}` : ""}${bags}`;
   }
   if (i.kind === "stay") return `${day(i.checkIn)} Stay: ${i.name}${i.address ? ` (${i.address})` : ""}, check-in ${time(i.checkIn) || "?"}, check-out ${day(i.checkOut)} ${time(i.checkOut)}`;
   const end = i.end ? ` to ${day(i.end) !== day(i.start) ? `${day(i.end)} ` : ""}${time(i.end)}` : "";

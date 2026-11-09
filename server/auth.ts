@@ -332,10 +332,15 @@ export function canSeeAttachment(user: User, attachmentId: string) {
   const record = db.attachments.find((a) => a.id === attachmentId);
   if (!record) return false;
   if (record.uploadedBy === user.id) return true;
-  return db.items.some((i) => i.attachments?.some((a) => a.id === attachmentId) && tripRole(user, db.trips.find((t) => t.id === i.tripId)) !== null);
+  const url = `/api/attachments/${attachmentId}`;
+  return (
+    db.items.some((i) => i.attachments?.some((a) => a.id === attachmentId) && tripRole(user, db.trips.find((t) => t.id === i.tripId)) !== null) ||
+    // A photo of a place on a list, on a trip you can see.
+    db.lists.some((l) => l.entries.some((e) => e.photo?.url === url) && tripRole(user, db.trips.find((t) => t.id === l.tripId)) !== null)
+  );
 }
 
-const PUBLIC = [/^\/api\/auth\/(me|signup|signin|forgot|reset|redeem)$/, /^\/api\/auth\/invite\/[\w-]+$/, /^\/api\/inbound-email$/];
+const PUBLIC = [/^\/api\/auth\/(me|signup|signin|forgot|reset|redeem)$/, /^\/api\/auth\/invite\/[\w-]+$/, /^\/api\/inbound-email$/, /^\/api\/calendar\/[\w-]+\.ics$/];
 const ADMIN_ONLY = [/^\/api\/settings\/flight-data/, /^\/api\/items\/[^/]+\/simulate-change$/];
 const READS = new Set(["GET", "HEAD"]);
 
@@ -358,7 +363,8 @@ export function guard(req: Request, res: Response, next: NextFunction) {
     }
     if (host !== req.get("host") && host !== req.get("x-forwarded-host")) return void res.status(403).json({ error: "Request blocked" });
   }
-  if (PUBLIC.some((re) => re.test(path))) return next();
+  // Asking who's signed in is open to anyone; changing your account (PATCH /api/auth/me) needs you signed in.
+  if (PUBLIC.some((re) => re.test(path)) && !(path === "/api/auth/me" && !READS.has(req.method))) return next();
 
   const user = userOf(req);
   if (!user) return void res.status(401).json({ error: "Please sign in to Estela", signIn: true });
@@ -374,8 +380,8 @@ export function guard(req: Request, res: Response, next: NextFunction) {
     const role = tripRole(user, trip);
     if (!role) return void res.status(404).json({ error: "Not found" });
     if (scoped?.ownerOnly && role !== "owner") return void res.status(403).json({ error: "Only the trip's owner can do that" });
-    // Asking Estela a question (the chat) changes nothing, so viewers can too.
-    if (!READS.has(req.method) && !canEdit(role) && !/^\/api\/trips\/[^/]+\/chat$/.test(path)) return void res.status(403).json({ error: "You can view this trip but not change it" });
+    // Asking Estela a question (the chat) or getting your own calendar link changes nothing on the trip, so viewers can too.
+    if (!READS.has(req.method) && !canEdit(role) && !/^\/api\/trips\/[^/]+\/(chat|calendar)$/.test(path)) return void res.status(403).json({ error: "You can view this trip but not change it" });
     res.locals.role = role;
   }
   next();

@@ -4,6 +4,7 @@ import { api } from "../api.ts";
 import { formatDay, formatTime, formatTimeOn } from "../format.ts";
 import AirportSelect from "./AirportSelect.tsx";
 import PriceField, { priceValue, toMoney } from "./PriceField.tsx";
+import SplitFields, { useSharers, type Split } from "./SplitFields.tsx";
 
 type FlightDraft = Extract<DraftItem, { kind: "flight" }>;
 
@@ -76,12 +77,14 @@ function LegCard({ leg }: { leg: FlightScheduleLeg }) {
 export default function FlightForm({
   initial,
   defaultDate,
+  tripId,
   submitLabel,
   onSubmit,
   onCancel,
 }: {
   initial?: Partial<FlightDraft>;
   defaultDate?: string;
+  tripId?: string; // for splitting its cost between the people on the trip
   submitLabel: string;
   onSubmit: (item: DraftItem) => Promise<void> | void;
   onCancel: () => void;
@@ -102,7 +105,10 @@ export default function FlightForm({
     arrivalTime: initial?.arrivalTime?.slice(0, 16) ?? "",
   });
   const [extra, setExtra] = useState({ seat: initial?.seat ?? "", confirmationCode: initial?.confirmationCode ?? "", notes: initial?.notes ?? "" });
+  const [bags, setBags] = useState({ cabin: initial?.baggage?.cabin ?? "", checked: initial?.baggage?.checked ?? "" });
   const [price, setPrice] = useState(() => priceValue(initial?.price));
+  const sharers = useSharers(tripId);
+  const [split, setSplit] = useState<Split>(initial?.paidBy && initial.split?.length ? { paidBy: initial.paidBy, split: initial.split } : null);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -159,8 +165,11 @@ export default function FlightForm({
         arrivalTime: detail.arrivalTime || undefined,
         airline: detail.airline || undefined,
         ...extra,
+        baggage: bags.cabin.trim() || bags.checked.trim() ? { cabin: bags.cabin.trim() || undefined, checked: bags.checked.trim() || undefined } : undefined,
         emailId: initial?.emailId,
         price: toMoney(price) ?? null,
+        paidBy: toMoney(price) && split ? split.paidBy : null,
+        split: toMoney(price) && split ? split.split : null,
         ...(initial?.links ? { links: initial.links } : {}),
         ...(initial?.attachments ? { attachments: initial.attachments } : {}),
       } as FlightDraft);
@@ -316,11 +325,14 @@ export default function FlightForm({
       {mode !== "suggest" && (
         <div className="grid2">
           <label>Seat<input value={extra.seat} onChange={(e) => setExtra((x) => ({ ...x, seat: e.target.value }))} /></label>
+          <label>Cabin bag<input value={bags.cabin} placeholder="e.g. 1 × 10 kg" onChange={(e) => setBags((b) => ({ ...b, cabin: e.target.value }))} /></label>
+          <label>Checked bags<input value={bags.checked} placeholder="e.g. 1 × 23 kg, or None" onChange={(e) => setBags((b) => ({ ...b, checked: e.target.value }))} /></label>
           <label>Booking ref<input value={extra.confirmationCode} onChange={(e) => setExtra((x) => ({ ...x, confirmationCode: e.target.value }))} /></label>
           <PriceField value={price} onChange={setPrice} />
           <label>Notes<input value={extra.notes} onChange={(e) => setExtra((x) => ({ ...x, notes: e.target.value }))} /></label>
         </div>
       )}
+      {mode !== "suggest" && toMoney(price) && <SplitFields people={sharers} value={split} onChange={setSplit} />}
 
       {error && <p className="error">{error}</p>}
       <div className="actions">

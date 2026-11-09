@@ -18,8 +18,11 @@ const CHOICES: { key: DayAdd; label: string; icon: LucideIcon }[] = [
   { key: "flight", label: "Flight", icon: Plane },
 ];
 
-/** A quiet line at the end of a day: pointing at it shows a +, which opens what you can add. Pressing + again closes it. */
-export function DayAddMenu({ day, label, extra, onPick }: { day: string; label: string; extra: boolean; onPick: (what: DayAdd) => void }) {
+/**
+ * A quiet line at the end of a day, and between its cards: pointing at it shows a +, which opens what you can add.
+ * Pressing + again closes it. `between`: the thinner line between two cards.
+ */
+export function DayAddMenu({ day, label, extra, between, onPick }: { day: string; label: string; extra: boolean; between?: boolean; onPick: (what: DayAdd) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -35,7 +38,7 @@ export function DayAddMenu({ day, label, extra, onPick }: { day: string; label: 
   }, [open]);
   const choices = CHOICES.filter((c) => extra || (c.key !== "stay" && c.key !== "flight"));
   return (
-    <div className={`day-add-line edit-only ${open ? "open" : ""}`} ref={ref}>
+    <div className={`day-add-line edit-only ${between ? "between" : ""} ${open ? "open" : ""}`} ref={ref}>
       <button
         type="button"
         className="day-add-plus"
