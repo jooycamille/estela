@@ -1335,3 +1335,17 @@ a.button:not(.secondary):hover { background: var(--btn-gradient-hover); }
 .booking-split-form { flex: 1 1 100%; display: grid; gap: 8px; padding: 4px 0 6px; }
 .booking-split-form .split-fields { margin: 0; }
 @media (hover: hover) { .largest li:not(.editing) .booking-split:not(:focus-visible) { opacity: 0; transition: opacity 0.15s; } .largest li:hover .booking-split { opacity: 1; } }
+
+/* ---------- Trip card ⋯ menu (edit, delete or leave without opening the trip) ---------- */
+.trip-card-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.trip-card-wrap .trip-card { flex: 1; min-width: 0; }
+.trip-card-wrap .trip-card-head { padding-right: 34px; } /* room for the ⋯ beside the tag */
+.trip-menu { position: absolute; top: 12px; right: 10px; z-index: 2; }
+.trip-menu-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: transparent; color: var(--muted); border: none; box-shadow: none; }
+.trip-menu-button:hover:not(:disabled), .trip-menu.open .trip-menu-button, .trip-menu-button:focus-visible { background: var(--accent-soft); color: var(--text); }
+.trip-menu-button svg.lucide { width: 18px; height: 18px; vertical-align: 0; }
+.trip-menu-list { top: calc(100% + 4px); left: auto; right: 0; transform: none; min-width: 170px; }
+.trip-menu-list button.danger { color: var(--danger); }
+.trip-menu-list button.danger svg.lucide { color: var(--danger); }
+/* The open menu reaches past its card (and over the next one). */
+.swipe-row:has(.trip-menu.open) { overflow: visible; z-index: 6; }

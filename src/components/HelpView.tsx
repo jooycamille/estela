@@ -12,7 +12,7 @@ const TOPICS: Topic[] = [
     points: [
       "Tap + New trip on the home page and add where you're going, your dates, who's travelling and the kind of trip it is.",
       "Travelling with different people at different times? Edit the trip and split it into parts, each with its own dates and companions.",
-      "To change or delete a trip, open it and use Edit, or the bin beside it. On a phone you can also swipe a trip on the home page.",
+      "To change or delete a trip without opening it, use the ⋯ on its card (or, on a phone, swipe the card left). Inside a trip, use Edit or the bin beside it.",
     ],
   },
   {

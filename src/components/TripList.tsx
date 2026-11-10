@@ -5,6 +5,7 @@ import { partySummary } from "../parts.ts";
 import { flag } from "./PlaceSelect.tsx";
 import SwipeActions from "./SwipeActions.tsx";
 import TripForm from "./TripForm.tsx";
+import TripMenu from "./TripMenu.tsx";
 import { LogOut, Pencil, Plane, Trash2, Users } from "lucide-react";
 
 const tomorrowOf = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400_000).toISOString().slice(0, 10);
@@ -141,6 +142,7 @@ export default function TripList() {
           </>
         }
       >
+        <div className="trip-card-wrap">
         <a href={`#/trip/${t.id}`} className={`card trip-card ${status}`}>
           <div className={`trip-flags ${countries.length > 3 ? "many" : ""}`} aria-hidden="true">
             {countries.length ? countries.slice(0, 4).map((cc) => <span key={cc}>{flag(cc)}</span>) : <span><Plane /></span>}
@@ -165,6 +167,8 @@ export default function TripList() {
             )}
           </div>
         </a>
+        <TripMenu name={t.name} canEdit={t.role !== "viewer"} owner={t.role === "owner"} onEdit={() => setEditing(t)} onRemove={() => remove(t)} />
+        </div>
       </SwipeActions>
     );
   }
