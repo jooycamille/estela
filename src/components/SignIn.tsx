@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Me } from "../api.ts";
+import * as sb from "../supabaseAuth.ts";
 import { Wordmark } from "./Logo.tsx";
 
 type Mode = "signin" | "signup" | "forgot";
@@ -13,11 +14,15 @@ export default function SignIn({
   links,
   claimHere,
   emailReset,
+  supabase = false,
+  linkError,
   onSignedIn,
 }: {
   links: AuthLinks;
   claimHere: boolean;
   emailReset: boolean;
+  supabase?: boolean; // signing in with Supabase Auth (see src/supabaseAuth.ts)
+  linkError?: string; // a link from an email that didn't work
   onSignedIn: (user: Me, tripId?: string) => void;
 }) {
   const [mode, setMode] = useState<Mode>(links.invite || claimHere ? "signup" : "signin");
@@ -25,7 +30,7 @@ export default function SignIn({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | undefined>(linkError);
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
   const used = useRef(false);
@@ -85,7 +90,10 @@ export default function SignIn({
         <Wordmark />
         <h1>Choose a new password</h1>
         {error && <p className="error">{error}</p>}
-        <form className="auth-form" onSubmit={submit(async () => onSignedIn((await api.reset(links.reset!, password)).user))}>
+        <form
+          className="auth-form"
+          onSubmit={submit(async () => onSignedIn(supabase ? await sb.setNewPassword(password) : (await api.reset(links.reset!, password)).user))}
+        >
           <label>
             New password
             <input type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -126,7 +134,7 @@ export default function SignIn({
       {notice && <p className="notice">{notice}</p>}
 
       {mode === "signin" && (
-        <form className="auth-form" onSubmit={submit(async () => done((await api.signIn({ email, password })).user))}>
+        <form className="auth-form" onSubmit={submit(async () => done(supabase ? await sb.signInWithPassword(email, password) : (await api.signIn({ email, password })).user))}>
           <label>
             Email
             <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -143,7 +151,16 @@ export default function SignIn({
       )}
 
       {mode === "signup" && (
-        <form className="auth-form" onSubmit={submit(async () => done((await api.signUp({ name, email, password })).user))}>
+        <form
+          className="auth-form"
+          onSubmit={submit(async () => {
+            if (!supabase) return done((await api.signUp({ name, email, password })).user);
+            const r = await sb.signUp(name.trim(), email, password, links.invite);
+            if (r !== "confirm") return done(r);
+            setPassword("");
+            setNotice(`Almost there: we've sent a link to ${email}. Open it to confirm your email and finish creating your account${invite ? `, then you'll join ${invite.tripName}` : ""}.`);
+          })}
+        >
           <label>
             Your name
             <input autoComplete="name" required maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder="How travel companions will see you" />
@@ -165,9 +182,10 @@ export default function SignIn({
         <form
           className="auth-form"
           onSubmit={submit(async () => {
-            await api.forgot(email);
+            if (supabase) await sb.sendReset(email);
+            else await api.forgot(email);
             setNotice(
-              emailReset
+              supabase || emailReset
                 ? "If there's an account with that email, we've sent a link to reset your password. It works for 1 hour."
                 : "If there's an account with that email, a reset link was made. Email isn't set up yet, so it's shown in the Terminal where Estela is running.",
             );

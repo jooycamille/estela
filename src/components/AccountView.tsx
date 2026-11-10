@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, signOutHere, type Device, type Me } from "../api.ts";
 import QrLink from "./QrLink.tsx";
+import * as sb from "../supabaseAuth.ts";
 
 const ZONES: string[] = (() => {
   try {
@@ -16,6 +17,9 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
   const [email, setEmail] = useState(me.email ?? "");
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
+  const [emailPassword, setEmailPassword] = useState(""); // with Supabase: a new email needs your password
+  const viaSupabase = sb.supabaseOn();
+  const emailChanged = email.trim().toLowerCase() !== (me.email ?? "");
   const [saved, setSaved] = useState<string>();
   const [devices, setDevices] = useState<Device[]>([]);
   const [link, setLink] = useState<{ url: string; expiresInMinutes: number }>();
@@ -40,6 +44,15 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
             e.preventDefault();
             setError(undefined);
             try {
+              if (viaSupabase) {
+                if (name.trim() !== me.name) onChanged((await api.updateMe({ name: name.trim() })).user);
+                if (emailChanged && me.email) {
+                  await sb.changeEmail(email.trim(), me.email, emailPassword);
+                  setEmailPassword("");
+                  return setSaved(`Almost done: we've sent a link to ${email.trim()}. Your email changes once you open it.`);
+                }
+                return setSaved("Saved.");
+              }
               onChanged((await api.updateMe({ name: name.trim(), email: email.trim() || undefined })).user);
               setSaved("Saved.");
             } catch (err) {
@@ -55,7 +68,18 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
             Email <span className="muted tiny">(to sign in, and to reset your password)</span>
             <input type="email" value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
           </label>
-          <button type="submit" disabled={!name.trim() || (name.trim() === me.name && email.trim() === (me.email ?? ""))}>Save</button>
+          {viaSupabase && emailChanged && me.email && (
+            <label>
+              Your password <span className="muted tiny">(to change your email)</span>
+              <input type="password" autoComplete="current-password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} />
+            </label>
+          )}
+          <button
+            type="submit"
+            disabled={!name.trim() || (viaSupabase && !email.trim()) || (name.trim() === me.name && !emailChanged) || (viaSupabase && emailChanged && !!me.email && !emailPassword)}
+          >
+            Save
+          </button>
         </form>
       </section>
 
@@ -88,7 +112,8 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
             e.preventDefault();
             setError(undefined);
             try {
-              await api.changePassword(me.hasPassword ? current : undefined, password);
+              if (viaSupabase && me.email) await sb.changePassword(me.email, current, password);
+              else await api.changePassword(me.hasPassword ? current : undefined, password);
               onChanged({ ...me, hasPassword: true });
               setCurrent("");
               setPassword("");

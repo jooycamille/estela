@@ -2,6 +2,7 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import type { Trip, TripRole, User } from "../shared/types.ts";
 import { db, newId, now, save, type InviteRecord, type UserRecord } from "./db.ts";
+import type { SupabaseIdentity } from "./supabaseAuth.ts";
 
 // Accounts and access. Anyone can create an account (name, email, password); each account sees only its own trips
 // and the trips it's been invited to. The app's settings (flight-data API keys) belong to the owner of Estela: the
@@ -204,6 +205,46 @@ export async function changePassword(req: Request, user: UserRecord, current: st
   return undefined;
 }
 
+// ---------- Supabase Auth ----------
+
+/**
+ * Signed in with Supabase (see server/supabaseAuth.ts): the Estela account for that identity, starting a session.
+ * The first time, an existing account with the same email is linked to it (that's how accounts made before Supabase
+ * carry on, trips and all), but only once Supabase has confirmed the email, so nobody can take over an account by
+ * signing up with someone else's address. Signing up on the Mac running Estela while nobody owns it claims it.
+ */
+export function signInWithIdentity(req: Request, res: Response, identity: SupabaseIdentity, name?: string): AuthResult {
+  const who = { ...identity, email: normaliseEmail(identity.email) };
+  if (!who.confirmed) return { status: 403, error: "Confirm your email first: open the link we sent you." };
+  let user = db.users.find((u) => u.authId === who.id);
+  if (!user) {
+    const sameEmail = findByEmail(who.email);
+    if (sameEmail?.authId && sameEmail.authId !== who.id) return { status: 409, error: "That email belongs to another account." };
+    const placeholder = ownerPlaceholder();
+    if (sameEmail) user = sameEmail;
+    else if (placeholder && onThisMac(req)) {
+      Object.assign(placeholder, { name: name || who.name || placeholder.name, claimedAt: now(), tourPending: true });
+      user = placeholder;
+    } else {
+      user = { id: newId(), name: name || who.name || who.email.split("@")[0].slice(0, 40), isAdmin: false, tourPending: true, createdAt: now() };
+      db.users.push(user);
+    }
+    user.authId = who.id;
+  }
+  // Supabase holds the password now, and the email (changed there, after confirming the new one).
+  delete user.passwordHash;
+  user.email = who.email;
+  startSession(req, res, user);
+  return { user };
+}
+
+/** After a password change or reset: every other device is signed out (in case someone else knew the old one). */
+export function signOutOtherDevices(req: Request, user: UserRecord) {
+  const keep = currentSessionId(req);
+  db.sessions = db.sessions.filter((s) => s.userId !== user.id || s.id === keep);
+  save();
+}
+
 // ---------- One-time links ----------
 
 /** A one-time link's secret (only its hash is kept). A new link of the same kind replaces the old one. */
@@ -340,7 +381,7 @@ export function canSeeAttachment(user: User, attachmentId: string) {
   );
 }
 
-const PUBLIC = [/^\/api\/auth\/(me|signup|signin|forgot|reset|redeem)$/, /^\/api\/auth\/invite\/[\w-]+$/, /^\/api\/inbound-email$/, /^\/api\/calendar\/[\w-]+\.ics$/];
+const PUBLIC = [/^\/api\/auth\/(me|signup|signin|forgot|reset|redeem|supabase)$/, /^\/api\/auth\/invite\/[\w-]+$/, /^\/api\/inbound-email$/, /^\/api\/calendar\/[\w-]+\.ics$/];
 const ADMIN_ONLY = [/^\/api\/settings\/flight-data/, /^\/api\/items\/[^/]+\/simulate-change$/];
 const READS = new Set(["GET", "HEAD"]);
 

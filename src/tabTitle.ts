@@ -1,8 +1,8 @@
-// The browser tab's title: "Estela", then "— Your journey, composed." typed in once when the app opens (never again,
+// The browser tab's title: "Estela", then "— Craft your perfect journey." typed in once when the app opens (never again,
 // and never on a loop). With reduced motion on, the whole title is just there.
 
 const NAME = "Estela";
-const TAGLINE = " — Your journey, composed.";
+const TAGLINE = " — Craft your perfect journey.";
 
 export function introduceTabTitle() {
   const full = NAME + TAGLINE;

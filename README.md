@@ -1,8 +1,8 @@
-<img src="public/brand/estela-logo-tagline.svg" alt="Estela — Your journey, composed." height="96">
+<img src="public/brand/estela-logo-tagline.svg" alt="Estela — Craft your perfect journey." height="96">
 
 # Estela
 
-*Your journey, composed.*
+*Craft your perfect journey.*
 
 ## Brand
 
@@ -11,7 +11,7 @@
 | File | Use |
 |---|---|
 | `estela-logo.svg` / `-dark.svg` | Wordmark for light / dark backgrounds |
-| `estela-logo-tagline.svg` / `-dark.svg` | Wordmark with "Your journey, composed." |
+| `estela-logo-tagline.svg` / `-dark.svg` | Wordmark with "Craft your perfect journey." |
 | `estela-mark.svg`, `estela-mark-512.png` | Icon only (also the favicon) |
 | `estela-app-icon.svg`, `estela-app-icon-1024.png`, `apple-touch-icon.png` | App/home-screen icon |
 
@@ -277,6 +277,22 @@ Everyone has their own account (name, email, password) and sees **only their own
 - **HTTPS:** run it behind HTTPS (your host's proxy).
 - **Your data:** keep `data/` on persistent storage. It holds `db.json` with accounts and trips, plus uploaded tickets.
 - **Claiming it:** at first start, open the owner link from the log to claim it.
+
+## Supabase (optional)
+
+Estela can keep its data, files and sign-in in a [Supabase](https://supabase.com) project instead of on this computer. Without the settings below, it works as described above, from `data/`.
+
+- **Data:** trips, bookings, lists, accounts and the rest go in Postgres tables, one per kind (`supabase/migrations/0001_estela_store.sql`). The server still works from memory: it loads everything at start and writes only what changed, a moment after each change (`server/supabaseStore.ts`).
+- **Files:** tickets, vouchers and your place photos go in a private Storage bucket (`0002_attachments_bucket.sql`). This computer keeps a copy as a cache, and a missing file is fetched back (`server/fileStore.ts`).
+- **Sign-in:** Supabase Auth holds passwords and sends the confirmation and reset emails. The page signs in with Supabase, then hands the server its token; the server checks it with Supabase and starts Estela's own session cookie (`server/supabaseAuth.ts`, `src/supabaseAuth.ts`). An account from before is linked by email the first time its owner signs in, once Supabase has confirmed that email. Device and owner links, and trip invites, work as before. Estela's own password routes are closed.
+- **Who can read what:** only Estela's server, with the secret key. Every table has row-level security on and no policies, and the browser's publishable key has no access to them or to the bucket. The browser only ever talks to Supabase to sign in.
+
+**Setting it up:**
+1. Run the two files in `supabase/migrations` in the project (SQL editor, or the Supabase CLI).
+2. In **Authentication → URL Configuration**, set the Site URL to Estela's address (`PUBLIC_URL`, or `http://localhost:3001`) and add it, with `/**`, to the Redirect URLs.
+3. For emails to anyone outside your Supabase organization, add an email service under **Authentication → Emails → SMTP** (Resend works).
+4. Put `SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` in `.env` (see `.env.example`). `ENV_FILE=.env.dev` picks another file, e.g. for a test project.
+5. **Copying your trips over** (once, into a project with no trips yet): stop Estela, then `ENV_FILE=.env npx tsx scripts/import-to-supabase.ts` for a dry run, and again with `--go`. `data/db.json` isn't changed: keep it as a backup. Everyone then signs in with Supabase (the first time, with **Create account** or **Forgot password?**, using the same email as before).
 
 ## Keeping private data out of this repo
 

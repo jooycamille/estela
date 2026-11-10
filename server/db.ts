@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { InboxEmail, ItineraryItem, StoredAttachment, Trip, TripList, User } from "../shared/types.ts";
+import { flushNow, loadStore, scheduleWrite, supabaseConfigured } from "./supabaseStore.ts";
 
 /** Server-side inbox record, including the credentials the client never sees. */
 export interface InboxRecord {
@@ -26,7 +27,8 @@ export interface AttachmentRecord extends StoredAttachment {
 
 /** A person as stored: never sent to the browser as is (the password hash stays here). */
 export interface UserRecord extends User {
-  passwordHash?: string; // scrypt; see server/auth.ts
+  passwordHash?: string; // scrypt; see server/auth.ts (not used once Supabase Auth is on: Supabase holds passwords)
+  authId?: string; // the Supabase Auth user this account signs in as
   placeholder?: boolean; // invited to a trip, hasn't created their account yet
   calendarTokens?: Record<string, string>; // trip id → the secret in your private calendar link for it
 }
@@ -60,7 +62,7 @@ export interface PushRecord {
 }
 
 // A tiny JSON-file store. Swap for Postgres/SQLite when you need multi-user.
-interface Data {
+export interface Data {
   trips: Trip[];
   items: ItineraryItem[];
   inboxes: InboxRecord[];
@@ -76,18 +78,26 @@ interface Data {
 const DB_PATH = resolve(process.env.DB_PATH ?? "data/db.json");
 
 function load(): Data {
-  const empty: Data = { trips: [], items: [], inboxes: [], attachments: [], lists: [], users: [], sessions: [], invites: [], pushSubs: [], remindersSent: [] };
   try {
-    return { ...empty, ...(JSON.parse(readFileSync(DB_PATH, "utf8")) as Partial<Data>) };
+    return { ...EMPTY(), ...(JSON.parse(readFileSync(DB_PATH, "utf8")) as Partial<Data>) };
   } catch {
-    return empty;
+    return EMPTY();
   }
 }
 
-export const db: Data = load();
-export const DATA_DIR = dirname(DB_PATH);
+// With Supabase set up (SUPABASE_URL and SUPABASE_SECRET_KEY in .env), the data lives there; else in data/db.json.
+const useSupabase = supabaseConfigured();
+const EMPTY = (): Data => ({ trips: [], items: [], inboxes: [], attachments: [], lists: [], users: [], sessions: [], invites: [], pushSubs: [], remindersSent: [] });
+
+export const db: Data = useSupabase ? ((await loadStore(EMPTY() as never)) as unknown as Data) : load();
+export const DATA_DIR = dirname(DB_PATH); // caches (weather, routes…) stay on this computer either way
+if (useSupabase) console.log(`Data: Supabase (${new URL(process.env.SUPABASE_URL!).host})`);
+
+/** Waits for changes still on their way to Supabase (before the server stops). */
+export const flushSaves = () => (useSupabase ? flushNow(db as never) : Promise.resolve());
 
 export function save() {
+  if (useSupabase) return scheduleWrite(db as never);
   mkdirSync(dirname(DB_PATH), { recursive: true });
   const tmp = `${DB_PATH}.tmp`;
   writeFileSync(tmp, JSON.stringify(db, null, 2));

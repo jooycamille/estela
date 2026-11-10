@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type ConnectionState, type Me } from "./api.ts";
 import AccountView from "./components/AccountView.tsx";
 import SignIn, { JoinTrip } from "./components/SignIn.tsx";
+import { emailLinkInAddress, finishEmailLink, setSupabaseConfig, takePendingInvite } from "./supabaseAuth.ts";
 import TripDetail from "./components/TripDetail.tsx";
 import TripList from "./components/TripList.tsx";
 import FlightDataSettings from "./components/FlightDataSettings.tsx";
@@ -62,13 +63,39 @@ export default function App() {
   const { tripId, tripView, settings, account, help, links } = useRoute();
   // Who's signed in: undefined while checking, null when signed out.
   const [me, setMe] = useState<Me | null>();
-  const [auth, setAuth] = useState({ claimHere: false, emailReset: false });
+  const [auth, setAuth] = useState({ claimHere: false, emailReset: false, supabase: false });
+  // Opened from a link in one of Supabase's emails (confirming an account or email, or resetting a password).
+  const [emailLink] = useState(emailLinkInAddress);
+  const [choosePassword, setChoosePassword] = useState(false);
+  const [linkError, setLinkError] = useState<string>();
   useEffect(() => {
     api
       .me()
-      .then((r) => {
+      .then(async (r) => {
+        setSupabaseConfig(r.supabase);
+        setAuth({ claimHere: r.claimHere, emailReset: r.emailReset, supabase: !!r.supabase });
+        if (emailLink && r.supabase) {
+          if (emailLink.kind === "error") {
+            history.replaceState(null, "", `${location.pathname}#/`);
+            setLinkError(emailLink.error);
+          } else {
+            try {
+              const out = await finishEmailLink(emailLink.kind);
+              if (out === "reset") {
+                setChoosePassword(true);
+                return void setMe(r.user);
+              }
+              // Signed up from an invite: join its trip now the account is confirmed.
+              const invite = takePendingInvite();
+              const joined = invite ? await api.acceptInvite(invite).catch(() => undefined) : undefined;
+              setMe(out);
+              return void location.replace(joined ? `#/trip/${joined.tripId}` : "#/");
+            } catch (e) {
+              setLinkError((e as Error).message);
+            }
+          }
+        }
         setMe(r.user);
-        setAuth({ claimHere: r.claimHere, emailReset: r.emailReset });
       })
       .catch(() => setMe((m) => m ?? null));
     const out = () => setMe(null);
@@ -115,11 +142,21 @@ export default function App() {
       </div>
     );
   }
-  if (me === null || links.link || links.reset) {
+  if (me === null || links.link || links.reset || choosePassword) {
     return (
       <div className="app">
         <main>
-          <SignIn links={links} claimHere={auth.claimHere} emailReset={auth.emailReset} onSignedIn={signedIn} />
+          <SignIn
+            links={choosePassword ? { ...links, reset: "supabase" } : links}
+            claimHere={auth.claimHere}
+            emailReset={auth.emailReset}
+            supabase={auth.supabase}
+            linkError={linkError}
+            onSignedIn={(user, trip) => {
+              setChoosePassword(false);
+              signedIn(user, trip);
+            }}
+          />
         </main>
       </div>
     );
@@ -132,9 +169,9 @@ export default function App() {
         <nav className="topbar-left" aria-label="Main">
           <a href="#/" className="topbar-link">Trips</a>
         </nav>
-        <a href="#/" className="brand" aria-label="Estela, your journey, composed. Home">
+        <a href="#/" className="brand" aria-label="Estela, craft your perfect journey. Home">
           <Wordmark />
-          <span className="brand-tagline" aria-hidden="true">Your journey, composed.</span>
+          <span className="brand-tagline" aria-hidden="true">Craft your perfect journey.</span>
         </a>
         {!status && <span />}
         {status && (

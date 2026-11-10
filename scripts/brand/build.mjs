@@ -55,7 +55,7 @@ function markSvg(size, { bg = INK, fg = IVORY, wake = CHAMPAGNE, radius = 0, ins
 function logoSvg({ dark = false, tagline = false } = {}) {
   const size = 120, pad = 8;
   const name = text(serif, "Estela", pad, pad + size * 0.78, size, 0.01);
-  const tag = tagline ? text(sans, "YOUR JOURNEY, COMPOSED.", pad + 3, pad + size * 0.78 + 46, 20, 0.2) : null;
+  const tag = tagline ? text(sans, "CRAFT YOUR PERFECT JOURNEY.", pad + 3, pad + size * 0.78 + 46, 20, 0.2) : null;
   const width = Math.ceil(Math.max(name.width, tag?.width ?? 0) + pad * 2);
   const height = Math.ceil(pad + size * 0.78 + (tagline ? 62 : 30));
   const fg = dark ? IVORY : INK;

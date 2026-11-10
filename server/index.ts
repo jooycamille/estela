@@ -14,7 +14,8 @@ import { getRates } from "./fx.ts";
 import { prepGroupFor } from "../shared/prepAdd.ts";
 import { buildPrep } from "./prep.ts";
 import { describe, describeEntry, fillPhoto, photoDue, recheckDescription } from "./describe.ts";
-import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signOut, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
+import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signInWithIdentity, signOut, signOutOtherDevices, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
+import { identityOf, supabaseAuthOn, supabasePublic } from "./supabaseAuth.ts";
 import { emailConfigured, sendEmail } from "./mailer.ts";
 import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
 import type { UserRecord } from "./db.ts";
@@ -35,9 +36,10 @@ import { randomBytes } from "node:crypto";
 import { AirLabsError } from "./airlabs.ts";
 import { AviationstackError } from "./aviationstack.ts";
 import { FLIGHT_PROVIDERS, flightServices, saveSettings, settings, usage } from "./settings.ts";
-import { dropEmptyAttachments, getAttachment, MAX_ATTACHMENT_BYTES, pruneAttachments, removeIfUnused, storeAttachment } from "./attachmentStore.ts";
+import { attachmentFile, dropEmptyAttachments, getAttachment, MAX_ATTACHMENT_BYTES, pruneAttachments, removeIfUnused, storeAttachment } from "./attachmentStore.ts";
+import { flushFiles } from "./fileStore.ts";
 import { attachmentsText, relevantAttachments } from "./attachments.ts";
-import { db, itemStart, newId, now, save } from "./db.ts";
+import { db, flushSaves, itemStart, newId, now, save } from "./db.ts";
 import { normaliseFlightNumber, parseEmail } from "./emailParser.ts";
 import { FlightDataError, getProvider, lookupSchedule, serviceProvider, refreshDueFlights, refreshFlight, simulateChange, startFlightPoller } from "./flightStatus.ts";
 import { checkInbox, createInbox, reimportEmail, deleteInbox, getInbox, inboxForRecipients, inboxView, processEmail, startInboxPoller } from "./inbox.ts";
@@ -151,13 +153,47 @@ const validZone = (tz: string) => {
     return false;
   }
 };
-const userView = (u: UserRecord) => ({ id: u.id, name: u.name, email: u.email ?? null, isAdmin: u.isAdmin, hasPassword: !!u.passwordHash, tourPending: !!u.tourPending, homeTimeZone: u.homeTimeZone ?? null });
+const userView = (u: UserRecord) => ({
+  id: u.id,
+  name: u.name,
+  email: u.email ?? null,
+  isAdmin: u.isAdmin,
+  hasPassword: supabaseAuthOn() ? !!u.authId : !!u.passwordHash,
+  tourPending: !!u.tourPending,
+  homeTimeZone: u.homeTimeZone ?? null,
+});
 const fail = (res: Response, r: { error: string; status: number }) => void res.status(r.status).json({ error: r.error });
 
 app.get("/api/auth/me", (req, res) => {
   const user = userOf(req);
   // claimHere: nobody owns Estela yet and this is the Mac it runs on, so signing up here claims it (and its trips).
-  res.json({ user: user ? userView(user) : null, claimHere: !user && needsOwner() && onThisMac(req), emailReset: emailConfigured() });
+  // supabase: where the page signs in, when Supabase Auth is on (a public address and key).
+  res.json({ user: user ? userView(user) : null, claimHere: !user && needsOwner() && onThisMac(req), emailReset: emailConfigured(), supabase: supabasePublic() });
+});
+
+// With Supabase Auth on, passwords are Supabase's: Estela's own password routes are closed (an old password can't be
+// used to get in around it). One-time device and owner links, and invites, carry on as before.
+app.use(["/api/auth/signup", "/api/auth/signin", "/api/auth/forgot", "/api/auth/reset", "/api/auth/password"], (_req, res, next) => {
+  if (!supabaseAuthOn()) return next();
+  res.status(410).json({ error: "Estela now signs in with Supabase. Reload the page and try again." });
+});
+
+// Signed in with Supabase: the page sends its access token; Supabase says whose it is; this device is signed in.
+app.post("/api/auth/supabase", async (req, res) => {
+  if (!supabaseAuthOn()) return void res.status(404).json({ error: "Not available" });
+  if (tooMany(`supabase-ip:${clientAddress(req)}`, 30, 15)) return void res.status(429).json({ error: "Too many attempts. Wait 15 minutes." });
+  const { accessToken, name } = z.object({ accessToken: z.string().min(20).max(4000), name: Name.optional() }).parse(req.body);
+  const who = await identityOf(accessToken);
+  if (!who) return void res.status(401).json({ error: "That sign-in didn't work. Please try again." });
+  const r = signInWithIdentity(req, res, who, name);
+  if ("error" in r) return fail(res, r);
+  res.json({ user: userView(r.user) });
+});
+
+// The password was changed (or reset) with Supabase: sign out every other device, as before.
+app.post("/api/auth/password-changed", (req, res) => {
+  signOutOtherDevices(req, userFrom(res));
+  res.json({ ok: true });
 });
 
 app.post("/api/auth/signup", async (req, res) => {
@@ -229,7 +265,9 @@ app.patch("/api/auth/me", (req, res) => {
   const input = z.object({ name: Name.optional(), email: Email.optional(), homeTimeZone: z.string().max(60).refine(validZone, "Unknown time zone").optional() }).parse(req.body);
   const user = userFrom(res);
   if (input.homeTimeZone) user.homeTimeZone = input.homeTimeZone;
-  if (input.email) {
+  // With Supabase, your email is changed there (it's confirmed from the new address first), then copied here.
+  if (input.email && supabaseAuthOn() && normaliseEmail(input.email) !== user.email) return void res.status(400).json({ error: "Change your email from the Email box, which confirms it first." });
+  if (input.email && !supabaseAuthOn()) {
     const email = normaliseEmail(input.email);
     const taken = findByEmail(email);
     if (taken && taken.id !== user.id) return void res.status(409).json({ error: "Another account uses that email" });
@@ -580,15 +618,17 @@ app.delete("/api/items/:id", (req, res) => {
 
 // ---------- Attachments (tickets, vouchers, itineraries) ----------
 
-app.get("/api/attachments/:id", (req, res) => {
+app.get("/api/attachments/:id", async (req, res) => {
   const a = getAttachment(req.params.id);
   if (!a || !canSeeAttachment(userFrom(res), a.id)) return void res.status(404).json({ error: "File not found" });
+  const file = await attachmentFile(a);
+  if (!file) return void res.status(404).json({ error: "File not found" });
   // Only PDFs and raster images open in the browser; anything else (e.g. HTML/SVG, which could run scripts) downloads.
   const viewable = /^(?:application\/pdf|image\/(?:png|jpe?g|gif|webp))$/i.test(a.contentType);
   res.setHeader("Content-Type", viewable ? a.contentType : "application/octet-stream");
   res.setHeader("Content-Disposition", `${viewable ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(a.filename)}`);
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.sendFile(a.path);
+  res.sendFile(file);
 });
 
 app.post("/api/items/:id/attachments", (req, res) => {
@@ -1637,3 +1677,11 @@ app.listen(port, host, (err?: Error) => {
   if (db.items.map((i) => i.kind === "activity" && addWhereToPlaces(i)).some(Boolean)) save();
   setInterval(fillMissingDescriptions, 30 * 60_000);
 });
+
+// Ctrl+C or a host stopping the server: changes still on their way to Supabase are written first.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    Promise.all([flushSaves(), flushFiles()]).finally(() => process.exit(0));
+    setTimeout(() => process.exit(0), 8000).unref();
+  });
+}

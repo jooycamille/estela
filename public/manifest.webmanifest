@@ -1,7 +1,7 @@
 {
   "name": "Estela",
   "short_name": "Estela",
-  "description": "Your journey, composed: itinerary, live flights, guides and checklists, even offline.",
+  "description": "Craft your perfect journey: itinerary, live flights, guides and checklists, even offline.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -175,7 +175,9 @@ export const api = {
   pushSubscribe: (subscription: PushSubscriptionJSON) => request<{ ok: true }>("/push/subscribe", json("POST", { subscription })),
   pushUnsubscribe: (endpoint: string) => request<void>("/push/unsubscribe", json("POST", { endpoint })),
   pushTest: () => request<{ sent: number }>("/push/test", json("POST")),
-  me: () => request<{ user: Me | null; claimHere: boolean; emailReset: boolean }>("/auth/me"),
+  me: () => request<{ user: Me | null; claimHere: boolean; emailReset: boolean; supabase: { url: string; publishableKey: string } | null }>("/auth/me"),
+  supabaseSession: (accessToken: string, name?: string) => request<{ user: Me }>("/auth/supabase", json("POST", { accessToken, name })),
+  passwordChanged: () => request<{ ok: true }>("/auth/password-changed", json("POST")),
   signUp: (body: { name: string; email: string; password: string }) => request<{ user: Me }>("/auth/signup", json("POST", body)),
   signIn: (body: { email: string; password: string }) => request<{ user: Me }>("/auth/signin", json("POST", body)),
   forgot: (email: string) => request<{ ok: true }>("/auth/forgot", json("POST", { email })),
@@ -256,5 +258,6 @@ export async function saveTripOffline(tripId: string, items: ItineraryItem[], li
 /** Signing out also removes this device's offline copy of your trips. */
 export async function signOutHere() {
   await api.signOut().catch(() => undefined);
+  await (await import("./supabaseAuth.ts")).signOutOfSupabase();
   if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
 }
