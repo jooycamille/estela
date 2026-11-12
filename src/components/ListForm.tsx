@@ -4,10 +4,11 @@ import { listThemeOf, THEME_ICON } from "../icons.ts";
 import Ico from "./Ico.tsx";
 import type { TripList, TripPlace } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import { t } from "../i18n.ts";
 
 const THEMES: { theme: ListTheme; label: string }[] = [
-  { theme: "food", label: "Food" }, { theme: "drinks", label: "Drinks" }, { theme: "sights", label: "Sights" }, { theme: "shopping", label: "Shopping" },
-  { theme: "nature", label: "Nature" }, { theme: "nightlife", label: "Nightlife" }, { theme: "general", label: "Other" },
+  { theme: "food", get label() { return t("Food"); } }, { theme: "drinks", get label() { return t("Drinks"); } }, { theme: "sights", get label() { return t("Sights"); } }, { theme: "shopping", get label() { return t("Shopping"); } },
+  { theme: "nature", get label() { return t("Nature"); } }, { theme: "nightlife", get label() { return t("Nightlife"); } }, { theme: "general", get label() { return t("Other"); } },
 ];
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const keyOf = (p: TripPlace) => `${p.type}|${p.name}|${p.countryCode}`;
@@ -62,18 +63,17 @@ export default function ListForm({
         }
       }}
     >
-      <h3>{initial ? "Edit list" : "New list"}</h3>
+      <h3>{initial ? t("Edit list") : t("New list")}</h3>
       <p className="muted small">
-        Make your own list, like <i>Mexico Eats</i> or <i>Mexico Places</i>. Estela suggests ideas that fit it, finds the places
-        on the map, and helps you plan nearby ones on the same day.
+        {t("Make your own list, like")}{" "}<i>{t("Mexico Eats")}</i>{" "}{t("or")}{" "}<i>{t("Mexico Places")}</i>{t(". Estela suggests ideas that fit it, finds the places on the map, and helps you plan nearby ones on the same day.")}
       </p>
       <div className="grid2">
         <label>
-          Name
-          <input required autoFocus maxLength={60} value={name} placeholder="Mexico Eats" onChange={(e) => setName(e.target.value)} />
+          {t("Name")}
+          <input required autoFocus maxLength={60} value={name} placeholder={t("Mexico Eats")} onChange={(e) => setName(e.target.value)} />
         </label>
         <label>
-          About
+          {t("About")}
           <select
             value={place}
             onChange={(e) => {
@@ -81,7 +81,7 @@ export default function ListForm({
               setPlaceTouched(true);
             }}
           >
-            <option value="">Anywhere on this trip</option>
+            <option value="">{t("Anywhere on this trip")}</option>
             {options.map((o) => (
               <option key={keyOf(o)} value={keyOf(o)}>
                 {o.type === "country" ? o.name : `   ${o.name}`}
@@ -91,7 +91,7 @@ export default function ListForm({
         </label>
       </div>
       <fieldset className="theme-pick">
-        <legend>Type</legend>
+        <legend>{t("Type")}</legend>
         {THEMES.map((o) => (
           <button key={o.theme} type="button" className={`chip ${theme === o.theme ? "on" : ""}`} aria-pressed={theme === o.theme} onClick={() => setChosen(o.theme)}>
             <Ico icon={THEME_ICON[o.theme]} /> {o.label}
@@ -100,8 +100,8 @@ export default function ListForm({
       </fieldset>
       {error && <p className="error">{error}</p>}
       <div className="actions">
-        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" disabled={busy || !name.trim()}>{busy ? "Saving…" : initial ? "Save" : "Create list"}</button>
+        <button type="button" className="ghost" onClick={onCancel}>{t("Cancel")}</button>
+        <button type="submit" disabled={busy || !name.trim()}>{busy ? t("Saving…") : initial ? t("Save") : t("Create list")}</button>
       </div>
     </form>
   );

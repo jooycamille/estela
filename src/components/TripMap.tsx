@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import type { MapPoint, Trip, TripMapData } from "../../shared/types.ts";
 import { api } from "../api.ts";
 import { formatDay } from "../format.ts";
+import { t, tn } from "../i18n.ts";
 
 // The whole trip on a map (OpenStreetMap): where you sleep, what you've booked, places saved in your guides and lists,
 // and the flights between. Pick a day to see just that day, in order.
@@ -11,16 +12,16 @@ import { formatDay } from "../format.ts";
 // What the legend can switch on and off. Saved places (not planned for a day yet) are kept apart from planned ones.
 type Layer = "stay" | "activity" | "planned" | "saved" | "flights";
 const LAYERS: { key: Layer; label: string }[] = [
-  { key: "stay", label: "Stays" },
-  { key: "activity", label: "Booked" },
-  { key: "planned", label: "Planned places" },
-  { key: "saved", label: "Saved, not planned" },
-  { key: "flights", label: "Flights" },
+  { key: "stay", get label() { return t("Stays"); } },
+  { key: "activity", get label() { return t("Booked"); } },
+  { key: "planned", get label() { return t("Planned places"); } },
+  { key: "saved", get label() { return t("Saved, not planned"); } },
+  { key: "flights", get label() { return t("Flights"); } },
 ];
 const layerOf = (p: MapPoint): Layer => (p.kind === "place" ? (p.day ? "planned" : "saved") : p.kind);
 const MANY_SAVED = 15; // more saved places than this start hidden, so the map isn't crowded
 
-const KIND_LABEL: Record<MapPoint["kind"], string> = { stay: "Stay", activity: "Booked", place: "Saved place" };
+const KIND_LABEL: Record<MapPoint["kind"], string> = { get stay() { return t("Stay"); }, get activity() { return t("Booked"); }, get place() { return t("Saved place"); } };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -109,14 +110,14 @@ export default function TripMap({ trip, version, onShowDay }: { trip: Trip; vers
       });
       const popup = document.createElement("div");
       popup.className = "map-popup";
-      popup.innerHTML = `<span class="map-popup-kind">${KIND_LABEL[p.kind]}${p.day ? ` · ${esc(formatDay(p.day))}` : " · not planned yet"}</span><b>${esc(p.title)}</b>${p.sub ? `<span>${esc(p.sub)}</span>` : ""}`;
+      popup.innerHTML = `<span class="map-popup-kind">${KIND_LABEL[p.kind]}${p.day ? ` · ${esc(formatDay(p.day))}` : ` · ${esc(t("not planned yet"))}`}</span><b>${esc(p.title)}</b>${p.sub ? `<span>${esc(p.sub)}</span>` : ""}`;
       const links = document.createElement("div");
       links.className = "map-popup-links";
       if (p.day) {
         const show = document.createElement("button");
         show.type = "button";
         show.className = "link";
-        show.textContent = "Show in itinerary";
+        show.textContent = t("Show in itinerary");
         show.onclick = () => showDay.current(p.day!);
         links.append(show);
       }
@@ -124,7 +125,7 @@ export default function TripMap({ trip, version, onShowDay }: { trip: Trip; vers
       go.href = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`;
       go.target = "_blank";
       go.rel = "noopener noreferrer";
-      go.textContent = "Directions ↗";
+      go.textContent = t("Directions ↗");
       links.append(go);
       popup.append(links);
       L.marker([p.lat, p.lon], { icon, title: p.title, riseOnHover: true }).bindPopup(popup, { closeButton: false }).addTo(g);
@@ -146,9 +147,9 @@ export default function TripMap({ trip, version, onShowDay }: { trip: Trip; vers
   });
 
   return (
-    <section className="trip-map" aria-label="Map of your trip">
-      <div className="map-days categories" role="tablist" aria-label="Show a day">
-        <button role="tab" aria-selected={!day} className={`category ${!day ? "on" : ""}`} onClick={() => setDay(undefined)}>Whole trip</button>
+    <section className="trip-map" aria-label={t("Map of your trip")}>
+      <div className="map-days categories" role="tablist" aria-label={t("Show a day")}>
+        <button role="tab" aria-selected={!day} className={`category ${!day ? "on" : ""}`} onClick={() => setDay(undefined)}>{t("Whole trip")}</button>
         {days.map((d) => (
           <button key={d} role="tab" aria-selected={day === d} className={`category ${day === d ? "on" : ""} ${count(d) ? "" : "quiet-day"}`} onClick={() => setDay(day === d ? undefined : d)}>
             {formatDay(d).replace(",", "")}
@@ -157,14 +158,14 @@ export default function TripMap({ trip, version, onShowDay }: { trip: Trip; vers
       </div>
       <div className="map-box" ref={box} />
       {/* The legend is also the switch: tap a kind to hide it or show it again. */}
-      <div className="map-legend" role="group" aria-label="Show on the map">
+      <div className="map-legend" role="group" aria-label={t("Show on the map")}>
         {LAYERS.filter((l) => layerCount(l.key) > 0).map((l) => (
           <button
             key={l.key}
             type="button"
             className={`map-chip ${hidden.has(l.key) ? "off" : ""}`}
             aria-pressed={!hidden.has(l.key)}
-            title={hidden.has(l.key) ? `Show ${l.label.toLowerCase()}` : `Hide ${l.label.toLowerCase()}`}
+            title={hidden.has(l.key) ? t("Show {v1}", { v1: l.label.toLowerCase() }) : t("Hide {v1}", { v1: l.label.toLowerCase() })}
             onClick={() => toggle(l.key)}
           >
             {l.key === "flights" ? <i className="map-line" aria-hidden="true" /> : <i className={`map-pin ${l.key === "planned" || l.key === "saved" ? "place" : l.key}${l.key === "saved" ? " unplanned" : ""}`} aria-hidden="true" />}
@@ -174,11 +175,11 @@ export default function TripMap({ trip, version, onShowDay }: { trip: Trip; vers
         ))}
       </div>
       {error && <p className="error">{error}</p>}
-      {!data && !error && <p className="muted small">Finding your places…</p>}
-      {data && day && shown.points.length === 0 && shown.flights.length === 0 && <p className="muted small">Nothing with a place on {formatDay(day)} yet.</p>}
+      {!data && !error && <p className="muted small">{t("Finding your places…")}</p>}
+      {data && day && shown.points.length === 0 && shown.flights.length === 0 && <p className="muted small">{t("Nothing with a place on {formatDay} yet.", { formatDay: formatDay(day) })}</p>}
       {data && data.missing > 0 && (
         <p className="muted small">
-          {data.missing} booking{data.missing === 1 ? " isn't" : "s aren't"} on the map: pick the place when you edit {data.missing === 1 ? "it" : "them"} (the Where or address field) and {data.missing === 1 ? "it" : "they"}'ll appear here.
+          {tn(data.missing, "{n} booking isn't on the map: pick the place when you edit it (the Where or address field) and it'll appear here.", "{n} bookings aren't on the map: pick the place when you edit them (the Where or address field) and they'll appear here.")}
         </p>
       )}
     </section>

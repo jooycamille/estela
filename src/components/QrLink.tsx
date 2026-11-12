@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
+import { t } from "../i18n.ts";
 
 /** A one-time sign-in link: a QR code to scan with a phone camera, plus Copy and Share (Messages, WhatsApp…). */
 export default function QrLink({ url, title, note }: { url: string; title: string; note: string }) {
@@ -11,11 +12,11 @@ export default function QrLink({ url, title, note }: { url: string; title: strin
 
   return (
     <div className="qr-link">
-      {qr && <img src={qr} width={180} height={180} alt={`QR code: ${title}`} />}
+      {qr && <img src={qr} width={180} height={180} alt={t("QR code: {title}", { title })} />}
       <div className="qr-link-body">
         <b>{title}</b>
         <p className="muted small">{note}</p>
-        <input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Sign-in link" />
+        <input readOnly value={url} onFocus={(e) => e.target.select()} aria-label={t("Sign-in link")} />
         <div className="actions left">
           <button
             type="button"
@@ -26,11 +27,11 @@ export default function QrLink({ url, title, note }: { url: string; title: strin
               setTimeout(() => setCopied(false), 2000);
             }}
           >
-            {copied ? "Copied ✓" : "Copy link"}
+            {copied ? t("Copied ✓") : t("Copy link")}
           </button>
           {"share" in navigator && (
             <button type="button" className="ghost" onClick={() => navigator.share({ title: "Estela", text: title, url }).catch(() => undefined)}>
-              Share…
+              {t("Share…")}
             </button>
           )}
         </div>

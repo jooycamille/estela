@@ -1,4 +1,5 @@
-// Phrases worth knowing in the places you're going, when the language isn't yours (the app is in English).
+import { tv, tx } from "./i18n.ts";
+// Phrases worth knowing in the places you're going, when the language isn't yours (the app's language).
 // A short, practical set per language, each with how it sounds; languages in another script also show it in Latin letters.
 // Each language links to its Wikivoyage phrasebook for more.
 
@@ -7,9 +8,9 @@ export type Phrase = { en: string; say: string; sound?: string; like?: string; n
 
 /** The phrases, in this order, for every language. */
 export const PHRASE_KEYS = [
-  "Hello", "Please", "Thank you", "Yes / No", "Excuse me", "Sorry", "Do you speak English?", "I don't understand",
-  "How much is it?", "Where is the toilet?", "The bill, please", "A table for two, please", "I'm allergic to …",
-  "Help!", "Please call an ambulance", "Goodbye",
+  tx("Hello"), tx("Please"), tx("Thank you"), tx("Yes / No"), tx("Excuse me"), tx("Sorry"), tx("Do you speak English?"), tx("I don't understand"),
+  tx("How much is it?"), tx("Where is the toilet?"), tx("The bill, please"), tx("A table for two, please"), tx("I'm allergic to …"),
+  tx("Help!"), tx("Please call an ambulance"), tx("Goodbye"),
 ] as const;
 
 type Row = [say: string, sound?: string, note?: string];
@@ -17,61 +18,61 @@ type Row = [say: string, sound?: string, note?: string];
 const P: Record<string, Row[]> = {
   es: [["Hola"], ["Por favor"], ["Gracias"], ["Sí / No"], ["Disculpe"], ["Lo siento"], ["¿Habla inglés?"], ["No entiendo"],
     ["¿Cuánto cuesta?"], ["¿Dónde está el baño?"], ["La cuenta, por favor"], ["Una mesa para dos, por favor"],
-    ["Soy alérgico a …", undefined, "alérgica if you're a woman"], ["¡Ayuda!"], ["Llame a una ambulancia, por favor"], ["Adiós"]],
-  pt: [["Olá"], ["Por favor"], ["Obrigado", undefined, "Obrigada if you're a woman"], ["Sim / Não"], ["Com licença"], ["Desculpe"],
-    ["Você fala inglês?"], ["Não entendo"], ["Quanto custa?"], ["Onde fica o banheiro?", undefined, "In Portugal: a casa de banho"],
-    ["A conta, por favor"], ["Uma mesa para dois, por favor"], ["Sou alérgico a …", undefined, "alérgica if you're a woman"],
+    ["Soy alérgico a …", undefined, tx("alérgica if you're a woman")], ["¡Ayuda!"], ["Llame a una ambulancia, por favor"], ["Adiós"]],
+  pt: [["Olá"], ["Por favor"], ["Obrigado", undefined, tx("Obrigada if you're a woman")], ["Sim / Não"], ["Com licença"], ["Desculpe"],
+    ["Você fala inglês?"], ["Não entendo"], ["Quanto custa?"], ["Onde fica o banheiro?", undefined, tx("In Portugal: a casa de banho")],
+    ["A conta, por favor"], ["Uma mesa para dois, por favor"], ["Sou alérgico a …", undefined, tx("alérgica if you're a woman")],
     ["Socorro!"], ["Chame uma ambulância, por favor"], ["Tchau"]],
   fr: [["Bonjour"], ["S'il vous plaît"], ["Merci"], ["Oui / Non"], ["Excusez-moi"], ["Pardon"], ["Vous parlez anglais ?"],
     ["Je ne comprends pas"], ["C'est combien ?"], ["Où sont les toilettes ?"], ["L'addition, s'il vous plaît"],
     ["Une table pour deux, s'il vous plaît"], ["Je suis allergique à …"], ["Au secours !"], ["Appelez une ambulance, s'il vous plaît"], ["Au revoir"]],
-  it: [["Buongiorno", undefined, "Ciao with friends"], ["Per favore"], ["Grazie"], ["Sì / No"], ["Mi scusi"], ["Mi dispiace"],
+  it: [["Buongiorno", undefined, tx("Ciao with friends")], ["Per favore"], ["Grazie"], ["Sì / No"], ["Mi scusi"], ["Mi dispiace"],
     ["Parla inglese?"], ["Non capisco"], ["Quanto costa?"], ["Dov'è il bagno?"], ["Il conto, per favore"],
-    ["Un tavolo per due, per favore"], ["Sono allergico a …", undefined, "allergica if you're a woman"], ["Aiuto!"],
+    ["Un tavolo per due, per favore"], ["Sono allergico a …", undefined, tx("allergica if you're a woman")], ["Aiuto!"],
     ["Chiami un'ambulanza, per favore"], ["Arrivederci"]],
-  de: [["Guten Tag", undefined, "Hallo is fine too"], ["Bitte"], ["Danke"], ["Ja / Nein"], ["Entschuldigung"], ["Es tut mir leid"],
+  de: [["Guten Tag", undefined, tx("Hallo is fine too")], ["Bitte"], ["Danke"], ["Ja / Nein"], ["Entschuldigung"], ["Es tut mir leid"],
     ["Sprechen Sie Englisch?"], ["Ich verstehe nicht"], ["Was kostet das?"], ["Wo ist die Toilette?"], ["Die Rechnung, bitte"],
     ["Einen Tisch für zwei, bitte"], ["Ich bin allergisch gegen …"], ["Hilfe!"], ["Rufen Sie bitte einen Krankenwagen"], ["Auf Wiedersehen"]],
   nl: [["Hallo"], ["Alstublieft"], ["Dank u wel"], ["Ja / Nee"], ["Pardon"], ["Sorry"], ["Spreekt u Engels?"], ["Ik begrijp het niet"],
     ["Hoeveel kost het?"], ["Waar is het toilet?"], ["Mag ik de rekening?"], ["Een tafel voor twee, alstublieft"],
     ["Ik ben allergisch voor …"], ["Help!"], ["Bel een ambulance, alstublieft"], ["Tot ziens"]],
   ja: [["こんにちは", "konnichiwa"], ["お願いします", "onegaishimasu"], ["ありがとうございます", "arigatō gozaimasu"], ["はい / いいえ", "hai / iie"],
-    ["すみません", "sumimasen", "Also a light “sorry”"], ["ごめんなさい", "gomen nasai"], ["英語を話せますか？", "eigo o hanasemasu ka?"],
+    ["すみません", "sumimasen", tx("Also a light “sorry”")], ["ごめんなさい", "gomen nasai"], ["英語を話せますか？", "eigo o hanasemasu ka?"],
     ["わかりません", "wakarimasen"], ["いくらですか？", "ikura desu ka?"], ["トイレはどこですか？", "toire wa doko desu ka?"],
-    ["お会計お願いします", "okaikei onegaishimasu"], ["二人です", "futari desu", "“Two people”, said as you walk in"],
+    ["お会計お願いします", "okaikei onegaishimasu"], ["二人です", "futari desu", tx("“Two people”, said as you walk in")],
     ["…のアレルギーがあります", "… no arerugī ga arimasu"], ["助けて！", "tasukete!"], ["救急車を呼んでください", "kyūkyūsha o yonde kudasai"],
     ["さようなら", "sayōnara"]],
   zh: [["你好", "nǐ hǎo"], ["请", "qǐng"], ["谢谢", "xièxie"], ["是 / 不是", "shì / bú shì"], ["打扰一下", "dǎrǎo yíxià"], ["对不起", "duìbuqǐ"],
     ["你会说英语吗？", "nǐ huì shuō yīngyǔ ma?"], ["我听不懂", "wǒ tīng bu dǒng"], ["多少钱？", "duōshao qián?"],
-    ["洗手间在哪里？", "xǐshǒujiān zài nǎlǐ?"], ["买单", "mǎidān"], ["两位", "liǎng wèi", "“Two people”"],
+    ["洗手间在哪里？", "xǐshǒujiān zài nǎlǐ?"], ["买单", "mǎidān"], ["两位", "liǎng wèi", tx("“Two people”")],
     ["我对…过敏", "wǒ duì … guòmǐn"], ["救命！", "jiùmìng!"], ["请叫救护车", "qǐng jiào jiùhùchē"], ["再见", "zàijiàn"]],
-  ko: [["안녕하세요", "annyeonghaseyo"], ["주세요", "juseyo", "Said after what you'd like"], ["감사합니다", "gamsahamnida"], ["네 / 아니요", "ne / aniyo"],
-    ["저기요", "jeogiyo", "To get someone's attention"], ["죄송합니다", "joesonghamnida"], ["영어 하세요?", "yeongeo haseyo?"],
+  ko: [["안녕하세요", "annyeonghaseyo"], ["주세요", "juseyo", tx("Said after what you'd like")], ["감사합니다", "gamsahamnida"], ["네 / 아니요", "ne / aniyo"],
+    ["저기요", "jeogiyo", tx("To get someone's attention")], ["죄송합니다", "joesonghamnida"], ["영어 하세요?", "yeongeo haseyo?"],
     ["이해가 안 돼요", "ihaega an dwaeyo"], ["얼마예요?", "eolmayeyo?"], ["화장실이 어디예요?", "hwajangsiri eodiyeyo?"],
-    ["계산서 주세요", "gyesanseo juseyo"], ["두 명이요", "du myeongiyo", "“Two people”"], ["…에 알레르기가 있어요", "…e allereugiga isseoyo"],
+    ["계산서 주세요", "gyesanseo juseyo"], ["두 명이요", "du myeongiyo", tx("“Two people”")], ["…에 알레르기가 있어요", "…e allereugiga isseoyo"],
     ["도와주세요!", "dowajuseyo!"], ["구급차 불러 주세요", "gugeupcha bulleo juseyo"], ["안녕히 계세요", "annyeonghi gyeseyo"]],
-  th: [["สวัสดีครับ / ค่ะ", "sawatdee khrap / kha", "End with khrap if you're a man, kha if you're a woman"], ["ขอ…ครับ / ค่ะ", "khŏr … khrap / kha", "“May I have …”"],
-    ["ขอบคุณครับ / ค่ะ", "khop khun khrap / kha"], ["ใช่ / ไม่ใช่", "chai / mai chai"], ["ขอโทษครับ / ค่ะ", "khŏr thôht khrap / kha", "Also “sorry”"],
+  th: [["สวัสดีครับ / ค่ะ", "sawatdee khrap / kha", tx("End with khrap if you're a man, kha if you're a woman")], ["ขอ…ครับ / ค่ะ", "khŏr … khrap / kha", tx("“May I have …”")],
+    ["ขอบคุณครับ / ค่ะ", "khop khun khrap / kha"], ["ใช่ / ไม่ใช่", "chai / mai chai"], ["ขอโทษครับ / ค่ะ", "khŏr thôht khrap / kha", tx("Also “sorry”")],
     ["ขอโทษครับ / ค่ะ", "khŏr thôht khrap / kha"], ["พูดภาษาอังกฤษได้ไหม", "phûut phaa-săa ang-grìt dâai mái?"], ["ไม่เข้าใจ", "mâi khâo jai"],
     ["เท่าไหร่", "tâo rài?"], ["ห้องน้ำอยู่ที่ไหน", "hông náam yùu thîi năi?"], ["เช็คบิลครับ / ค่ะ", "chék bin khrap / kha"],
-    ["สองที่ครับ / ค่ะ", "sŏng thîi khrap / kha"], ["แพ้…", "pháe …", "“Allergic to …”"], ["ช่วยด้วย", "chûay dûay!"],
+    ["สองที่ครับ / ค่ะ", "sŏng thîi khrap / kha"], ["แพ้…", "pháe …", tx("“Allergic to …”")], ["ช่วยด้วย", "chûay dûay!"],
     ["เรียกรถพยาบาลให้หน่อย", "rîak rót phá-yaa-baan hâi nòy"], ["ลาก่อน", "laa gòn"]],
-  vi: [["Xin chào"], ["Làm ơn"], ["Cảm ơn"], ["Vâng / Không", undefined, "In the south: Dạ for yes"], ["Xin lỗi", undefined, "Also “sorry”"], ["Xin lỗi"],
+  vi: [["Xin chào"], ["Làm ơn"], ["Cảm ơn"], ["Vâng / Không", undefined, tx("In the south: Dạ for yes")], ["Xin lỗi", undefined, tx("Also “sorry”")], ["Xin lỗi"],
     ["Bạn có nói tiếng Anh không?"], ["Tôi không hiểu"], ["Bao nhiêu tiền?"], ["Nhà vệ sinh ở đâu?"], ["Tính tiền"], ["Bàn cho hai người"],
     ["Tôi bị dị ứng với …"], ["Cứu tôi với!"], ["Gọi xe cứu thương giúp tôi"], ["Tạm biệt"]],
-  id: [["Halo"], ["Tolong", undefined, "When asking; silakan when offering"], ["Terima kasih"], ["Ya / Tidak"], ["Permisi"], ["Maaf"],
+  id: [["Halo"], ["Tolong", undefined, tx("When asking; silakan when offering")], ["Terima kasih"], ["Ya / Tidak"], ["Permisi"], ["Maaf"],
     ["Bisa bahasa Inggris?"], ["Saya tidak mengerti"], ["Berapa harganya?"], ["Toiletnya di mana?"], ["Minta bonnya"],
     ["Meja untuk dua orang"], ["Saya alergi …"], ["Tolong!"], ["Tolong panggil ambulans"], ["Sampai jumpa"]],
   tr: [["Merhaba"], ["Lütfen"], ["Teşekkür ederim"], ["Evet / Hayır"], ["Affedersiniz"], ["Özür dilerim"], ["İngilizce biliyor musunuz?"],
     ["Anlamıyorum"], ["Ne kadar?"], ["Tuvalet nerede?"], ["Hesap, lütfen"], ["İki kişilik bir masa, lütfen"], ["… alerjim var"],
     ["İmdat!"], ["Lütfen ambulans çağırın"], ["Hoşça kalın"]],
-  el: [["Γεια σας", "yia sas"], ["Παρακαλώ", "parakaló"], ["Ευχαριστώ", "efcharistó"], ["Ναι / Όχι", "ne / óchi", "Careful: ne means yes"],
-    ["Συγγνώμη", "signómi", "Also “sorry”"], ["Συγγνώμη", "signómi"], ["Μιλάτε αγγλικά;", "miláte angliká?"], ["Δεν καταλαβαίνω", "den katalavéno"],
+  el: [["Γεια σας", "yia sas"], ["Παρακαλώ", "parakaló"], ["Ευχαριστώ", "efcharistó"], ["Ναι / Όχι", "ne / óchi", tx("Careful: ne means yes")],
+    ["Συγγνώμη", "signómi", tx("Also “sorry”")], ["Συγγνώμη", "signómi"], ["Μιλάτε αγγλικά;", "miláte angliká?"], ["Δεν καταλαβαίνω", "den katalavéno"],
     ["Πόσο κάνει;", "póso káni?"], ["Πού είναι η τουαλέτα;", "poú íne i toualéta?"], ["Τον λογαριασμό, παρακαλώ", "ton logariasmó, parakaló"],
-    ["Ένα τραπέζι για δύο", "éna trapézi ya dío"], ["Είμαι αλλεργικός σε …", "íme alergikós se …", "alergikí if you're a woman"],
+    ["Ένα τραπέζι για δύο", "éna trapézi ya dío"], ["Είμαι αλλεργικός σε …", "íme alergikós se …", tx("alergikí if you're a woman")],
     ["Βοήθεια!", "voíthia!"], ["Καλέστε ασθενοφόρο", "kaléste asthenofóro"], ["Αντίο", "adío"]],
-  ar: [["مرحبا", "marhaban"], ["من فضلك", "min fadlak", "min fadlik to a woman"], ["شكرا", "shukran"], ["نعم / لا", "na'am / la"],
-    ["لو سمحت", "law samaht"], ["آسف", "aasif", "aasfa if you're a woman"], ["هل تتكلم الإنجليزية؟", "hal tatakallam al-ingliziyya?"],
+  ar: [["مرحبا", "marhaban"], ["من فضلك", "min fadlak", tx("min fadlik to a woman")], ["شكرا", "shukran"], ["نعم / لا", "na'am / la"],
+    ["لو سمحت", "law samaht"], ["آسف", "aasif", tx("aasfa if you're a woman")], ["هل تتكلم الإنجليزية؟", "hal tatakallam al-ingliziyya?"],
     ["لا أفهم", "la afham"], ["بكم هذا؟", "bikam hadha?"], ["أين الحمام؟", "ayna al-hammam?"], ["الحساب من فضلك", "al-hisab min fadlak"],
     ["طاولة لشخصين", "tawila li-shakhsayn"], ["عندي حساسية من …", "'indi hasasiyya min …"], ["النجدة!", "an-najda!"],
     ["اتصل بالإسعاف", "ittasil bil-is'af"], ["مع السلامة", "ma'a as-salama"]],
@@ -135,15 +136,15 @@ const LIKE: Record<string, string[]> = {
 
 /** A word on how the language sounds, for the ones where the spelling above can't carry it all. */
 const HOW: Record<string, string> = {
-  zh: "Mandarin is tonal: the same sound in another pitch is another word. The marks on the pinyin (ā á ǎ à) show each tone; the capitals show the syllable to lean on.",
-  th: "Thai is tonal: the same sound in another pitch is another word. Men end polite phrases with krahp, women with kah.",
-  vi: "Vietnamese is tonal: the marks on the letters show each word's pitch, so the spelling here is only a start.",
-  ja: "Every syllable gets about the same length and weight; a final u is barely said (dess, not deh-soo).",
-  ko: "Every syllable gets about the same weight; say it evenly, without leaning on any part.",
-  ar: "Said here as in most of the Gulf and Levant; the letters ' and ʿ are a small catch in the throat.",
-  fr: "Final letters are mostly silent, and n after a vowel is said through the nose (bohn, not bonn).",
-  pt: "As said in Brazil. In Portugal it's softer and faster, with more sh sounds.",
-  es: "Every vowel is short and clear, as in ah, eh, ee, oh, oo. In Spain, c and z before e or i are said like th.",
+  zh: tx("Mandarin is tonal: the same sound in another pitch is another word. The marks on the pinyin (ā á ǎ à) show each tone; the capitals show the syllable to lean on."),
+  th: tx("Thai is tonal: the same sound in another pitch is another word. Men end polite phrases with krahp, women with kah."),
+  vi: tx("Vietnamese is tonal: the marks on the letters show each word's pitch, so the spelling here is only a start."),
+  ja: tx("Every syllable gets about the same length and weight; a final u is barely said (dess, not deh-soo)."),
+  ko: tx("Every syllable gets about the same weight; say it evenly, without leaning on any part."),
+  ar: tx("Said here as in most of the Gulf and Levant; the letters ' and ʿ are a small catch in the throat."),
+  fr: tx("Final letters are mostly silent, and n after a vowel is said through the nose (bohn, not bonn)."),
+  pt: tx("As said in Brazil. In Portugal it's softer and faster, with more sh sounds."),
+  es: tx("Every vowel is short and clear, as in ah, eh, ee, oh, oo. In Spain, c and z before e or i are said like th."),
 };
 
 /** The main language of a country, where it isn't English. Countries not here: no phrases suggested. */
@@ -162,8 +163,12 @@ const COUNTRY_LANGUAGE: Record<string, string> = {
   LK: "si", BD: "bn", HK: "yue", MN: "mn", GE: "ka", AM: "hy", AL: "sq", BA: "bs", ME: "sr", MK: "mk",
 };
 
-const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
-export const languageName = (code: string) => (code === "yue" ? "Cantonese" : code === "zh" ? "Mandarin Chinese" : languageNames.of(code) ?? code);
+/** A language's name in English ("Spanish"), or in another language ("español") for the app's screens. */
+export const languageName = (code: string, inLanguage = "en"): string => {
+  const tag = code === "zh" ? "cmn" : code; // Mandarin, rather than "Chinese"
+  if (inLanguage === "en") return code === "yue" ? "Cantonese" : code === "zh" ? "Mandarin Chinese" : new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
+  return new Intl.DisplayNames([inLanguage === "zh" ? "zh-Hans" : inLanguage], { type: "language" }).of(tag) ?? languageName(code);
+};
 
 export type Phrasebook = { lang: string; name: string; countries: string[]; phrases: Phrase[]; more: string; script?: string; how?: string };
 
@@ -178,14 +183,16 @@ export function phrasebooks(countryCodes: string[], yours = "en"): Phrasebook[] 
       if (!book.countries.includes(cc)) book.countries.push(cc);
       continue;
     }
-    const name = languageName(lang);
+    const english = languageName(lang);
+    const name = languageName(lang, yours);
     out.set(lang, {
       lang,
       name,
       countries: [cc],
-      phrases: (P[lang] ?? []).map(([say, sound, note], i) => ({ en: PHRASE_KEYS[i], say, sound, like: LIKE[lang]?.[i], note })),
-      how: HOW[lang],
-      more: `https://en.wikivoyage.org/wiki/${encodeURIComponent(`${lang === "zh" ? "Chinese" : name.replace(/ Bokmål$/, "")} phrasebook`.replace(/ /g, "_"))}`,
+      // "Sounds like" spellings are written for English readers, so they're only shown in English.
+      phrases: (P[lang] ?? []).map(([say, sound, note], i) => ({ en: tv(PHRASE_KEYS[i]), say, sound, like: yours === "en" ? LIKE[lang]?.[i] : undefined, note: note && tv(note) })),
+      how: yours === "en" ? HOW[lang] : undefined,
+      more: `https://en.wikivoyage.org/wiki/${encodeURIComponent(`${lang === "zh" ? "Chinese" : english.replace(/ Bokmål$/, "")} phrasebook`.replace(/ /g, "_"))}`,
       script: lang === "zh" && cc === "TW" ? "Written in simplified characters; Taiwan uses traditional ones, but spoken it's the same." : undefined,
     });
   }

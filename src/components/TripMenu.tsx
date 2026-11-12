@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Ellipsis, LogOut, Pencil, Trash2 } from "lucide-react";
+import { t } from "../i18n.ts";
 
 /**
  * The ⋯ on a trip card: edit or delete the trip (or leave one shared with you) without opening it. On phones, swiping
@@ -42,10 +43,10 @@ export default function TripMenu({ name, canEdit, owner, onEdit, onRemove }: {
         ref={button}
         type="button"
         className="trip-menu-button"
-        aria-label={`More for ${name}`}
+        aria-label={t("More for {name}", { name })}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="More"
+        title={t("More")}
         onClick={() => setOpen((o) => !o)}
       >
         <Ellipsis aria-hidden="true" />
@@ -65,11 +66,11 @@ export default function TripMenu({ name, canEdit, owner, onEdit, onRemove }: {
         >
           {canEdit && (
             <button type="button" role="menuitem" onClick={pick(onEdit)}>
-              <Pencil aria-hidden="true" /> Edit trip
+              <Pencil aria-hidden="true" />{" "}{t("Edit trip")}
             </button>
           )}
           <button type="button" role="menuitem" className="danger" onClick={pick(onRemove)}>
-            {owner ? <><Trash2 aria-hidden="true" /> Delete trip</> : <><LogOut aria-hidden="true" /> Leave trip</>}
+            {owner ? <><Trash2 aria-hidden="true" />{" "}{t("Delete trip")}</> : <><LogOut aria-hidden="true" />{" "}{t("Leave trip")}</>}
           </button>
         </div>
       )}

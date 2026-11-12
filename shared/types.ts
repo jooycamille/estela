@@ -1,6 +1,9 @@
 // Shared between the API server and the web client.
 
 export const TRIP_PURPOSES = ["business", "leisure", "bleisure"] as const;
+
+/** The languages Estela's screens are in (names and loading in src/i18n.ts). */
+export const APP_LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko", "hi", "ar", "id", "vi", "th", "tr", "fil"] as const;
 export type TripPurpose = (typeof TRIP_PURPOSES)[number];
 
 export const TRAVEL_PARTIES = ["solo", "couple", "family", "friends", "colleagues"] as const;
@@ -125,6 +128,7 @@ export interface User {
   homeCountry?: string;
   displayCurrency?: string;
   homeTimeZone?: string; // IANA zone where you live, for "07:10 there, 01:10 at home"
+  language?: string; // the app's language, e.g. "es" (see src/i18n.ts); English when unset
   tourPending?: boolean; // a new account that hasn't seen the welcome tour yet (accounts from before it never do)
   createdAt: string;
 }

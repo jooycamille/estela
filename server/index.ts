@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import "./env.ts";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import { EXPENSE_CATEGORIES, TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type Expense, type ListEntry, type PrepItem, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
+import { APP_LANGUAGES, EXPENSE_CATEGORIES, TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type Expense, type ListEntry, type PrepItem, type TravellerView, type Trip, type TripList, type User } from "../shared/types.ts";
 import { listTheme } from "../shared/lists.ts";
 import { aiEnabled } from "./ai.ts";
 import { askEstela, tripContext } from "./chat.ts";
@@ -161,6 +161,7 @@ const userView = (u: UserRecord) => ({
   hasPassword: supabaseAuthOn() ? !!u.authId : !!u.passwordHash,
   tourPending: !!u.tourPending,
   homeTimeZone: u.homeTimeZone ?? null,
+  language: u.language ?? null,
 });
 const fail = (res: Response, r: { error: string; status: number }) => void res.status(r.status).json({ error: r.error });
 
@@ -262,9 +263,10 @@ app.post("/api/auth/tour-done", (_req, res) => {
 });
 
 app.patch("/api/auth/me", (req, res) => {
-  const input = z.object({ name: Name.optional(), email: Email.optional(), homeTimeZone: z.string().max(60).refine(validZone, "Unknown time zone").optional() }).parse(req.body);
+  const input = z.object({ name: Name.optional(), email: Email.optional(), homeTimeZone: z.string().max(60).refine(validZone, "Unknown time zone").optional(), language: z.enum(APP_LANGUAGES).optional() }).parse(req.body);
   const user = userFrom(res);
   if (input.homeTimeZone) user.homeTimeZone = input.homeTimeZone;
+  if (input.language) user.language = input.language;
   // With Supabase, your email is changed there (it's confirmed from the new address first), then copied here.
   if (input.email && supabaseAuthOn() && normaliseEmail(input.email) !== user.email) return void res.status(400).json({ error: "Change your email from the Email box, which confirms it first." });
   if (input.email && !supabaseAuthOn()) {

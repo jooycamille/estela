@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { api, type LodgingResult } from "../api.ts";
 import { Hotel, MapPin } from "lucide-react";
+import { t } from "../i18n.ts";
 
 // A Property or Address input with a Find button (OpenStreetMap). Searches only on Find or Enter — no
 // search-as-you-type, per Nominatim's usage policy.
@@ -65,13 +66,13 @@ export default function LodgingField({
             } else if (e.key === "Escape") setResults(undefined);
           }}
         />
-        <button type="button" className="secondary" disabled={busy || (value ?? "").trim().length < 3} onClick={find} title={`Look up this ${label.toLowerCase()}`}>
-          {busy ? "…" : "Find"}
+        <button type="button" className="secondary" disabled={busy || (value ?? "").trim().length < 3} onClick={find} title={t("Look up this {v1}", { v1: label.toLowerCase() })}>
+          {busy ? "…" : t("Find")}
         </button>
       </div>
       {results && (
-        <ul className="lodging-results" role="listbox" aria-label={`${label} matches`}>
-          {results.length === 0 && <li className="muted small none">No matches on the map — just keep what you typed.</li>}
+        <ul className="lodging-results" role="listbox" aria-label={t("{label} matches", { label })}>
+          {results.length === 0 && <li className="muted small none">{t("No matches on the map — just keep what you typed.")}</li>}
           {results.slice(0, 6).map((r) => (
             <li key={`${r.name}|${r.address}`}>
               <button
@@ -92,9 +93,9 @@ export default function LodgingField({
             </li>
           ))}
           {results[0]?.source === "google" ? (
-            <li className="muted tiny none">Results from Google Maps</li>
+            <li className="muted tiny none">{t("Results from Google Maps")}</li>
           ) : (
-            <li className="muted tiny none">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors</li>
+            <li className="muted tiny none">{t("Map data ©")}{" "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">{t("OpenStreetMap")}</a>{" "}{t("contributors")}</li>
           )}
         </ul>
       )}

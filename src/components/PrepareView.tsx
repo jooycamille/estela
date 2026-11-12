@@ -7,6 +7,7 @@ import Fold, { expand, FoldAll } from "./Fold.tsx";
 import { Bell, CloudRain, CloudSun, CloudSunRain, Globe, Pencil, Sun, ThermometerSnowflake, X } from "lucide-react";
 import type { LucideIcon } from "../icons.ts";
 import Ico from "./Ico.tsx";
+import { t as tr } from "../i18n.ts";
 
 // The weather service describes the forecast with an emoji; shown as a line icon like the rest of the app.
 const WEATHER_ICON: Record<string, LucideIcon> = { "🌧️": CloudRain, "🌦️": CloudSunRain, "☀️": Sun, "🌤️": CloudSun, "🧥": ThermometerSnowflake };
@@ -29,14 +30,14 @@ const shortRange = (from: string, to: string) => `${formatDay(from)} – ${forma
 function dueLabel(item: PrepItem) {
   if (!item.due) return null;
   const day = formatDay(item.due);
-  if (item.custom) return `For ${day}`; // added from that day of the itinerary
-  if (item.group === "For your activities") return `Day before · ${day}`;
-  if (item.text.startsWith("Check in online")) return `Opens about ${day}`;
-  if (item.when === "online") return `Online before you fly · by ${day}`;
-  if (item.when === "plane") return `On the plane · ${day}`;
-  if (item.when === "arrival") return `On arrival · ${day}`;
-  if (item.when === "check") return `Check before ${day}`;
-  return `By ${day}`;
+  if (item.custom) return tr("For {day}", { day }); // added from that day of the itinerary
+  if (item.group === "For your activities") return tr("Day before · {day}", { day });
+  if (item.text.startsWith("Check in online")) return tr("Opens about {day}", { day });
+  if (item.when === "online") return tr("Online before you fly · by {day}", { day });
+  if (item.when === "plane") return tr("On the plane · {day}", { day });
+  if (item.when === "arrival") return tr("On arrival · {day}", { day });
+  if (item.when === "check") return tr("Check before {day}", { day });
+  return tr("By {day}", { day });
 }
 
 const HIDE_DONE = "joy-prepare-hide-done";
@@ -76,7 +77,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
   }, [all, checked, data, onCounts]);
 
   if (error) return <p className="error">{error}</p>;
-  if (!data) return <p className="muted">Estela is getting your trip ready…</p>;
+  if (!data) return <p className="muted">{tr("Estela is getting your trip ready…")}</p>;
 
   const toggle = async (id: string, on: boolean) => {
     setData((d) => d && { ...d, checked: on ? [...d.checked, id] : d.checked.filter((x) => x !== id) });
@@ -95,24 +96,23 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
       {!data.homeCountry && (
         <div className="card home-country">
           <p className="small">
-            <b>Where are you travelling from?</b> Estela uses it for plug adapters, entry requirements and currency tips
-            {data.homeCountryGuess ? " — guessed from your first flight." : "."}
+            <b>{tr("Where are you travelling from?")}</b>{" "}{data.homeCountryGuess ? tr("Estela uses it for plug adapters, entry requirements and currency tips — guessed from your first flight.") : tr("Estela uses it for plug adapters, entry requirements and currency tips.")}
           </p>
           <div className="key-row">
-            <select value={home} onChange={(e) => setHome(e.target.value)} aria-label="Home country">
-              <option value="">Choose your country…</option>
+            <select value={home} onChange={(e) => setHome(e.target.value)} aria-label={tr("Home country")}>
+              <option value="">{tr("Choose your country…")}</option>
               {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
             </select>
-            <button disabled={!home} onClick={() => api.setHomeCountry(home).then(load)}>Save</button>
+            <button disabled={!home} onClick={() => api.setHomeCountry(home).then(load)}>{tr("Save")}</button>
           </div>
         </div>
       )}
 
       {data.stops.length > 0 && (
         <section className="card">
-          <Fold id={`${tripId}:weather`} title={data.stops.some((s) => s.assumed) ? "Typical weather" : "Weather where you're staying"}>
+          <Fold id={`${tripId}:weather`} title={data.stops.some((s) => s.assumed) ? tr("Typical weather") : tr("Weather where you're staying")}>
           {data.stops.some((s) => s.assumed) && (
-            <p className="muted small">No city yet, so this is for the country's largest city. Add where you're staying or a flight for your own area.</p>
+            <p className="muted small">{tr("No city yet, so this is for the country's largest city. Add where you're staying or a flight for your own area.")}</p>
           )}
           <div className="weather-grid">
             {data.stops.map((s) => (
@@ -131,32 +131,32 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
                     </div>
                     <div className="small">{s.weather.summary}</div>
                     <div className="muted tiny">
-                      {s.weather.basis === "forecast" ? "Forecast" : "Typical for these dates"} · rain on ~{Math.round(s.weather.rainyShare * 100)}% of days
+                      {tr("{v1} · rain on ~{v2}% of days", { v1: s.weather.basis === "forecast" ? tr("Forecast") : tr("Typical for these dates"), v2: Math.round(s.weather.rainyShare * 100) })}
                     </div>
                   </>
                 ) : (
-                  <div className="muted small">Weather unavailable right now</div>
+                  <div className="muted small">{tr("Weather unavailable right now")}</div>
                 )}
               </div>
             ))}
           </div>
           {data.transits.length > 0 && (
             <p className="muted small">
-              Changing planes in {[...new Set(data.transits.map((t) => t.city))].join(", ")}.
+              {tr("Changing planes in {v1}.", { v1: [...new Set(data.transits.map((t) => t.city))].join(", ") })}
             </p>
           )}
           <p className="muted tiny">
-            Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo.com</a>. “Typical” uses the same dates over the last 3 years; it switches to the forecast about 2 weeks out.
+            {tr("Weather data by")}{" "}<a href="https://open-meteo.com/" target="_blank" rel="noreferrer">{tr("Open-Meteo.com")}</a>{tr(". “Typical” uses the same dates over the last 3 years; it switches to the forecast about 2 weeks out.")}
           </p>
           </Fold>
         </section>
       )}
 
       <div className="prep-controls">
-        <span className="small">To-do <b>{todo.done}/{todo.total}</b> · Packed <b>{packed.done}/{packed.total}</b></span>
+        <span className="small">{tr("To-do")}{" "}<b>{todo.done}/{todo.total}</b>{" "}{tr("· Packed")}{" "}<b>{packed.done}/{packed.total}</b></span>
         <label className="checkbox small">
           <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
-          <span>Hide done</span>
+          <span>{tr("Hide done")}</span>
         </label>
         <FoldAll ids={[...(data.stops.length ? ["weather"] : []), "todo", "packing"].map((key) => `${tripId}:${key}`)} />
       </div>
@@ -165,7 +165,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
         tripId={tripId}
         foldId={`${tripId}:todo`}
         allItems={all}
-        title="Before you go"
+        title={tr("Before you go")}
         items={section("todo")}
         checked={checked}
         hideDone={hideDone}
@@ -178,7 +178,7 @@ export default function PrepareView({ tripId, version, onCounts }: { tripId: str
         tripId={tripId}
         foldId={`${tripId}:packing`}
         allItems={all}
-        title="Packing list"
+        title={tr("Packing list")}
         items={section("packing")}
         checked={checked}
         hideDone={hideDone}
@@ -225,22 +225,22 @@ function PrepSection({
     expand(`${foldId}:${item.group}`);
     setText("");
     setAlready(undefined);
-    setAdded(`Added to ${item.group}`);
+    setAdded(tr("Added to {group}", { group: item.group }));
   };
   const now = new Date().toISOString().slice(0, 16);
   const groups = [...new Set(items.map((i) => i.group))];
   return (
     <section className="card prep-section">
-      <Fold id={foldId} title={title} summary={`${items.filter((i) => checked.has(i.id)).length}/${items.length} done`}>
+      <Fold id={foldId} title={title} summary={tr("{length}/{v2} done", { length: items.filter((i) => checked.has(i.id)).length, v2: items.length })}>
       {groups.map((g) => {
         const shown = items.filter((i) => i.group === g && !(hideDone && checked.has(i.id)));
         if (!shown.length) return null;
         return (
           <div key={g} className="prep-group">
-            <Fold id={`${foldId}:${g}`} heading="h5" title={g} summary={`${shown.filter((i) => !checked.has(i.id)).length} to do`}>
+            <Fold id={`${foldId}:${g}`} heading="h5" title={g} summary={tr("{length} to do", { length: shown.filter((i) => !checked.has(i.id)).length })}>
             {g === "Medications" && (
               <p className="muted tiny prep-note">
-                General guidance from the <a href="https://wwwnc.cdc.gov/travel/page/pack-smart" target="_blank" rel="noopener noreferrer">CDC ↗</a> and <a href="https://travelhealthpro.org.uk/factsheet/43/medicines-abroad" target="_blank" rel="noopener noreferrer">TravelHealthPro ↗</a>, not medical advice. Check with a doctor or pharmacist what suits you, especially if you're pregnant, have allergies or take other medication.
+                {tr("General guidance from the")}{" "}<a href="https://wwwnc.cdc.gov/travel/page/pack-smart" target="_blank" rel="noopener noreferrer">{tr("CDC ↗")}</a>{" "}{tr("and")}{" "}<a href="https://travelhealthpro.org.uk/factsheet/43/medicines-abroad" target="_blank" rel="noopener noreferrer">{tr("TravelHealthPro ↗")}</a>{tr(", not medical advice. Check with a doctor or pharmacist what suits you, especially if you're pregnant, have allergies or take other medication.")}
               </p>
             )}
             <ul>
@@ -258,7 +258,7 @@ function PrepSection({
                           const saved = await onEdit(i.id, newText);
                           expand(`${foldId}:${saved.group}`);
                           setEditing(undefined);
-                          setAdded(saved.group === i.group ? undefined : `Moved to ${saved.group}`);
+                          setAdded(saved.group === i.group ? undefined : tr("Moved to {group}", { group: saved.group }));
                         }}
                       />
                     ) : (
@@ -278,13 +278,13 @@ function PrepSection({
                                 </span>
                               ))}
                           {i.detail && <span className="muted small prep-detail">{i.detail}</span>}
-                          {i.source && <span className="muted tiny prep-detail">For {i.source}</span>}
+                          {i.source && <span className="muted tiny prep-detail">{tr("For {source}", { source: i.source })}</span>}
                         </span>
                       </label>
                       {i.custom && (
                         <span className="prep-actions edit-only">
-                          <button type="button" className="prep-action" title="Edit" aria-label={`Edit ${i.text}`} onClick={() => setEditing(i.id)}><Pencil aria-hidden="true" /></button>
-                          <button type="button" className="prep-action danger" title="Remove" aria-label={`Remove ${i.text}`} onClick={() => onDelete(i.id)}><X aria-hidden="true" /></button>
+                          <button type="button" className="prep-action" title={tr("Edit")} aria-label={tr("Edit {text}", { text: i.text })} onClick={() => setEditing(i.id)}><Pencil aria-hidden="true" /></button>
+                          <button type="button" className="prep-action danger" title={tr("Remove")} aria-label={tr("Remove {text}", { text: i.text })} onClick={() => onDelete(i.id)}><X aria-hidden="true" /></button>
                         </span>
                       )}
                       </div>
@@ -319,17 +319,17 @@ function PrepSection({
           setAlready(same);
         }}
       >
-        <input value={text} onChange={(e) => { setText(e.target.value); setAlready(undefined); setAdded(undefined); }} placeholder={`Add to ${title.toLowerCase()}…`} aria-label={`Add to ${title}`} />
-        <button type="submit" className="secondary" disabled={!text.trim()}>Add</button>
+        <input value={text} onChange={(e) => { setText(e.target.value); setAlready(undefined); setAdded(undefined); }} placeholder={tr("Add to {v1}…", { v1: title.toLowerCase() })} aria-label={tr("Add to {title}", { title })} />
+        <button type="submit" className="secondary" disabled={!text.trim()}>{tr("Add")}</button>
       </form>
       {added && <p className="muted small edit-only prep-added" role="status">✓ {added}</p>}
       {already && (
         <p className="small edit-only prep-already" role="status">
-          Already on your list: <b>{already.text}</b>
-          <span className="muted"> · {already.section === "todo" ? "Before you go" : "Packing list"}, {already.group}{checked.has(already.id) ? " · ticked off" : ""}</span>
+          {tr("Already on your list:")}{" "}<b>{already.text}</b>
+          <span className="muted"> · {already.section === "todo" ? tr("Before you go") : tr("Packing list")}, {already.group}{checked.has(already.id) ? tr(" · ticked off") : ""}</span>
           <span className="prep-already-actions">
-            <button type="button" className="link" onClick={add}>Add anyway</button>
-            <button type="button" className="link muted-link" onClick={() => { setAlready(undefined); setText(""); }}>Never mind</button>
+            <button type="button" className="link" onClick={add}>{tr("Add anyway")}</button>
+            <button type="button" className="link muted-link" onClick={() => { setAlready(undefined); setText(""); }}>{tr("Never mind")}</button>
           </span>
         </p>
       )}
@@ -362,20 +362,20 @@ function EditPrepItem({ item, others, onSave, onCancel }: { item: PrepItem; othe
           autoFocus
           value={text}
           maxLength={200}
-          aria-label={`Edit ${item.text}`}
+          aria-label={tr("Edit {text}", { text: item.text })}
           onChange={(e) => { setText(e.target.value); setAlready(undefined); }}
           onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
         />
-        <button type="submit" className="secondary" disabled={!text.trim()}>Save</button>
-        <button type="button" className="link muted-link" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="secondary" disabled={!text.trim()}>{tr("Save")}</button>
+        <button type="button" className="link muted-link" onClick={onCancel}>{tr("Cancel")}</button>
       </form>
       {error && <p className="error small">{error}</p>}
       {already && (
         <p className="small prep-already" role="status">
-          Already on your list: <b>{already.text}</b>
-          <span className="muted"> · {already.section === "todo" ? "Before you go" : "Packing list"}, {already.group}</span>
+          {tr("Already on your list:")}{" "}<b>{already.text}</b>
+          <span className="muted"> · {already.section === "todo" ? tr("Before you go") : tr("Packing list")}, {already.group}</span>
           <span className="prep-already-actions">
-            <button type="button" className="link" onClick={save}>Save anyway</button>
+            <button type="button" className="link" onClick={save}>{tr("Save anyway")}</button>
           </span>
         </p>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { TravellerView } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import { t as tr } from "../i18n.ts";
 
 // Splitting a booking's cost: who paid, and who shares it equally (people on the trip, and trip-mates added by name in
 // Spending who don't use Estela). Settle up counts it.
@@ -29,25 +30,25 @@ export default function SplitFields({ people, value, onChange, alwaysOn }: { peo
   const me = people.find((p) => p.you)?.userId ?? people[0].userId;
   const on = alwaysOn || !!value;
   const v = value ?? { paidBy: me, split: people.map((p) => p.userId) };
-  const name = (p: TravellerView) => (p.you ? "You" : p.name);
+  const name = (p: TravellerView) => (p.you ? tr("You") : p.name);
   return (
     <fieldset className="split-fields">
       {!alwaysOn && (
         <label className="check">
           <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked ? v : null)} />
-          Split this cost between people
+          {tr("Split this cost between people")}
         </label>
       )}
       {on && (
         <>
           <label className="split-paid">
-            Paid by
+            {tr("Paid by")}
             <select value={v.paidBy} onChange={(e) => onChange({ ...v, paidBy: e.target.value })}>
               {people.map((p) => <option key={p.userId} value={p.userId}>{name(p)}</option>)}
             </select>
           </label>
-          <div className="split-who" role="group" aria-label="Shared by">
-            <span className="split-label">Shared by</span>
+          <div className="split-who" role="group" aria-label={tr("Shared by")}>
+            <span className="split-label">{tr("Shared by")}</span>
             {people.map((p) => (
               <label key={p.userId} className="check">
                 <input

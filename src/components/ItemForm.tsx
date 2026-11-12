@@ -5,6 +5,7 @@ import FlightForm from "./FlightForm.tsx";
 import LodgingField from "./LodgingField.tsx";
 import PriceField, { priceValue, toMoney } from "./PriceField.tsx";
 import SplitFields, { useSharers, type Split } from "./SplitFields.tsx";
+import { t as tr } from "../i18n.ts";
 
 export type Kind = ItineraryItem["kind"];
 
@@ -13,19 +14,19 @@ type Field = { key: string; label: string; type?: "datetime-local" | "text"; req
 // Flights use FlightForm (lookup by flight number + date).
 const FIELDS: Record<Exclude<Kind, "flight">, Field[]> = {
   stay: [
-    { key: "name", label: "Property", required: true, placeholder: "Park Hyatt Tokyo" },
-    { key: "address", label: "Address" },
-    { key: "checkIn", label: "Check-in", type: "datetime-local", required: true },
-    { key: "checkOut", label: "Check-out", type: "datetime-local", required: true },
-    { key: "confirmationCode", label: "Confirmation #" },
+    { key: "name", get label() { return tr("Property"); }, required: true, get placeholder() { return tr("Park Hyatt Tokyo"); } },
+    { key: "address", get label() { return tr("Address"); } },
+    { key: "checkIn", get label() { return tr("Check-in"); }, type: "datetime-local", required: true },
+    { key: "checkOut", get label() { return tr("Check-out"); }, type: "datetime-local", required: true },
+    { key: "confirmationCode", get label() { return tr("Confirmation #"); } },
   ],
   activity: [
-    { key: "title", label: "What", required: true, placeholder: "Client meeting / Sushi class" },
-    { key: "location", label: "Where" },
-    { key: "start", label: "Starts", type: "datetime-local", required: true },
-    { key: "end", label: "Ends", type: "datetime-local" },
-    { key: "category", label: "Category", placeholder: "meeting, tour, dinner…" },
-    { key: "confirmationCode", label: "Booking ref" },
+    { key: "title", get label() { return tr("What"); }, required: true, get placeholder() { return tr("Client meeting / Sushi class"); } },
+    { key: "location", get label() { return tr("Where"); } },
+    { key: "start", get label() { return tr("Starts"); }, type: "datetime-local", required: true },
+    { key: "end", get label() { return tr("Ends"); }, type: "datetime-local" },
+    { key: "category", get label() { return tr("Category"); }, get placeholder() { return tr("meeting, tour, dinner…"); } },
+    { key: "confirmationCode", get label() { return tr("Booking ref"); } },
   ],
 };
 
@@ -37,7 +38,7 @@ const minutesBetween = (a: string, b: string) => Math.round((toMs(b) - toMs(a)) 
 /** "2026-12-11T09:00" + 60 → "2026-12-11T10:00" (wall-clock times, no time zones involved). */
 const addMinutes = (t: string, minutes: number) => new Date(toMs(t) + minutes * 60_000).toISOString().slice(0, 16);
 
-export const KIND_LABEL: Record<Kind, string> = { flight: "Flight", stay: "Accommodation", activity: "Activity" };
+export const KIND_LABEL: Record<Kind, string> = { get flight() { return tr("Flight"); }, get stay() { return tr("Accommodation"); }, get activity() { return tr("Activity"); } };
 
 export default function ItemForm(props: Parameters<typeof GenericItemForm>[0]) {
   if (props.kind === "flight") {
@@ -46,7 +47,7 @@ export default function ItemForm(props: Parameters<typeof GenericItemForm>[0]) {
         initial={props.initial as Extract<DraftItem, { kind: "flight" }> | undefined}
         defaultDate={props.defaultDate}
         tripId={props.tripId}
-        submitLabel={props.submitLabel ?? "Save"}
+        submitLabel={props.submitLabel ?? tr("Save")}
         onSubmit={props.onSubmit}
         onCancel={props.onCancel}
       />
@@ -60,7 +61,7 @@ function GenericItemForm({
   initial,
   tripId,
   defaultDate,
-  submitLabel = "Save",
+  submitLabel = tr("Save"),
   onSubmit,
   onCancel,
 }: {
@@ -132,7 +133,7 @@ function GenericItemForm({
         try {
           const url = bookingLink.trim();
           const links = url
-            ? [{ label: initialLinks[0]?.label ?? "Booking details", url }, ...initialLinks.slice(1)]
+            ? [{ label: initialLinks[0]?.label ?? tr("Booking details"), url }, ...initialLinks.slice(1)]
             : initialLinks.slice(1);
           await onSubmit({
             ...values,
@@ -163,7 +164,7 @@ function GenericItemForm({
               key={f.key}
               label={f.label}
               value={values.location}
-              placeholder="A place or address. Find shows where it is"
+              placeholder={tr("A place or address. Find shows where it is")}
               search={(q) => api.searchPlaces(q, undefined, tripId, values.start?.slice(0, 10))}
               onChange={(val) => {
                 setValues((v) => ({ ...v, location: val }));
@@ -182,7 +183,7 @@ function GenericItemForm({
                 label={f.label}
                 value={values[f.key]}
                 required={f.required}
-                placeholder={f.key === "name" ? "Hotel name — Find shows its address" : "Street & number — Find shows the place"}
+                placeholder={f.key === "name" ? tr("Hotel name — Find shows its address") : tr("Street & number — Find shows the place")}
                 tripId={tripId}
                 date={values.checkIn?.slice(0, 10)}
                 onChange={(val) => {
@@ -195,7 +196,7 @@ function GenericItemForm({
                 <p className="small nearby">
                   {nearby.length ? (
                     <>
-                      <span className="muted">Is it one of these (on this street or next door)? </span>
+                      <span className="muted">{tr("Is it one of these (on this street or next door)?")}{" "}</span>
                       {nearby.map((p) => (
                         <button key={p.name} type="button" className="chip" title={p.address} onClick={() => {
                           // Keep the typed address (with its house number) unless the property's own address has one.
@@ -206,7 +207,7 @@ function GenericItemForm({
                       ))}
                     </>
                   ) : (
-                    <span className="muted">No hotels or guest houses on the map here, so it may be a private home or apartment. Just type its name.</span>
+                    <span className="muted">{tr("No hotels or guest houses on the map here, so it may be a private home or apartment. Just type its name.")}</span>
                   )}
                 </p>
               )}
@@ -247,28 +248,28 @@ function GenericItemForm({
       <div className="grid2">
         <PriceField value={price} onChange={setPrice} />
         <label>
-          Booking link
-          <input type="url" placeholder="https://…" value={bookingLink} onChange={(e) => setBookingLink(e.target.value)} />
+          {tr("Booking link")}
+          <input type="url" placeholder={tr("https://…")} value={bookingLink} onChange={(e) => setBookingLink(e.target.value)} />
         </label>
       </div>
       {toMoney(price) && <SplitFields people={sharers} value={split} onChange={setSplit} />}
       <label>
-        Notes
+        {tr("Notes")}
         <textarea
           rows={2}
           value={values.notes}
-          placeholder={kind === "stay" ? "e.g. Check-in after 3:00 pm · Check-out before 1:00 pm" : ""}
+          placeholder={kind === "stay" ? tr("e.g. Check-in after 3:00 pm · Check-out before 1:00 pm") : ""}
           onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
         />
       </label>
       {kind === "activity" && (
         <fieldset className="guide-editor">
           <button type="button" className="link" onClick={() => setShowGuide((s) => !s)} aria-expanded={showGuide}>
-            {showGuide ? "▾" : "▸"} Activity guide (itinerary, what to bring/wear, do's & don'ts…)
+            {showGuide ? "▾" : "▸"} {tr("Activity guide (itinerary, what to bring/wear, do's & don'ts…)")}
           </button>
           {showGuide && (
             <>
-              <p className="muted tiny">One item per line.</p>
+              <p className="muted tiny">{tr("One item per line.")}</p>
               <div className="grid2">
                 {GUIDE_LIST_KEYS.map((k) => (
                   <label key={k}>
@@ -282,7 +283,7 @@ function GenericItemForm({
                       key={k}
                       label={GUIDE_LABELS[k]}
                       value={guide[k]}
-                      placeholder="A place or address — Find shows where it is"
+                      placeholder={tr("A place or address — Find shows where it is")}
                       search={(q) => api.searchPlaces(q, undefined, tripId, values.start?.slice(0, 10))}
                       onChange={(v) => setGuide((g) => ({ ...g, [k]: v }))}
                       onPick={(r) => setGuide((g) => ({ ...g, [k]: placeText(r) }))}
@@ -301,8 +302,8 @@ function GenericItemForm({
       )}
       {error && <p className="error">{error}</p>}
       <div className="actions">
-        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" disabled={busy}>{busy ? "Saving…" : submitLabel}</button>
+        <button type="button" className="ghost" onClick={onCancel}>{tr("Cancel")}</button>
+        <button type="submit" disabled={busy}>{busy ? tr("Saving…") : submitLabel}</button>
       </div>
     </form>
   );
@@ -313,18 +314,18 @@ const placeText = (r: LodgingResult) =>
   r.name && !r.address.toLowerCase().startsWith(r.name.toLowerCase()) ? `${r.name}, ${r.address}` : r.address;
 
 const GUIDE_LABELS: Record<string, string> = {
-  itinerary: "Itinerary",
-  whatToBring: "What to bring",
-  whatToWear: "What to wear",
-  dos: "Do's",
-  donts: "Don'ts / not allowed",
-  beforeYouGo: "Before you go",
-  goodToKnow: "Good to know",
-  included: "Included",
-  notIncluded: "Not included",
-  meetingPoint: "Meeting point / pickup",
-  endPoint: "Ends at",
-  cancellation: "Cancellation policy",
-  provider: "Provider & contact",
-  pin: "PIN",
+  get itinerary() { return tr("Itinerary"); },
+  get whatToBring() { return tr("What to bring"); },
+  get whatToWear() { return tr("What to wear"); },
+  get dos() { return tr("Do's"); },
+  get donts() { return tr("Don'ts / not allowed"); },
+  get beforeYouGo() { return tr("Before you go"); },
+  get goodToKnow() { return tr("Good to know"); },
+  get included() { return tr("Included"); },
+  get notIncluded() { return tr("Not included"); },
+  get meetingPoint() { return tr("Meeting point / pickup"); },
+  get endPoint() { return tr("Ends at"); },
+  get cancellation() { return tr("Cancellation policy"); },
+  get provider() { return tr("Provider & contact"); },
+  get pin() { return tr("PIN"); },
 };

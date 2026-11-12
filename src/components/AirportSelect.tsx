@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { t as tr } from "../i18n.ts";
 
 type Airport = { iata: string; name: string; city: string; country: string };
 
@@ -78,7 +79,7 @@ export default function AirportSelect({
 
   // Native form validation: a value must be chosen from the list.
   useEffect(() => {
-    input.current?.setCustomValidity(required && !value ? "Choose an airport from the list" : "");
+    input.current?.setCustomValidity(required && !value ? tr("Choose an airport from the list") : "");
   }, [required, value]);
 
   const choose = (a: Airport) => {
@@ -100,7 +101,7 @@ export default function AirportSelect({
         aria-autocomplete="list"
         aria-activedescendant={open && results[active] ? `${id}-${results[active].iata}` : undefined}
         autoComplete="off"
-        placeholder="Type a city, airport or code"
+        placeholder={tr("Type a city, airport or code")}
         value={query}
         onFocus={(e) => {
           setFocused(true);
@@ -132,7 +133,7 @@ export default function AirportSelect({
       {selected && !focused && <span className="muted tiny airport-name">{selected.name}, {selected.country}</span>}
       {open && focused && (
         <ul className="airport-list" id={`${id}-list`} role="listbox">
-          {results.length === 0 && <li className="muted small none">No airports match</li>}
+          {results.length === 0 && <li className="muted small none">{tr("No airports match")}</li>}
           {results.map((a, i) => (
             <li
               key={a.iata}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { t } from "../i18n.ts";
 
 /**
  * A floating "back to top" button (bottom right). It appears once you've scrolled down, hides while you're scrolling
@@ -25,8 +26,8 @@ export default function ScrollTop() {
     <button
       type="button"
       className={`scroll-top ${show ? "show" : ""}`}
-      aria-label="Back to top"
-      title="Back to top"
+      aria-label={t("Back to top")}
+      title={t("Back to top")}
       tabIndex={show ? 0 : -1}
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
     >

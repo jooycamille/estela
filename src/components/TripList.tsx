@@ -6,6 +6,8 @@ import { flag } from "./PlaceSelect.tsx";
 import SwipeActions from "./SwipeActions.tsx";
 import TripForm from "./TripForm.tsx";
 import TripMenu from "./TripMenu.tsx";
+import { t as tr, tn } from "../i18n.ts";
+import { listOf, purposeLabel, styleLabel } from "../labels.ts";
 import { LogOut, Pencil, Plane, Trash2, Users } from "lucide-react";
 
 const tomorrowOf = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400_000).toISOString().slice(0, 10);
@@ -16,13 +18,13 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00
 
 /** "Day 3 of 35" while travelling, "Tomorrow" / "In 36 days" before, "Ended 12 Jan" after. */
 function when(t: TripSummary, now: string) {
-  if (t.startDate <= now && now <= t.endDate) return `Day ${daysBetween(t.startDate, now) + 1} of ${daysBetween(t.startDate, t.endDate) + 1}`;
+  if (t.startDate <= now && now <= t.endDate) return tr("Day {day} of {days}", { day: daysBetween(t.startDate, now) + 1, days: daysBetween(t.startDate, t.endDate) + 1 });
   if (t.startDate > now) {
     const n = daysBetween(now, t.startDate);
-    return n === 1 ? "Tomorrow" : n < 60 ? `In ${n} days` : `In ${Math.round(n / 30.4)} months`;
+    return n === 1 ? tr("Tomorrow") : n < 60 ? tn(n, "In {n} day", "In {n} days") : tn(Math.round(n / 30.4), "In {n} month", "In {n} months");
   }
   const n = daysBetween(t.endDate, now);
-  return n === 1 ? "Ended yesterday" : n < 60 ? `Ended ${n} days ago` : `Ended ${Math.round(n / 30.4)} months ago`;
+  return n === 1 ? tr("Ended yesterday") : n < 60 ? tn(n, "Ended {n} day ago", "Ended {n} days ago") : tn(Math.round(n / 30.4), "Ended {n} month ago", "Ended {n} months ago");
 }
 
 export default function TripList() {
@@ -40,7 +42,7 @@ export default function TripList() {
 
   const remove = async (t: TripSummary) => {
     const leaving = t.role !== "owner";
-    if (!confirm(leaving ? `Leave "${t.name}"? You'll no longer see it.` : `Delete "${t.name}" and everything in it? This can't be undone.`)) return;
+    if (!confirm(leaving ? tr("Leave \"{name}\"? You'll no longer see it.", { name: t.name }) : tr("Delete \"{name}\" and everything in it? This can't be undone.", { name: t.name }))) return;
     try {
       await (leaving ? api.removeTraveller(t.id, "me") : api.deleteTrip(t.id));
       load();
@@ -86,35 +88,35 @@ export default function TripList() {
   return (
     <>
       <div className="page-head">
-        <h1>Where to next?</h1>
-        <button onClick={() => setCreating(true)}>+ New trip</button>
+        <h1>{tr("Where to next?")}</h1>
+        <button onClick={() => setCreating(true)}>{tr("+ New trip")}</button>
       </div>
       {trips?.length === 0 && (
         <div className="card empty">
-          <p>No trips yet. Create one, then add your flights, stays and activities — or forward your booking emails and Estela will put them together.</p>
+          <p>{tr("No trips yet. Create one, then add your flights, stays and activities — or forward your booking emails and Estela will put them together.")}</p>
         </div>
       )}
       {error && <p className="error">{error}</p>}
       {happening.length > 0 && (
         <section className="trip-section">
-          <h2>Happening now</h2>
+          <h2>{tr("Happening now")}</h2>
           <div className="trip-grid">{happening.map(card)}</div>
         </section>
       )}
       {later.length > 0 && (
         <section className="trip-section">
-          <h2>Upcoming trips</h2>
+          <h2>{tr("Upcoming trips")}</h2>
           <div className="trip-grid">{later.map(card)}</div>
         </section>
       )}
       {trips && trips.length > 0 && upcoming.length === 0 && (
         <div className="card empty">
-          <p>No upcoming trips. Where to next? Tap <b>+ New trip</b> to start planning.</p>
+          <p>{tr("No upcoming trips. Where to next? Tap + New trip to start planning.")}</p>
         </div>
       )}
       {past.length > 0 && (
         <section className="trip-section past">
-          <h2>Past trips <span className="muted small">{past.length}</span></h2>
+          <h2>{tr("Past trips")} <span className="muted small">{past.length}</span></h2>
           <div className="trip-grid">{past.map(card)}</div>
         </section>
       )}
@@ -132,12 +134,12 @@ export default function TripList() {
         actions={
           <>
             {t.role !== "viewer" && (
-              <button type="button" className="swipe-edit" onClick={() => setEditing(t)} aria-label={`Edit ${t.name}`}><Pencil aria-hidden="true" /><span>Edit</span></button>
+              <button type="button" className="swipe-edit" onClick={() => setEditing(t)} aria-label={tr("Edit {name}", { name: t.name })}><Pencil aria-hidden="true" /><span>{tr("Edit")}</span></button>
             )}
             {t.role === "owner" ? (
-              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={`Delete ${t.name}`}><Trash2 aria-hidden="true" /><span>Delete</span></button>
+              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={tr("Delete {name}", { name: t.name })}><Trash2 aria-hidden="true" /><span>{tr("Delete")}</span></button>
             ) : (
-              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={`Leave ${t.name}`}><LogOut aria-hidden="true" /><span>Leave</span></button>
+              <button type="button" className="swipe-delete" onClick={() => remove(t)} aria-label={tr("Leave {name}", { name: t.name })}><LogOut aria-hidden="true" /><span>{tr("Leave")}</span></button>
             )}
           </>
         }
@@ -150,20 +152,20 @@ export default function TripList() {
           <div className="trip-body">
             <div className="trip-card-head">
               <h3>{t.name}</h3>
-              <span className={`tag ${t.purpose}`}>{t.purpose}</span>
+              <span className={`tag ${t.purpose}`}>{purposeLabel(t.purpose)}</span>
             </div>
             <p className={`trip-when ${status}`}>
               {status === "now" && <Plane aria-hidden="true" />}{when(t, now)}
-              {t.role !== "owner" && t.ownerName && <span className="shared-by">Shared by {t.ownerName}</span>}
-              {t.role === "owner" && t.travellers > 1 && <span className="shared-by"><Users aria-hidden="true" /> {t.travellers} travellers</span>}
+              {t.role !== "owner" && t.ownerName && <span className="shared-by">{tr("Shared by {name}", { name: t.ownerName })}</span>}
+              {t.role === "owner" && t.travellers > 1 && <span className="shared-by"><Users aria-hidden="true" /> {tn(t.travellers, "{n} traveller", "{n} travellers")}</span>}
             </p>
             <p>
               <span className="muted">{t.destination}</span> · {formatDateRange(t.startDate, t.endDate)}
             </p>
-            <p className="muted small">{t.itemCount} {t.itemCount === 1 ? "item" : "items"} · {partySummary(t)}{t.styles.length ? ` · ${t.styles.join(", ")}` : ""}</p>
-            {happening.includes(t) && <p className="today-link small">Open today's plan →</p>}
+            <p className="muted small">{tn(t.itemCount, "{n} item", "{n} items")} · {partySummary(t)}{t.styles.length ? ` · ${listOf(t.styles.map(styleLabel))}` : ""}</p>
+            {happening.includes(t) && <p className="today-link small">{tr("Open today's plan →")}</p>}
             {tripAlerts.length > 0 && status !== "past" && (
-              <p className="alert-inline">⚠︎ Estela spotted a change to {tripAlerts.map((a) => a.flightNumber).join(", ")}</p>
+              <p className="alert-inline">⚠︎ {tr("Estela spotted a change to {flights}", { flights: tripAlerts.map((a) => a.flightNumber).join(", ") })}</p>
             )}
           </div>
         </a>

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUp, MessageCircle, RotateCcw, Search, Square, X } from "lucide-react";
 import type { Trip } from "../../shared/types.ts";
+import { t as tr } from "../i18n.ts";
 
 // "Ask Estela": a chat about your trip, or one you're thinking about, instead of searching the web. Answers arrive as
 // they're written, with the pages Estela looked at. The conversation stays on this device, one per trip.
@@ -30,10 +31,10 @@ function saveTurns(tripId: string, turns: Turn[]) {
 function starters(trip: Trip): string[] {
   const place = trip.places?.find((p) => p.type === "city")?.name ?? trip.destination.split(/[,·]/)[0]?.trim();
   return [
-    "What's on tomorrow?",
-    place ? `How do I get from the airport to where I'm staying in ${place}?` : "How do I get from the airport to where I'm staying?",
-    place ? `Is the tap water safe to drink in ${place}?` : "Is the tap water safe to drink there?",
-    "What should I pack for the weather?",
+    tr("What's on tomorrow?"),
+    place ? tr("How do I get from the airport to where I'm staying in {place}?", { place }) : tr("How do I get from the airport to where I'm staying?"),
+    place ? tr("Is the tap water safe to drink in {place}?", { place }) : tr("Is the tap water safe to drink there?"),
+    tr("What should I pack for the weather?"),
   ];
 }
 
@@ -115,7 +116,7 @@ export default function AskEstela({ trip }: { trip: Trip }) {
       });
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? "Estela couldn't answer just now.");
+        throw new Error((body as { error?: string }).error ?? tr("Estela couldn't answer just now."));
       }
       // Server-sent events: "event: name" then "data: json", separated by a blank line.
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -152,30 +153,30 @@ export default function AskEstela({ trip }: { trip: Trip }) {
 
   return (
     <>
-      <button type="button" className={`chat-fab ${open ? "open" : ""}`} aria-expanded={open} aria-label={open ? "Close Ask Estela" : "Ask Estela"} title="Ask Estela about your trip" onClick={() => setOpen((o) => !o)}>
+      <button type="button" className={`chat-fab ${open ? "open" : ""}`} aria-expanded={open} aria-label={open ? tr("Close Ask Estela") : tr("Ask Estela")} title={tr("Ask Estela about your trip")} onClick={() => setOpen((o) => !o)}>
         {open ? <X aria-hidden="true" /> : <MessageCircle aria-hidden="true" />}
-        {!open && <span>Ask Estela</span>}
+        {!open && <span>{tr("Ask Estela")}</span>}
       </button>
       {open && (
-        <section className="chat-panel" aria-label="Ask Estela">
+        <section className="chat-panel" aria-label={tr("Ask Estela")}>
           <header className="chat-head">
             <div>
-              <b>Ask Estela</b>
-              <span className="muted tiny">About {trip.name}, or a trip you're thinking about</span>
+              <b>{tr("Ask Estela")}</b>
+              <span className="muted tiny">{tr("About {name}, or a trip you're thinking about", { name: trip.name })}</span>
             </div>
             {turns.length > 0 && (
-              <button type="button" className="prep-action" title="New conversation" aria-label="New conversation" disabled={busy} onClick={() => setTurns([])}>
+              <button type="button" className="prep-action" title={tr("New conversation")} aria-label={tr("New conversation")} disabled={busy} onClick={() => setTurns([])}>
                 <RotateCcw aria-hidden="true" />
               </button>
             )}
-            <button type="button" className="prep-action" title="Close" aria-label="Close" onClick={() => setOpen(false)}>
+            <button type="button" className="prep-action" title={tr("Close")} aria-label={tr("Close")} onClick={() => setOpen(false)}>
               <X aria-hidden="true" />
             </button>
           </header>
           <div className="chat-body">
             {turns.length === 0 && (
               <div className="chat-empty">
-                <p className="muted small">Ask anything you'd otherwise search for: getting around, what to do, money, safety, entry rules, or what's on your plan. Estela looks up what changes and shows where it found it.</p>
+                <p className="muted small">{tr("Ask anything you'd otherwise search for: getting around, what to do, money, safety, entry rules, or what's on your plan. Estela looks up what changes and shows where it found it.")}</p>
                 <div className="chat-starters">
                   {starters(trip).map((s) => (
                     <button key={s} type="button" className="chip" onClick={() => ask(s)}>{s}</button>
@@ -186,11 +187,11 @@ export default function AskEstela({ trip }: { trip: Trip }) {
             {turns.map((t, n) => (
               <div key={n} className={`chat-turn ${t.role} ${t.error ? "error" : ""}`}>
                 {t.role === "user" ? <p>{t.text}</p> : t.text ? <Answer text={t.text} /> : busy && n === turns.length - 1 ? (
-                  <p className="muted small chat-thinking">{searching ? <><Search aria-hidden="true" /> Searching “{searching}”…</> : "Estela is thinking…"}</p>
+                  <p className="muted small chat-thinking">{searching ? <><Search aria-hidden="true" />{" "}{tr("Searching “{searching}”…", { searching })}</> : tr("Estela is thinking…")}</p>
                 ) : null}
                 {t.sources && t.sources.length > 0 && (
                   <div className="chat-sources">
-                    <span className="muted tiny">Sources</span>
+                    <span className="muted tiny">{tr("Sources")}</span>
                     {t.sources.slice(0, 6).map((s) => (
                       <a key={s.url} className="tiny" href={s.url} target="_blank" rel="noopener noreferrer" title={s.url}>{s.title} ↗</a>
                     ))}
@@ -198,7 +199,7 @@ export default function AskEstela({ trip }: { trip: Trip }) {
                 )}
               </div>
             ))}
-            {busy && searching && turns.at(-1)?.text && <p className="muted tiny chat-thinking"><Search aria-hidden="true" /> Searching “{searching}”…</p>}
+            {busy && searching && turns.at(-1)?.text && <p className="muted tiny chat-thinking"><Search aria-hidden="true" />{" "}{tr("Searching “{searching}”…", { searching })}</p>}
             <div ref={end} />
           </div>
           <form className="chat-input" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
@@ -207,8 +208,8 @@ export default function AskEstela({ trip }: { trip: Trip }) {
               rows={1}
               value={text}
               maxLength={2000}
-              placeholder="Ask about your trip…"
-              aria-label="Your question"
+              placeholder={tr("Ask about your trip…")}
+              aria-label={tr("Your question")}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -218,12 +219,12 @@ export default function AskEstela({ trip }: { trip: Trip }) {
               }}
             />
             {busy ? (
-              <button type="button" className="chat-send" title="Stop" aria-label="Stop" onClick={() => stopper.current?.abort()}><Square aria-hidden="true" /></button>
+              <button type="button" className="chat-send" title={tr("Stop")} aria-label={tr("Stop")} onClick={() => stopper.current?.abort()}><Square aria-hidden="true" /></button>
             ) : (
-              <button type="submit" className="chat-send" title="Ask" aria-label="Ask" disabled={!text.trim()}><ArrowUp aria-hidden="true" /></button>
+              <button type="submit" className="chat-send" title={tr("Ask")} aria-label={tr("Ask")} disabled={!text.trim()}><ArrowUp aria-hidden="true" /></button>
             )}
           </form>
-          <p className="chat-note muted tiny">Estela can make mistakes. Check times, prices and entry rules with the official source before you rely on them.</p>
+          <p className="chat-note muted tiny">{tr("Estela can make mistakes. Check times, prices and entry rules with the official source before you rely on them.")}</p>
         </section>
       )}
     </>

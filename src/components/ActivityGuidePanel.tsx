@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { ActivityGuide, ActivityItem, DraftItem } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import { t, tn } from "../i18n.ts";
 
 const LISTS: { key: keyof ActivityGuide; title: string }[] = [
-  { key: "beforeYouGo", title: "Before you go" },
-  { key: "itinerary", title: "Itinerary" },
-  { key: "whatToBring", title: "What to bring" },
-  { key: "whatToWear", title: "What to wear" },
-  { key: "dos", title: "Do's" },
-  { key: "donts", title: "Don'ts / not allowed" },
-  { key: "goodToKnow", title: "Good to know" },
+  { key: "beforeYouGo", get title() { return t("Before you go"); } },
+  { key: "itinerary", get title() { return t("Itinerary"); } },
+  { key: "whatToBring", get title() { return t("What to bring"); } },
+  { key: "whatToWear", get title() { return t("What to wear"); } },
+  { key: "dos", get title() { return t("Do's"); } },
+  { key: "donts", get title() { return t("Don'ts / not allowed"); } },
+  { key: "goodToKnow", get title() { return t("Good to know"); } },
 ];
 
-const MEETING = "Meeting point / pickup";
-const ENDS = "Ends";
+
 
 /** "What to bring" as a checklist for this activity. Separate from the packing list: this is what you need with you that day. */
 function BringChecklist({ items, item, onChange }: { items: string[]; item?: ActivityItem; onChange?: () => void }) {
@@ -37,7 +37,7 @@ function BringChecklist({ items, item, onChange }: { items: string[]; item?: Act
   const done = items.filter((x) => ticked.includes(x)).length;
   return (
     <section className="guide-section whatToBring">
-      <h5>What to bring <span className="muted tiny">{done} of {items.length}</span></h5>
+      <h5>{t("What to bring")}{" "}<span className="muted tiny">{t("{done} of {length}", { done, length: items.length })}</span></h5>
       <ul className="bring-checklist">
         {items.map((x) => (
           <li key={x} className={ticked.includes(x) ? "done" : ""}>
@@ -58,11 +58,11 @@ export default function ActivityGuidePanel({ guide, item, onChange }: { guide: A
   const [open, setOpen] = useState(false);
   const lists = LISTS.filter((l) => (guide[l.key] as string[] | undefined)?.length);
   const facts = [
-    guide.meetingPoint && [MEETING, guide.meetingPoint],
-    guide.endPoint && [ENDS, guide.endPoint],
-    guide.provider && ["Provider", guide.provider],
-    guide.pin && ["PIN", guide.pin],
-    guide.cancellation && ["Cancellation", guide.cancellation],
+    guide.meetingPoint && [t("Meeting point / pickup"), guide.meetingPoint],
+    guide.endPoint && [t("Ends"), guide.endPoint],
+    guide.provider && [t("Provider"), guide.provider],
+    guide.pin && [t("PIN"), guide.pin],
+    guide.cancellation && [t("Cancellation"), guide.cancellation],
   ].filter(Boolean) as [string, string][];
   if (!lists.length && !facts.length) return null;
 
@@ -70,7 +70,7 @@ export default function ActivityGuidePanel({ guide, item, onChange }: { guide: A
   return (
     <div className="guide">
       <button type="button" className="link guide-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        {open ? "▾" : "▸"} Activity guide{count ? ` · ${count} tips` : ""}
+        {open ? "▾" : "▸"} {t("Activity guide")}{count ? ` · ${tn(count, "{n} tip", "{n} tips")}` : ""}
       </button>
       {open && (
         <div className="guide-body">
@@ -81,10 +81,10 @@ export default function ActivityGuidePanel({ guide, item, onChange }: { guide: A
                   <dt>{k}</dt>
                   <dd>
                     {v}
-                    {(k === MEETING || k === ENDS) && (
+                    {(k === t("Meeting point / pickup") || k === t("Ends")) && (
                       <>
                         {" "}
-                        <a className="small map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.split(" · ")[0])}`} target="_blank" rel="noopener noreferrer">Map ↗</a>
+                        <a className="small map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.split(" · ")[0])}`} target="_blank" rel="noopener noreferrer">{t("Map ↗")}</a>
                       </>
                     )}
                   </dd>

@@ -1,4 +1,5 @@
 import { useSyncExternalStore, type ReactNode } from "react";
+import { t } from "../i18n.ts";
 
 // Sections you can minimize. What you've minimized stays that way on this device, through refreshes and reloads.
 
@@ -60,7 +61,7 @@ export default function Fold({
   return (
     <>
       <Heading className={`fold-head ${headClass} ${action ? "has-action" : ""}`}>
-        <button type="button" className="fold-toggle" aria-expanded={!folded} title={folded ? "Expand" : "Minimize"} onClick={() => setMinimized([id], !folded)}>
+        <button type="button" className="fold-toggle" aria-expanded={!folded} title={folded ? t("Expand") : t("Minimize")} onClick={() => setMinimized([id], !folded)}>
           <span className="fold-title">{title}</span>
           {folded && summary !== undefined && <span className="fold-summary">{summary}</span>}
           <span className="fold-chevron" aria-hidden="true">▾</span>
@@ -81,7 +82,7 @@ export function FoldAll({ ids }: { ids: string[] }) {
   if (!ids.length) return null;
   return (
     <button type="button" className="link fold-all" onClick={() => setMinimized(ids, !allFolded)}>
-      {allFolded ? "Expand all" : "Minimize all"}
+      {allFolded ? t("Expand all") : t("Minimize all")}
     </button>
   );
 }

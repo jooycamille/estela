@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ImageOff, Search, Upload, X } from "lucide-react";
 import type { PhotoChoice } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import { t } from "../i18n.ts";
 
 // Change a place's photo: one taken there (Wikimedia Commons), one found by searching Commons, your own, or none.
 
@@ -16,7 +17,7 @@ async function shrink(file: File): Promise<{ filename: string; contentType: stri
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that photo"))), "image/jpeg", 0.85));
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(t("Couldn't read that photo")))), "image/jpeg", 0.85));
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -75,18 +76,18 @@ export default function PhotoPicker({ listId, entryId, title, current, onClose, 
 
   const grid = (photos: PhotoChoice[] | undefined, empty: string) => (
     <div className="photo-grid">
-      {photos === undefined && <p className="muted small">Looking…</p>}
+      {photos === undefined && <p className="muted small">{t("Looking…")}</p>}
       {photos?.length === 0 && <p className="muted small">{empty}</p>}
       {photos?.map((p) => (
         <figure key={p.page} className={`photo-choice ${p.url === current ? "on" : ""}`}>
-          <button type="button" disabled={busy} onClick={() => save({ pick: { url: p.url, page: p.page } })} aria-label={`Use this photo: ${p.title}`}>
+          <button type="button" disabled={busy} onClick={() => save({ pick: { url: p.url, page: p.page } })} aria-label={t("Use this photo: {title}", { title: p.title })}>
             <img src={p.url} alt="" loading="lazy" referrerPolicy="no-referrer" />
           </button>
-          <figcaption><a href={p.page} target="_blank" rel="noopener noreferrer" title="Who took it, and its licence">{p.title} ↗</a></figcaption>
+          <figcaption><a href={p.page} target="_blank" rel="noopener noreferrer" title={t("Who took it, and its licence")}>{p.title} ↗</a></figcaption>
         </figure>
       ))}
       <button type="button" className="photo-none" disabled={busy} onClick={() => save({ none: true })}>
-        <ImageOff aria-hidden="true" /> No photo
+        <ImageOff aria-hidden="true" />{" "}{t("No photo")}
       </button>
     </div>
   );
@@ -96,28 +97,28 @@ export default function PhotoPicker({ listId, entryId, title, current, onClose, 
     <div className="tour-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <section className="photo-picker" role="dialog" aria-modal="true" aria-labelledby="photo-picker-title">
         <div className="photo-picker-head">
-          <h2 id="photo-picker-title">Photo for {title}</h2>
-          <button type="button" className="quiet icon-only" aria-label="Close" onClick={onClose}><X aria-hidden="true" /></button>
+          <h2 id="photo-picker-title">{t("Photo for {title}", { title })}</h2>
+          <button type="button" className="quiet icon-only" aria-label={t("Close")} onClick={onClose}><X aria-hidden="true" /></button>
         </div>
-        <div className="categories" role="tablist" aria-label="Where the photo comes from">
-          {([["suggested", "Taken here"], ["search", "Search"], ["upload", "Your photo"]] as const).map(([k, label]) => (
+        <div className="categories" role="tablist" aria-label={t("Where the photo comes from")}>
+          {([["suggested", t("Taken here")], ["search", t("Search")], ["upload", t("Your photo")]] as const).map(([k, label]) => (
             <button key={k} role="tab" aria-selected={tab === k} className={`category ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>
         {error && <p className="error small">{error}</p>}
-        {tab === "suggested" && grid(suggested, "No photos taken right here yet. Try Search, or add your own.")}
+        {tab === "suggested" && grid(suggested, t("No photos taken right here yet. Try Search, or add your own."))}
         {tab === "search" && (
           <>
             <form className="photo-search" onSubmit={(e) => { e.preventDefault(); search(); }}>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Jericó botanical garden" aria-label="Search for photos" autoFocus />
-              <button type="submit"><Search aria-hidden="true" /> Search</button>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("e.g. Jericó botanical garden")} aria-label={t("Search for photos")} autoFocus />
+              <button type="submit"><Search aria-hidden="true" />{" "}{t("Search")}</button>
             </form>
-            {results !== undefined || query !== title ? grid(results, "Nothing found. Try other words, or the town's name.") : <p className="muted small">Search free photos on Wikimedia Commons.</p>}
+            {results !== undefined || query !== title ? grid(results, t("Nothing found. Try other words, or the town's name.")) : <p className="muted small">{t("Search free photos on Wikimedia Commons.")}</p>}
           </>
         )}
         {tab === "upload" && (
           <div className="photo-upload">
-            <p className="muted small">A photo from your phone or computer. It's made smaller and kept with this trip on your Mac, for the people on it.</p>
+            <p className="muted small">{t("A photo from your phone or computer. It's made smaller and kept with this trip on your Mac, for the people on it.")}</p>
             <input
               ref={file}
               type="file"
@@ -133,10 +134,10 @@ export default function PhotoPicker({ listId, entryId, title, current, onClose, 
                 }
               }}
             />
-            <button type="button" disabled={busy} onClick={() => file.current?.click()}><Upload aria-hidden="true" /> {busy ? "Saving…" : "Choose a photo"}</button>
+            <button type="button" disabled={busy} onClick={() => file.current?.click()}><Upload aria-hidden="true" /> {busy ? t("Saving…") : t("Choose a photo")}</button>
           </div>
         )}
-        <p className="muted tiny">Photos from <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a> are free to use; tap a name for who took it and its licence.</p>
+        <p className="muted tiny">{t("Photos from")}{" "}<a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer">{t("Wikimedia Commons")}</a>{" "}{t("are free to use; tap a name for who took it and its licence.")}</p>
       </section>
     </div>,
     document.body,

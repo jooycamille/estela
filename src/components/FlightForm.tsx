@@ -5,6 +5,7 @@ import { formatDay, formatTime, formatTimeOn } from "../format.ts";
 import AirportSelect from "./AirportSelect.tsx";
 import PriceField, { priceValue, toMoney } from "./PriceField.tsx";
 import SplitFields, { useSharers, type Split } from "./SplitFields.tsx";
+import { t as tr } from "../i18n.ts";
 
 type FlightDraft = Extract<DraftItem, { kind: "flight" }>;
 
@@ -29,7 +30,7 @@ function toOptions(legs: FlightScheduleLeg[]): FlightScheduleLeg[] {
 }
 
 const optionLabel = (o: FlightScheduleLeg, all: FlightScheduleLeg[]) =>
-  all.length > 1 && o === all[all.length - 1] ? "Whole journey" : `${o.from} → ${o.to}`;
+  all.length > 1 && o === all[all.length - 1] ? tr("Whole journey") : `${o.from} → ${o.to}`;
 
 type Detail = { airline: string; from: string; to: string; departureTime: string; arrivalTime: string };
 const detailFrom = (o: FlightScheduleLeg): Detail => ({
@@ -41,11 +42,11 @@ const detailFrom = (o: FlightScheduleLeg): Detail => ({
 });
 
 const DETAIL_FIELDS: { key: keyof Detail; label: string; type?: string; required?: boolean }[] = [
-  { key: "airline", label: "Airline" },
-  { key: "from", label: "From", required: true },
-  { key: "to", label: "To", required: true },
-  { key: "departureTime", label: "Departs (local time)", type: "datetime-local", required: true },
-  { key: "arrivalTime", label: "Arrives (local time)", type: "datetime-local" },
+  { key: "airline", get label() { return tr("Airline"); } },
+  { key: "from", get label() { return tr("From"); }, required: true },
+  { key: "to", get label() { return tr("To"); }, required: true },
+  { key: "departureTime", get label() { return tr("Departs (local time)"); }, type: "datetime-local", required: true },
+  { key: "arrivalTime", get label() { return tr("Arrives (local time)"); }, type: "datetime-local" },
 ];
 
 function LegCard({ leg }: { leg: FlightScheduleLeg }) {
@@ -59,14 +60,14 @@ function LegCard({ leg }: { leg: FlightScheduleLeg }) {
         <div>
           <div className="leg-time">{formatTime(leg.departureTime)}</div>
           <div><b>{leg.from}</b> {leg.fromName}</div>
-          <div className="muted small">{formatDay(leg.departureTime)}{leg.departureTerminal && ` · Terminal ${leg.departureTerminal}`}</div>
+          <div className="muted small">{formatDay(leg.departureTime)}{leg.departureTerminal && tr(" · Terminal {departureTerminal}", { departureTerminal: leg.departureTerminal })}</div>
         </div>
         <div className="leg-arrow">→</div>
         <div>
           <div className="leg-time">{formatTimeOn(leg.arrivalTime, leg.departureTime) || "—"}</div>
           <div><b>{leg.to}</b> {leg.toName}</div>
           <div className="muted small">
-            {leg.arrivalTime && formatDay(leg.arrivalTime)}{leg.arrivalTerminal && ` · Terminal ${leg.arrivalTerminal}`}
+            {leg.arrivalTime && formatDay(leg.arrivalTime)}{leg.arrivalTerminal && tr(" · Terminal {arrivalTerminal}", { arrivalTerminal: leg.arrivalTerminal })}
           </div>
         </div>
       </div>
@@ -186,44 +187,44 @@ export default function FlightForm({
     <form className="item-form" onSubmit={submit}>
       <div className="grid2">
         <label>
-          Flight number
-          <input required autoFocus={!initial} value={flightNumber} placeholder="QF1" onChange={(e) => setFlightNumber(e.target.value)} />
+          {tr("Flight number")}
+          <input required autoFocus={!initial} value={flightNumber} placeholder={tr("QF1")} onChange={(e) => setFlightNumber(e.target.value)} />
         </label>
         <label>
-          Date of departure
+          {tr("Date of departure")}
           <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </label>
       </div>
 
       {mode === "suggest" && !showSuggestion && (
-        <p className="muted small">Enter the flight number and date and we'll fill in the rest.</p>
+        <p className="muted small">{tr("Enter the flight number and date and we'll fill in the rest.")}</p>
       )}
 
       {showSuggestion && (
         <div className="lookup">
-          {searching && <p className="muted small">Looking up {normalise(flightNumber)}…</p>}
+          {searching && <p className="muted small">{tr("Looking up {normalise}…", { normalise: normalise(flightNumber) })}</p>}
           {lookup?.error && (
             <>
               <p className="warning small">{lookup.error}</p>
-              <button type="button" className="secondary" onClick={overwrite}>Enter details manually</button>
+              <button type="button" className="secondary" onClick={overwrite}>{tr("Enter details manually")}</button>
             </>
           )}
           {lookup?.result && options.length === 0 && (
             <>
               <p className="small">
-                We couldn't find <b>{normalise(flightNumber)}</b> on {formatDay(date)}. Check the number and date, or enter the details yourself.
+                {tr("We couldn't find")}{" "}<b>{normalise(flightNumber)}</b>{" "}{tr("on {formatDay}. Check the number and date, or enter the details yourself.", { formatDay: formatDay(date) })}
               </p>
               {lookup.result.provider === "mock" && (
                 <p className="muted tiny">
-                  Demo flight data only knows a few sample flights (e.g. QF1, SQ232, BA15). <a href="#/settings">Connect real flight data</a> to look up any flight.
+                  {tr("Demo flight data only knows a few sample flights (e.g. QF1, SQ232, BA15).")}{" "}<a href="#/settings">{tr("Connect real flight data")}</a>{" "}{tr("to look up any flight.")}
                 </p>
               )}
-              <button type="button" className="secondary" onClick={overwrite}>Enter details manually</button>
+              <button type="button" className="secondary" onClick={overwrite}>{tr("Enter details manually")}</button>
             </>
           )}
           {current && (
             <>
-              <p className="small"><b>Is this your flight?</b></p>
+              <p className="small"><b>{tr("Is this your flight?")}</b></p>
               {options.length > 1 && (
                 <div className="chips leg-choice">
                   {options.map((o, i) => (
@@ -235,14 +236,14 @@ export default function FlightForm({
               )}
               <LegCard leg={current} />
               {lookup.result?.provider === "mock" && (
-                <p className="muted tiny">Demo schedule data — <a href="#/settings">connect real flight data</a> for real schedules.</p>
+                <p className="muted tiny">{tr("Demo schedule data —")}{" "}<a href="#/settings">{tr("connect real flight data")}</a>{" "}{tr("for real schedules.")}</p>
               )}
               {current.basis === "weekly" && (
-                <p className="muted tiny">From the airline's regular weekly schedule — check the times against your booking.</p>
+                <p className="muted tiny">{tr("From the airline's regular weekly schedule — check the times against your booking.")}</p>
               )}
               <div className="actions start">
-                <button type="button" onClick={confirm}>✓ Yes, that's my flight</button>
-                <button type="button" className="ghost" onClick={overwrite}>Not quite — let me edit</button>
+                <button type="button" onClick={confirm}>{tr("✓ Yes, that's my flight")}</button>
+                <button type="button" className="ghost" onClick={overwrite}>{tr("Not quite — let me edit")}</button>
               </div>
             </>
           )}
@@ -251,9 +252,9 @@ export default function FlightForm({
 
       {mode === "confirmed" && current && (
         <div className="lookup confirmed">
-          <p className="small ok-text">✓ Details from the airline schedule</p>
+          <p className="small ok-text">{tr("✓ Details from the airline schedule")}</p>
           <LegCard leg={current} />
-          <button type="button" className="link" onClick={() => setMode("edit")}>Edit details</button>
+          <button type="button" className="link" onClick={() => setMode("edit")}>{tr("Edit details")}</button>
         </div>
       )}
 
@@ -261,15 +262,15 @@ export default function FlightForm({
         <>
           {suggested ? (
             <p className="muted small">
-              Change anything that's different on your booking.{" "}
+              {tr("Change anything that's different on your booking.")}{" "}
               <button type="button" className="link" onClick={() => { setDetail(suggested); setMode("confirmed"); }}>
-                Use schedule details
+                {tr("Use schedule details")}
               </button>
             </p>
           ) : (
             ready && (
               <p className="muted small">
-                <button type="button" className="link" onClick={() => setCheckedKey("")}>Check against the airline schedule</button>
+                <button type="button" className="link" onClick={() => setCheckedKey("")}>{tr("Check against the airline schedule")}</button>
               </p>
             )
           )}
@@ -278,9 +279,9 @@ export default function FlightForm({
               const overridden = suggested && suggested[f.key] !== detail[f.key];
               const undo = overridden && (
                 <span className="hint">
-                  Schedule: {suggested[f.key] || "—"}{" "}
+                  {tr("Schedule: {v1}", { v1: suggested[f.key] || "—" })}
                   <button type="button" className="link" onClick={() => setDetail((d) => ({ ...d, [f.key]: suggested[f.key] }))}>
-                    undo
+                    {tr("undo")}
                   </button>
                 </span>
               );
@@ -288,7 +289,7 @@ export default function FlightForm({
                 return (
                   <div key={f.key} className="field">
                     <AirportSelect
-                      label={f.key === "from" ? "From" : "To"}
+                      label={f.key === "from" ? tr("From") : tr("To")}
                       value={detail[f.key]}
                       required={f.required}
                       overridden={!!overridden}
@@ -309,9 +310,9 @@ export default function FlightForm({
                   />
                   {overridden && (
                     <span className="hint">
-                      Schedule: {f.type ? suggested[f.key].replace("T", " ") || "—" : suggested[f.key] || "—"}{" "}
+                      {tr("Schedule: {v1}", { v1: f.type ? suggested[f.key].replace("T", " ") || "—" : suggested[f.key] || "—" })}
                       <button type="button" className="link" onClick={() => setDetail((d) => ({ ...d, [f.key]: suggested[f.key] }))}>
-                        undo
+                        {tr("undo")}
                       </button>
                     </span>
                   )}
@@ -324,20 +325,20 @@ export default function FlightForm({
 
       {mode !== "suggest" && (
         <div className="grid2">
-          <label>Seat<input value={extra.seat} onChange={(e) => setExtra((x) => ({ ...x, seat: e.target.value }))} /></label>
-          <label>Cabin bag<input value={bags.cabin} placeholder="e.g. 1 × 10 kg" onChange={(e) => setBags((b) => ({ ...b, cabin: e.target.value }))} /></label>
-          <label>Checked bags<input value={bags.checked} placeholder="e.g. 1 × 23 kg, or None" onChange={(e) => setBags((b) => ({ ...b, checked: e.target.value }))} /></label>
-          <label>Booking ref<input value={extra.confirmationCode} onChange={(e) => setExtra((x) => ({ ...x, confirmationCode: e.target.value }))} /></label>
+          <label>{tr("Seat")}<input value={extra.seat} onChange={(e) => setExtra((x) => ({ ...x, seat: e.target.value }))} /></label>
+          <label>{tr("Cabin bag")}<input value={bags.cabin} placeholder={tr("e.g. 1 × 10 kg")} onChange={(e) => setBags((b) => ({ ...b, cabin: e.target.value }))} /></label>
+          <label>{tr("Checked bags")}<input value={bags.checked} placeholder={tr("e.g. 1 × 23 kg, or None")} onChange={(e) => setBags((b) => ({ ...b, checked: e.target.value }))} /></label>
+          <label>{tr("Booking ref")}<input value={extra.confirmationCode} onChange={(e) => setExtra((x) => ({ ...x, confirmationCode: e.target.value }))} /></label>
           <PriceField value={price} onChange={setPrice} />
-          <label>Notes<input value={extra.notes} onChange={(e) => setExtra((x) => ({ ...x, notes: e.target.value }))} /></label>
+          <label>{tr("Notes")}<input value={extra.notes} onChange={(e) => setExtra((x) => ({ ...x, notes: e.target.value }))} /></label>
         </div>
       )}
       {mode !== "suggest" && toMoney(price) && <SplitFields people={sharers} value={split} onChange={setSplit} />}
 
       {error && <p className="error">{error}</p>}
       <div className="actions">
-        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
-        {mode !== "suggest" && <button type="submit" disabled={busy}>{busy ? "Saving…" : submitLabel}</button>}
+        <button type="button" className="ghost" onClick={onCancel}>{tr("Cancel")}</button>
+        {mode !== "suggest" && <button type="submit" disabled={busy}>{busy ? tr("Saving…") : submitLabel}</button>}
       </div>
     </form>
   );

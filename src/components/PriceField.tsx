@@ -1,5 +1,6 @@
 import type { Money } from "../../shared/types.ts";
 import { allCurrencies, COMMON_CURRENCIES, currencyLabel } from "../currencies.ts";
+import { t } from "../i18n.ts";
 
 export type PriceValue = { amount: string; currency: string };
 
@@ -9,9 +10,9 @@ export const priceValue = (p?: Money): PriceValue => ({ amount: p ? String(p.amo
 export function toMoney(v: PriceValue): Money | undefined {
   if (!v.amount.trim() && !v.currency.trim()) return undefined;
   const amount = Number(v.amount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter the price as a number, e.g. 564.88");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error(t("Enter the price as a number, e.g. 564.88"));
   const currency = v.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Choose the currency for the price, e.g. USD");
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error(t("Choose the currency for the price, e.g. USD"));
   return { amount, currency };
 }
 
@@ -29,19 +30,19 @@ export default function PriceField({ value, onChange }: { value: PriceValue; onC
   const extra = value.currency && !COMMON_CURRENCIES.includes(value.currency) && !others.includes(value.currency) ? [value.currency] : [];
   return (
     <label>
-      Price paid
+      {t("Price paid")}
       <div className="price-field">
         <select
           className="currency"
           value={value.currency}
           onChange={(e) => onChange({ ...value, currency: e.target.value })}
-          aria-label="Currency"
+          aria-label={t("Currency")}
         >
-          <option value="">Currency…</option>
-          <optgroup label="Common">
+          <option value="">{t("Currency…")}</option>
+          <optgroup label={t("Common")}>
             {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}
           </optgroup>
-          <optgroup label="All currencies">
+          <optgroup label={t("All currencies")}>
             {[...extra, ...others].map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}
           </optgroup>
         </select>
@@ -53,7 +54,7 @@ export default function PriceField({ value, onChange }: { value: PriceValue; onC
           placeholder="0.00"
           value={value.amount}
           onChange={(e) => onChange({ ...value, amount: e.target.value })}
-          aria-label="Amount"
+          aria-label={t("Amount")}
         />
       </div>
     </label>

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { TripPlace } from "../../shared/types.ts";
+import { t as tr } from "../i18n.ts";
 
 /** 🇲🇽 from "MX" */
 export const flag = (cc: string) => String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
@@ -12,7 +13,7 @@ const countryOf = (cc: string) => {
     return cc;
   }
 };
-const KIND = { country: "Country", region: "State / region", city: "City" } as const;
+const KIND = { get country() { return tr("Country"); }, get region() { return tr("State / region"); }, get city() { return tr("City"); } } as const;
 
 function describe(p: TripPlace) {
   if (p.type === "country") return KIND.country;
@@ -48,7 +49,7 @@ export default function PlaceSelect({ value, onChange }: { value: TripPlace[]; o
 
   // Native form validation: at least one destination.
   useEffect(() => {
-    input.current?.setCustomValidity(value.length ? "" : "Choose at least one destination");
+    input.current?.setCustomValidity(value.length ? "" : tr("Choose at least one destination"));
   }, [value]);
 
   const add = (p: TripPlace) => {
@@ -62,12 +63,12 @@ export default function PlaceSelect({ value, onChange }: { value: TripPlace[]; o
 
   return (
     <label className="place-select" htmlFor={id}>
-      Destinations
+      {tr("Destinations")}
       <div className="place-box" onClick={() => input.current?.focus()}>
         {value.map((p) => (
           <span key={keyOf(p)} className="place-chip" title={describe(p)}>
             <span aria-hidden="true">{flag(p.countryCode)}</span> {p.name}
-            <button type="button" className="chip-x" aria-label={`Remove ${p.name}`} onClick={() => remove(p)}>×</button>
+            <button type="button" className="chip-x" aria-label={tr("Remove {name}", { name: p.name })} onClick={() => remove(p)}>×</button>
           </span>
         ))}
         <input
@@ -79,7 +80,7 @@ export default function PlaceSelect({ value, onChange }: { value: TripPlace[]; o
           aria-autocomplete="list"
           aria-activedescendant={open && results[active] ? `${id}-${active}` : undefined}
           autoComplete="off"
-          placeholder={value.length ? "Add another…" : "Search countries, states or cities"}
+          placeholder={value.length ? tr("Add another…") : tr("Search countries, states or cities")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -106,7 +107,7 @@ export default function PlaceSelect({ value, onChange }: { value: TripPlace[]; o
       </div>
       {open && (
         <ul className="airport-list" id={`${id}-list`} role="listbox">
-          {results.length === 0 && <li className="muted small none">No places match</li>}
+          {results.length === 0 && <li className="muted small none">{tr("No places match")}</li>}
           {results.map((p, i) => (
             <li
               key={keyOf(p)}

@@ -5,15 +5,16 @@ import { api, type ExpenseInput } from "../api.ts";
 import { COMMON_CURRENCIES } from "../currencies.ts";
 import { formatDay } from "../format.ts";
 import { nowIn } from "../zones.ts";
+import { t } from "../i18n.ts";
 
 // Spending during the trip: what you paid for (a meal, a taxi, a ticket on the day), who paid, and who it's shared by.
 
 export const EXPENSE_LOOK: Record<ExpenseCategory, { label: string; icon: LucideIcon }> = {
-  food: { label: "Food & drink", icon: UtensilsCrossed },
-  transport: { label: "Getting around", icon: Car },
-  shopping: { label: "Shopping", icon: ShoppingBag },
-  fun: { label: "Tickets & fun", icon: Ticket },
-  other: { label: "Other", icon: Receipt },
+  food: { get label() { return t("Food & drink"); }, icon: UtensilsCrossed },
+  transport: { get label() { return t("Getting around"); }, icon: Car },
+  shopping: { get label() { return t("Shopping"); }, icon: ShoppingBag },
+  fun: { get label() { return t("Tickets & fun"); }, icon: Ticket },
+  other: { get label() { return t("Other"); }, icon: Receipt },
 };
 
 const LAST_CURRENCY = "joy-expense-currency";
@@ -38,7 +39,7 @@ export default function ExpenseLog({ trip, people, me, canEdit, currency, money,
 }) {
   const [editing, setEditing] = useState<Expense | "new">();
   const expenses = [...(trip.expenses ?? [])].sort((a, b) => b.day.localeCompare(a.day) || b.createdAt.localeCompare(a.createdAt));
-  const name = (id: string) => (id === me ? "You" : people.find((p) => p.userId === id)?.name ?? "Someone who left");
+  const name = (id: string) => (id === me ? t("You") : people.find((p) => p.userId === id)?.name ?? t("Someone who left"));
   const together = people.length > 1;
   const byDay = new Map<string, Expense[]>();
   for (const e of expenses) byDay.set(e.day, [...(byDay.get(e.day) ?? []), e]);
@@ -46,15 +47,15 @@ export default function ExpenseLog({ trip, people, me, canEdit, currency, money,
   return (
     <section className="card expenses" aria-labelledby="expenses-title">
       <div className="spend-heading-row">
-        <h3 className="spend-heading" id="expenses-title">On the trip</h3>
-        {canEdit && editing !== "new" && <button type="button" className="secondary small-btn" onClick={() => setEditing("new")}>+ Add spending</button>}
+        <h3 className="spend-heading" id="expenses-title">{t("On the trip")}</h3>
+        {canEdit && editing !== "new" && <button type="button" className="secondary small-btn" onClick={() => setEditing("new")}>{t("+ Add spending")}</button>}
       </div>
       {canEdit && <SharingWith trip={trip} people={people} me={me} onChanged={onChanged} />}
       {editing === "new" && (
         <ExpenseForm trip={trip} people={people} me={me} currency={lastCurrency(trip.id) ?? currency} onCancel={() => setEditing(undefined)} onSaved={() => { setEditing(undefined); onChanged(); }} />
       )}
       {!expenses.length && editing !== "new" && (
-        <p className="spend-note">Meals, taxis, tickets bought on the day: add them as you go{together ? ", with who paid, and Estela works out who owes whom" : ""}.</p>
+        <p className="spend-note">{together ? t("Meals, taxis, tickets bought on the day: add them as you go, with who paid, and Estela works out who owes whom.") : t("Meals, taxis, tickets bought on the day: add them as you go.")}</p>
       )}
       {[...byDay].map(([day, list]) => (
         <div key={day} className="expense-day">
@@ -72,14 +73,20 @@ export default function ExpenseLog({ trip, people, me, canEdit, currency, money,
                     {e.title}
                     <span className="spend-note">
                       {EXPENSE_LOOK[e.category].label}
-                      {together && <> · {name(e.paidBy)} paid{e.split.length === people.length ? ", shared by everyone" : e.split.length === 1 ? (e.split[0] === e.paidBy ? ", just for themselves" : `, for ${name(e.split[0])}`) : `, shared by ${e.split.length}`}</>}
+                      {together && <>{" "}{(e.split.length === people.length
+                        ? t("· {name} paid, shared by everyone", { name: name(e.paidBy) })
+                        : e.split.length === 1
+                          ? e.split[0] === e.paidBy
+                            ? t("· {name} paid, just for themselves", { name: name(e.paidBy) })
+                            : t("· {name} paid, for {who}", { name: name(e.paidBy), who: name(e.split[0]) })
+                          : t("· {name} paid, shared by {n}", { name: name(e.paidBy), n: e.split.length }))}</>}
                     </span>
                   </span>
                   <span className="cat-amount">{money(e.amount.amount, e.amount.currency)}</span>
                   {canEdit && (
                     <span className="expense-actions">
-                      <button type="button" className="prep-action" aria-label={`Edit ${e.title}`} title="Edit" onClick={() => setEditing(e)}><Pencil aria-hidden="true" /></button>
-                      <button type="button" className="prep-action danger" aria-label={`Delete ${e.title}`} title="Delete" onClick={() => confirm(`Delete "${e.title}"?`) && api.deleteExpense(trip.id, e.id).then(onChanged)}><Trash2 aria-hidden="true" /></button>
+                      <button type="button" className="prep-action" aria-label={t("Edit {title}", { title: e.title })} title={t("Edit")} onClick={() => setEditing(e)}><Pencil aria-hidden="true" /></button>
+                      <button type="button" className="prep-action danger" aria-label={t("Delete {title}", { title: e.title })} title={t("Delete")} onClick={() => confirm(t("Delete \"{title}\"?", { title: e.title })) && api.deleteExpense(trip.id, e.id).then(onChanged)}><Trash2 aria-hidden="true" /></button>
                     </span>
                   )}
                 </li>
@@ -136,45 +143,45 @@ function ExpenseForm({ trip, people, me, initial, currency, onCancel, onSaved }:
       }}
     >
       <div className="expense-form-row">
-        <label className="grow">What <input autoFocus required maxLength={120} value={title} placeholder="e.g. Dinner, taxi to the hotel" onChange={(e) => setTitle(e.target.value)} /></label>
-        <label className="amount">Amount <input required inputMode="decimal" value={amount} placeholder="0" onChange={(e) => setAmount(e.target.value)} /></label>
-        <label className="cur">Currency
+        <label className="grow">{t("What")}{" "}<input autoFocus required maxLength={120} value={title} placeholder={t("e.g. Dinner, taxi to the hotel")} onChange={(e) => setTitle(e.target.value)} /></label>
+        <label className="amount">{t("Amount")}{" "}<input required inputMode="decimal" value={amount} placeholder="0" onChange={(e) => setAmount(e.target.value)} /></label>
+        <label className="cur">{t("Currency")}
           <select value={cur} onChange={(e) => setCur(e.target.value)}>
             {[...new Set([cur, ...COMMON_CURRENCIES])].map((c) => <option key={c}>{c}</option>)}
           </select>
         </label>
       </div>
       <div className="expense-form-row">
-        <label>Day <input type="date" required value={day} onChange={(e) => setDay(e.target.value)} /></label>
-        <label>Kind
+        <label>{t("Day")}{" "}<input type="date" required value={day} onChange={(e) => setDay(e.target.value)} /></label>
+        <label>{t("Kind")}
           <select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
             {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{EXPENSE_LOOK[c].label}</option>)}
           </select>
         </label>
         {people.length > 1 && (
-          <label>Paid by
+          <label>{t("Paid by")}
             <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-              {people.map((p) => <option key={p.userId} value={p.userId}>{p.userId === me ? "You" : p.name}</option>)}
+              {people.map((p) => <option key={p.userId} value={p.userId}>{p.userId === me ? t("You") : p.name}</option>)}
             </select>
           </label>
         )}
       </div>
       {people.length > 1 && (
         <fieldset className="expense-split">
-          <legend>Shared by</legend>
+          <legend>{t("Shared by")}</legend>
           {people.map((p) => (
             <label key={p.userId} className="check">
               <input type="checkbox" checked={split.includes(p.userId)} onChange={(e) => setSplit(e.target.checked ? [...split, p.userId] : split.filter((id) => id !== p.userId))} />
-              {p.userId === me ? "You" : p.name}
+              {p.userId === me ? t("You") : p.name}
             </label>
           ))}
-          {split.length > 0 && value > 0 && <span className="spend-note">{(value / split.length).toFixed(2)} {cur} each</span>}
+          {split.length > 0 && value > 0 && <span className="spend-note">{t("{v1} {cur} each", { v1: (value / split.length).toFixed(2), cur })}</span>}
         </fieldset>
       )}
       {error && <p className="error small">{error}</p>}
       <div className="actions left">
-        <button type="submit" disabled={busy || !title.trim() || !(value > 0) || !split.length}>{initial ? "Save" : "Add"}</button>
-        <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
+        <button type="submit" disabled={busy || !title.trim() || !(value > 0) || !split.length}>{initial ? t("Save") : t("Add")}</button>
+        <button type="button" className="secondary" onClick={onCancel}>{t("Cancel")}</button>
       </div>
     </form>
   );
@@ -191,16 +198,16 @@ function SharingWith({ trip, people, me, onChanged }: { trip: Trip; people: Trav
   const extra = new Set((trip.spendPeople ?? []).map((p) => p.id));
   return (
     <div className="sharing">
-      <span className="sharing-label">Sharing costs</span>
+      <span className="sharing-label">{t("Sharing costs")}</span>
       <ul className="sharing-people">
         {people.map((p) => (
-          <li key={p.userId} className={extra.has(p.userId) ? "extra" : ""} title={extra.has(p.userId) ? "Not on Estela: here to share costs with" : undefined}>
-            {p.userId === me ? "You" : p.name}
+          <li key={p.userId} className={extra.has(p.userId) ? "extra" : ""} title={extra.has(p.userId) ? t("Not on Estela: here to share costs with") : undefined}>
+            {p.userId === me ? t("You") : p.name}
             {extra.has(p.userId) && (
               <button
                 type="button"
                 className="chip-x"
-                aria-label={`Remove ${p.name}`}
+                aria-label={t("Remove {name}", { name: p.name })}
                 onClick={() => api.removeSpendPerson(trip.id, p.userId).then(onChanged).catch((e) => setError(e.message))}
               >
                 ×
@@ -225,17 +232,17 @@ function SharingWith({ trip, people, me, onChanged }: { trip: Trip; people: Trav
                 }
               }}
             >
-              <input autoFocus maxLength={40} value={name} placeholder="Their name" aria-label="Trip-mate's name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setAdding(false)} />
-              <button type="submit" className="small-btn" disabled={!name.trim()}>Add</button>
+              <input autoFocus maxLength={40} value={name} placeholder={t("Their name")} aria-label={t("Trip-mate's name")} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setAdding(false)} />
+              <button type="submit" className="small-btn" disabled={!name.trim()}>{t("Add")}</button>
             </form>
           ) : (
-            <button type="button" className="link" onClick={() => setAdding(true)}>+ Add someone</button>
+            <button type="button" className="link" onClick={() => setAdding(true)}>{t("+ Add someone")}</button>
           )}
         </li>
       </ul>
       {error && <p className="error small">{error}</p>}
       {(trip.spendPeople?.length ?? 0) === 0 && !adding && (
-        <p className="spend-note">Travelling with someone who doesn't use Estela? Add them here to split costs with them too.</p>
+        <p className="spend-note">{t("Travelling with someone who doesn't use Estela? Add them here to split costs with them too.")}</p>
       )}
     </div>
   );

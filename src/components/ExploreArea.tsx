@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import type { ExploreIdea, ExploreIdeas, ExplorePlace, ListEntry, TripList } from "../../shared/types.ts";
 import { api } from "../api.ts";
 import { Sparkles } from "lucide-react";
+import { t } from "../i18n.ts";
 
 // A day that only names a town: what's there, to add to that day. Looked up when you open it.
 
 type Saved = Pick<ListEntry, "kind" | "section">;
 const PARTS: { key: "sights" | "toDo" | "eat"; title: string; saved: Saved }[] = [
-  { key: "sights", title: "Places to visit", saved: { kind: "place", section: "see" } },
-  { key: "toDo", title: "Things to do", saved: { kind: "activity" } },
-  { key: "eat", title: "Restaurants", saved: { kind: "place", section: "eat" } },
+  { key: "sights", get title() { return t("Places to visit"); }, saved: { kind: "place", section: "see" } },
+  { key: "toDo", get title() { return t("Things to do"); }, saved: { kind: "activity" } },
+  { key: "eat", get title() { return t("Restaurants"); }, saved: { kind: "place", section: "eat" } },
 ];
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
@@ -41,13 +42,13 @@ export default function ExploreArea({ tripId, place, lists, onAdded }: { tripId:
   return (
     <div className="explore-area">
       <button type="button" className="link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <Sparkles aria-hidden="true" /> {open ? "Hide ideas" : `Explore ${place.name}: places, things to do and food`}
+        <Sparkles aria-hidden="true" /> {open ? t("Hide ideas") : t("Explore {name}: places, things to do and food", { name: place.name })}
       </button>
       {open && (
         <div className="explore-ideas">
-          {!ideas && !error && <p className="muted small">Estela is looking around {place.name}… The first look takes a few seconds.</p>}
+          {!ideas && !error && <p className="muted small">{t("Estela is looking around {name}… The first look takes a few seconds.", { name: place.name })}</p>}
           {error && <p className="error small">{error}</p>}
-          {ideas && !shown.length && <p className="muted small">The map doesn't list anything more here. Try the links below.</p>}
+          {ideas && !shown.length && <p className="muted small">{t("The map doesn't list anything more here. Try the links below.")}</p>}
           {shown.map((p) => (
             <div key={p.key} className="explore-part">
               <h5>{p.title}</h5>
@@ -58,7 +59,7 @@ export default function ExploreArea({ tripId, place, lists, onAdded }: { tripId:
                       <a href={`https://www.google.com/maps/search/?api=1&query=${idea.lat},${idea.lon}`} target="_blank" rel="noopener noreferrer">{idea.title}</a>
                       {" "}<span className="muted tiny">· {idea.label}</span>
                     </span>
-                    <button type="button" className="link edit-only" onClick={() => add(idea, p.saved)}>+ Add to this day</button>
+                    <button type="button" className="link edit-only" onClick={() => add(idea, p.saved)}>{t("+ Add to this day")}</button>
                   </li>
                 ))}
               </ul>
@@ -69,7 +70,7 @@ export default function ExploreArea({ tripId, place, lists, onAdded }: { tripId:
               <p className="finders">
                 {ideas.links.map((l) => <a key={l.url} className="book-link" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>)}
               </p>
-              <p className="muted tiny">From OpenStreetMap, so no ratings or opening hours. Check a place is still open before you go.</p>
+              <p className="muted tiny">{t("From OpenStreetMap, so no ratings or opening hours. Check a place is still open before you go.")}</p>
             </>
           )}
         </div>

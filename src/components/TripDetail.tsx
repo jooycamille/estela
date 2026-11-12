@@ -37,6 +37,7 @@ import { itemIcon, KIND_ICON, listIcon, type LucideIcon } from "../icons.ts";
 import { describePart, partOn, partRange, partySummary } from "../parts.ts";
 import Suggestions from "./Suggestions.tsx";
 import TripForm from "./TripForm.tsx";
+import { t as tr, tn } from "../i18n.ts";
 
 const itemTitle = (i: ItineraryItem) => (i.kind === "flight" ? i.flightNumber : i.kind === "stay" ? i.name : i.title);
 
@@ -51,7 +52,7 @@ function timeAfter(i: ItineraryItem, day: string) {
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const CATEGORY_TABS = { all: "All", flight: "Flights", stay: "Accommodation", activity: "Activities" } as const;
+const CATEGORY_TABS = { get all() { return tr("All"); }, get flight() { return tr("Flights"); }, get stay() { return tr("Accommodation"); }, get activity() { return tr("Activities"); } } as const;
 
 const startOf = (i: ItineraryItem) =>
   i.kind === "flight" ? i.live?.departureTime ?? i.departureTime : i.kind === "stay" ? i.checkIn : i.start;
@@ -152,7 +153,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
   }, [tripId, data, lists]);
 
   if (error) return <p className="error">{error}</p>;
-  if (!data) return <p className="muted">Loading…</p>;
+  if (!data) return <p className="muted">{tr("Loading…")}</p>;
   const { trip, items } = data;
   const canEditTrip = data.role !== "viewer";
 
@@ -236,14 +237,14 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
     if (panel?.type !== "add") return null;
     return (
       <div className="card">
-        <h3>Add {KIND_LABEL[panel.kind].toLowerCase()}</h3>
+        <h3>{tr("Add {v1}", { v1: KIND_LABEL[panel.kind].toLowerCase() })}</h3>
         <ItemForm
           key={`${panel.kind}:${(panel.initial as { title?: string } | undefined)?.title ?? ""}:${panel.date ?? ""}`} /* a fresh form when switching Flight / Accommodation / Activity */
           kind={panel.kind}
           initial={panel.initial}
           tripId={trip.id}
           defaultDate={panel.date ?? trip.startDate}
-          submitLabel="Add"
+          submitLabel={tr("Add")}
           onCancel={() => setPanel(null)}
           onSubmit={async (d) => {
             await api.addItems(trip.id, [d]);
@@ -294,11 +295,11 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
     const prev = before ? info[before].tz : tripDays.home ?? undefined;
     if (!prev || prev === tz) return undefined;
     const at = wallToMs(`${day}T12:00`, tz);
-    const vsHome = tripDays.home && tripDays.home !== tz ? differenceText(tz, tripDays.home, "home", at) : undefined;
-    const vsPrev = before && prev !== tripDays.home ? differenceText(tz, prev, info[before].city ?? "the day before", at) : undefined;
+    const vsHome = tripDays.home && tripDays.home !== tz ? differenceText(tz, tripDays.home, tr("home"), at) : undefined;
+    const vsPrev = before && prev !== tripDays.home ? differenceText(tz, prev, info[before].city ?? tr("the day before"), at) : undefined;
     const where = info[day].city ?? tz.split("/").pop()!.replace(/_/g, " ");
-    if (!vsHome && !vsPrev) return before ? `Back on home time in ${where}` : undefined;
-    return `Local time in ${where}: ${[vsHome, vsPrev].filter(Boolean).join(", ")}`;
+    if (!vsHome && !vsPrev) return before ? tr("Back on home time in {where}", { where }) : undefined;
+    return tr("Local time in {where}: {diff}", { where, diff: [vsHome, vsPrev].filter(Boolean).join(", ") });
   };
 
   return (
@@ -306,33 +307,33 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
     <div className={`detail ${canEditTrip ? "" : "view-only"}`}>
       {ai && <AskEstela trip={trip} />}
       <div className="detail-main">
-        <a href="#/" className="back">← All trips</a>
+        <a href="#/" className="back">{tr("← All trips")}</a>
         <div className="page-head">
           <div>
             <h1>{trip.name}</h1>
             {/* The trip at a glance: a row of facts, each with a small label. */}
             <dl className="trip-facts">
-              <div className="trip-fact"><dt>When</dt><dd>{formatDateRange(trip.startDate, trip.endDate)}</dd></div>
-              {trip.destination && <div className="trip-fact"><dt>Where</dt><dd>{trip.destination}</dd></div>}
-              <div className="trip-fact"><dt>Travelling</dt><dd>{capitalise(partySummary(trip))} · {capitalise(trip.purpose)}</dd></div>
-              {trip.styles.length > 0 && <div className="trip-fact"><dt>Style</dt><dd>{capitalise(trip.styles.join(", "))}</dd></div>}
+              <div className="trip-fact"><dt>{tr("When")}</dt><dd>{formatDateRange(trip.startDate, trip.endDate)}</dd></div>
+              {trip.destination && <div className="trip-fact"><dt>{tr("Where")}</dt><dd>{trip.destination}</dd></div>}
+              <div className="trip-fact"><dt>{tr("Travelling")}</dt><dd>{capitalise(partySummary(trip))} · {capitalise(trip.purpose)}</dd></div>
+              {trip.styles.length > 0 && <div className="trip-fact"><dt>{tr("Style")}</dt><dd>{capitalise(trip.styles.join(", "))}</dd></div>}
             </dl>
           </div>
           <div className="head-actions">
             <button className={`quiet ${panel?.type === "travellers" ? "on" : ""}`} aria-pressed={panel?.type === "travellers"} onClick={() => setPanel(panel?.type === "travellers" ? null : { type: "travellers" })}>
-              <Users aria-hidden="true" /> Travellers{trip.members?.length ? ` · ${trip.members.length + 1}` : ""}
+              <Users aria-hidden="true" />{" "}{tr("Travellers{v1}", { v1: trip.members?.length ? ` · ${trip.members.length + 1}` : "" })}
             </button>
             <button className={`quiet ${panel?.type === "calendar" ? "on" : ""}`} aria-pressed={panel?.type === "calendar"} onClick={() => setPanel(panel?.type === "calendar" ? null : { type: "calendar" })}>
-              <CalendarPlus aria-hidden="true" /> Calendar
+              <CalendarPlus aria-hidden="true" />{" "}{tr("Calendar")}
             </button>
-            {canEditTrip && <button className="quiet" onClick={() => setPanel({ type: "edit-trip" })}><Pencil aria-hidden="true" /> Edit</button>}
+            {canEditTrip && <button className="quiet" onClick={() => setPanel({ type: "edit-trip" })}><Pencil aria-hidden="true" />{" "}{tr("Edit")}</button>}
             {/* Deleting is rare: a small bin that only turns red when you point at it. */}
             {data.role === "owner" && <button
               className="quiet icon-only danger"
-              title="Delete this trip"
-              aria-label={`Delete ${trip.name}`}
+              title={tr("Delete this trip")}
+              aria-label={tr("Delete {name}", { name: trip.name })}
               onClick={async () => {
-                if (!confirm(`Delete "${trip.name}" and everything in it?`)) return;
+                if (!confirm(tr("Delete \"{name}\" and everything in it?", { name: trip.name }))) return;
                 await api.deleteTrip(trip.id);
                 location.hash = "#/";
               }}
@@ -348,30 +349,30 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
         )}
         {panel?.type === "calendar" && <CalendarPanel tripId={trip.id} onClose={() => setPanel(null)} />}
 
-        <div className="views" role="tablist" aria-label="Trip view">
+        <div className="views" role="tablist" aria-label={tr("Trip view")}>
           <button role="tab" aria-selected={view === "itinerary"} className={`view-tab ${view === "itinerary" ? "on" : ""}`} onClick={() => setView("itinerary")}>
-            <CalendarDays aria-hidden="true" /> Itinerary
+            <CalendarDays aria-hidden="true" />{" "}{tr("Itinerary")}
           </button>
           <button role="tab" aria-selected={view === "prepare"} className={`view-tab ${view === "prepare" ? "on" : ""}`} onClick={() => setView("prepare")}>
-            <ClipboardCheck aria-hidden="true" /> Prepare{openTodos ? <span className="count">{openTodos} to do</span> : null}
+            <ClipboardCheck aria-hidden="true" />{" "}{tr("Prepare")}{openTodos ? <span className="count">{tr("{openTodos} to do", { openTodos })}</span> : null}
           </button>
           <button role="tab" aria-selected={view === "essentials"} className={`view-tab ${view === "essentials" ? "on" : ""}`} onClick={() => setView("essentials")}>
-            <LifeBuoy aria-hidden="true" /> Essentials
+            <LifeBuoy aria-hidden="true" />{" "}{tr("Essentials")}
           </button>
           <button role="tab" aria-selected={view === "ideas"} className={`view-tab ${view === "ideas" ? "on" : ""}`} onClick={() => setView("ideas")}>
-            <Compass aria-hidden="true" /> Suggestions{ideaCount ? <span className="count">{ideaCount}</span> : null}
+            <Compass aria-hidden="true" />{" "}{tr("Suggestions")}{ideaCount ? <span className="count">{ideaCount}</span> : null}
           </button>
           <button role="tab" aria-selected={view === "spending"} className={`view-tab ${view === "spending" ? "on" : ""}`} onClick={() => setView("spending")}>
-            <Wallet aria-hidden="true" /> Spending
+            <Wallet aria-hidden="true" />{" "}{tr("Spending")}
           </button>
         </div>
 
         {view === "ideas" && (
           <>
             {/* Estela's tips, a guide for each city you stay in, and your own lists. */}
-            <div className="idea-nav categories" role="tablist" aria-label="Suggestions">
+            <div className="idea-nav categories" role="tablist" aria-label={tr("Suggestions")}>
               <button role="tab" aria-selected={ideaSection === "tips"} className={`category ${ideaSection === "tips" ? "on" : ""}`} onClick={() => setIdeaSection("tips")}>
-                <Lightbulb aria-hidden="true" /> Tips {ideaCount > 0 && <span className="count">{ideaCount}</span>}
+                <Lightbulb aria-hidden="true" />{" "}{tr("Tips")}{" "}{ideaCount > 0 && <span className="count">{ideaCount}</span>}
               </button>
               {lists.map((l) => (
                 <button
@@ -379,7 +380,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                   role="tab"
                   aria-selected={ideaSection === l.id}
                   className={`category ${l.auto ? "guide" : "own"} ${ideaSection === l.id ? "on" : ""}`}
-                  title={l.auto ? `Estela's guide to ${l.name}` : undefined}
+                  title={l.auto ? tr("Estela's guide to {name}", { name: l.name }) : undefined}
                   onClick={() => setIdeaSection(l.id)}
                 >
                   <Ico icon={listIcon(l)} /> {l.name} {l.entries.length > 0 && <span className="count">{l.entries.length}</span>}
@@ -391,7 +392,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                 aria-pressed={panel?.type === "new-list"}
                 onClick={() => setPanel(panel?.type === "new-list" ? null : { type: "new-list" })}
               >
-                + New list
+                {tr("+ New list")}
               </button>
             </div>
             {panel?.type === "new-list" && (
@@ -430,7 +431,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                 onAddToItinerary={addToItinerary}
               />
             )}
-            {ideaSection !== "tips" && !openList && listsLoaded && <p className="muted">That list was deleted.</p>}
+            {ideaSection !== "tips" && !openList && listsLoaded && <p className="muted">{tr("That list was deleted.")}</p>}
           </>
         )}
         {/* Loaded on every tab (hidden unless chosen) so the tab can show how many tips there are. */}
@@ -445,10 +446,10 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
         <>
         <TodayCard trip={trip} items={items} plans={plans} days={tripDays} onShowDay={showDay} />
         {!canEditTrip && (
-          <p className="view-only-note">You can view this trip. Ask its owner if you'd like to make changes.</p>
+          <p className="view-only-note">{tr("You can view this trip. Ask its owner if you'd like to make changes.")}</p>
         )}
-        <section className="add-panel edit-only" aria-label="Add to your trip">
-          <h4>Add to your trip</h4>
+        <section className="add-panel edit-only" aria-label={tr("Add to your trip")}>
+          <h4>{tr("Add to your trip")}</h4>
           <div className="add-tiles">
             {(["flight", "stay", "activity"] as Kind[]).map((k) => {
               const on = panel?.type === "add" && !panel.inline && panel.kind === k;
@@ -465,7 +466,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               onClick={() => { setPanel(panel?.type === "place" && !panel.inline ? null : { type: "place" }); setAddedPlace(undefined); }}
             >
               <span className="add-icon" aria-hidden="true"><MapPin /></span>
-              <span>Place</span>
+              <span>{tr("Place")}</span>
             </button>
             <button
               className={`add-tile email ${panel?.type === "email" ? "on" : ""}`}
@@ -473,7 +474,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               onClick={() => { setPanel(panel?.type === "email" ? null : { type: "email" }); setAddedPlace(undefined); }}
             >
               <span className="add-icon" aria-hidden="true"><Mail /></span>
-              <span>Import from email</span>
+              <span>{tr("Import from email")}</span>
             </button>
 
           </div>
@@ -482,13 +483,13 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
         {(panel?.type === "add" || panel?.type === "place") && !panel.inline && addForm()}
         {addedPlace && (
           <p className="place-added small" role="status">
-            <MapPin aria-hidden="true" /> <b>{addedPlace.title}</b> {addedPlace.day ? <>is on {formatDay(addedPlace.day)}.</> : <>is saved in {addedPlace.listName}, ready to plan for a day.</>}{" "}
+            <MapPin aria-hidden="true" /> <b>{addedPlace.title}</b> {addedPlace.day ? <>{tr("is on {formatDay}.", { formatDay: formatDay(addedPlace.day) })}</> : <>{tr("is saved in {listName}, ready to plan for a day.", { listName: addedPlace.listName })}</>}{" "}
             {addedPlace.day ? (
-              <button type="button" className="link" onClick={() => document.getElementById(dayId(addedPlace.day!))?.scrollIntoView({ behavior: "smooth" })}>Show that day</button>
+              <button type="button" className="link" onClick={() => document.getElementById(dayId(addedPlace.day!))?.scrollIntoView({ behavior: "smooth" })}>{tr("Show that day")}</button>
             ) : (
-              <button type="button" className="link" onClick={() => openIdeas(addedPlace.listId)}>Open {addedPlace.listName}</button>
+              <button type="button" className="link" onClick={() => openIdeas(addedPlace.listId)}>{tr("Open {listName}", { listName: addedPlace.listName })}</button>
             )}
-            <button type="button" className="chip-x" aria-label="Dismiss" onClick={() => setAddedPlace(undefined)}>×</button>
+            <button type="button" className="chip-x" aria-label={tr("Dismiss")} onClick={() => setAddedPlace(undefined)}>×</button>
           </p>
         )}
         {panel?.type === "email" && (
@@ -498,7 +499,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
 
         {items.length > 0 && (
           <div className="list-bar">
-            <div className="categories" role="tablist" aria-label="Show bookings">
+            <div className="categories" role="tablist" aria-label={tr("Show bookings")}>
               {(["all", "flight", "stay", "activity"] as const).map((c) => (
                 <button
                   key={c}
@@ -517,19 +518,19 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               <button
                 type="button"
                 className="quiet map-switch"
-                title={`Getting around by ${trip.getAround === "car" ? "car" : "public transport"}. Tap to switch to ${trip.getAround === "car" ? "public transport" : "car"}`}
+                title={trip.getAround === "car" ? tr("Getting around by car. Tap to switch to public transport") : tr("Getting around by public transport. Tap to switch to car")}
                 onClick={() => api.setGetAround(trip.id, trip.getAround === "car" ? "transit" : "car").then(load)}
               >
-                {trip.getAround === "car" ? <><Car aria-hidden="true" /> By car</> : <><TramFront aria-hidden="true" /> Public transport</>}
+                {trip.getAround === "car" ? <><Car aria-hidden="true" />{" "}{tr("By car")}</> : <><TramFront aria-hidden="true" />{" "}{tr("Public transport")}</>}
               </button>
             )}
             <button type="button" className={`quiet map-switch ${mapView ? "on" : ""}`} aria-pressed={mapView} onClick={() => setMapView(!mapView)}>
-              {mapView ? <><List aria-hidden="true" /> List</> : <><MapIcon aria-hidden="true" /> Map</>}
+              {mapView ? <><List aria-hidden="true" />{" "}{tr("List")}</> : <><MapIcon aria-hidden="true" />{" "}{tr("Map")}</>}
             </button>
             {hasFlights && !mapView && (
               <button
                 className="check-flights edit-only"
-                title="Check live status for your flights"
+                title={tr("Check live status for your flights")}
                 disabled={refreshing}
                 onClick={async () => {
                   setRefreshing(true);
@@ -537,7 +538,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                   load();
                 }}
               >
-                <RefreshCw aria-hidden="true" className={refreshing ? "spin" : ""} /> {refreshing ? "Checking…" : "Check flights"}
+                <RefreshCw aria-hidden="true" className={refreshing ? "spin" : ""} /> {refreshing ? tr("Checking…") : tr("Check flights")}
               </button>
             )}
             {!mapView && <FoldAll ids={days.map(([day]) => dayFold(day))} />}
@@ -546,12 +547,12 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
         )}
         {category !== "all" && count(category) === 0 && (
           <div className="card empty">
-            <p>No {CATEGORY_TABS[category].toLowerCase()} yet.</p>
+            <p>{tr("No {v1} yet.", { v1: CATEGORY_TABS[category].toLowerCase() })}</p>
           </div>
         )}
 
         {mapView && (
-          <Suspense fallback={<p className="muted small">Opening the map…</p>}>
+          <Suspense fallback={<p className="muted small">{tr("Opening the map…")}</p>}>
             <TripMap trip={trip} version={version} onShowDay={showDay} />
           </Suspense>
         )}
@@ -570,10 +571,10 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
           <div className="card empty-day" id="empty-day">
             <div className="empty-day-head">
               <b>{formatDay(emptyDay)}</b>
-              <button type="button" className="chip-x" aria-label="Close" onClick={() => setEmptyDay(undefined)}>×</button>
+              <button type="button" className="chip-x" aria-label={tr("Close")} onClick={() => setEmptyDay(undefined)}>×</button>
             </div>
-            {stayOn(emptyDay) && <p className="small staying"><BedDouble aria-hidden="true" /> Staying at <b>{stayOn(emptyDay)!.name}</b></p>}
-            <p className="muted small">{stayOn(emptyDay) ? "No activities planned yet" : "Nothing planned yet"}{canEditTrip ? ". Add something for this day:" : "."}</p>
+            {stayOn(emptyDay) && <p className="small staying"><BedDouble aria-hidden="true" />{" "}{tr("Staying at")}{" "}<b>{stayOn(emptyDay)!.name}</b></p>}
+            <p className="muted small">{stayOn(emptyDay) ? tr("No activities planned yet") : tr("Nothing planned yet")}{canEditTrip ? tr(". Add something for this day:") : "."}</p>
             {canEditTrip && (
               <div className="actions left">
                 {(stayOn(emptyDay) ? (["activity", "flight"] as Kind[]) : (["activity", "stay", "flight"] as Kind[])).map((k) => (
@@ -581,14 +582,14 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                     <Ico icon={KIND_ICON[k]} /> {KIND_LABEL[k]}
                   </button>
                 ))}
-                <button type="button" className="secondary add-for-day place" onClick={() => addFor(emptyDay, "place")}><MapPin aria-hidden="true" /> Place</button>
+                <button type="button" className="secondary add-for-day place" onClick={() => addFor(emptyDay, "place")}><MapPin aria-hidden="true" />{" "}{tr("Place")}</button>
               </div>
             )}
           </div>
         )}
         {items.length === 0 && !panel && Object.keys(plans).length === 0 && (
           <div className="card empty">
-            <p>Nothing booked yet. Tap a date above, or add a flight, stay, activity or place, or forward a booking email and Estela will sort it out.</p>
+            <p>{tr("Nothing booked yet. Tap a date above, or add a flight, stay, activity or place, or forward a booking email and Estela will sort it out.")}</p>
           </div>
         )}
 
@@ -613,14 +614,14 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                 {formatDay(day)}
                 {trip.dayTitles?.[day] && <span className="day-heading">{trip.dayTitles[day]}</span>}
                 {tripDays?.days[day]?.weather && <DayWeatherChip w={tripDays.days[day].weather!} />}
-                {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> outside trip dates</span>}
+                {(day < trip.startDate || day > trip.endDate) && <span className="warning small"> {tr("outside trip dates")}</span>}
               </>}
               action={canEditTrip && (
                 <button
                   type="button"
                   className="prep-action day-heading-edit"
-                  title={trip.dayTitles?.[day] ? "Edit this day's heading" : "Add a heading for this day"}
-                  aria-label={trip.dayTitles?.[day] ? `Edit the heading for ${formatDay(day)}` : `Add a heading for ${formatDay(day)}`}
+                  title={trip.dayTitles?.[day] ? tr("Edit this day's heading") : tr("Add a heading for this day")}
+                  aria-label={trip.dayTitles?.[day] ? tr("Edit the heading for {v1}", { v1: formatDay(day) }) : tr("Add a heading for {v1}", { v1: formatDay(day) })}
                   onMouseDown={(e) => e.preventDefault()} // keeps the heading box from saving as you press: a second press cancels
                   onClick={() => { expand(dayFold(day)); setHeadingDay(headingDay === day ? undefined : day); }}
                 >
@@ -629,7 +630,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               )}
               summary={(() => {
                 const n = dayItems.length + (plans[day]?.entries.length ?? 0);
-                return n ? `${n} item${n === 1 ? "" : "s"}` : "Nothing planned";
+                return n ? tn(n, "{n} item", "{n} items") : tr("Nothing planned");
               })()}
             >
             <NightStayChoice
@@ -661,7 +662,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               <DayTextForm
                 multiline
                 initial={trip.dayNotes?.[day]}
-                placeholder="Note for this day"
+                placeholder={tr("Note for this day")}
                 onDone={async (text) => {
                   setDayForm(undefined);
                   if (text !== undefined && text !== (trip.dayNotes?.[day] ?? "")) await api.setDayNote(trip.id, day, text).then(load);
@@ -689,7 +690,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
                   <DayAddMenu
                     between
                     day={day}
-                    label={`${formatDay(day)}, after ${itemTitle(item)}`}
+                    label={tr("{v1}, after {v2}", { v1: formatDay(day), v2: itemTitle(item) })}
                     extra={!stayOn(day)}
                     onPick={(what) => (what === "note" || what === "todo" ? (setPanel(null), setDayForm({ day, kind: what })) : addFor(day, what, item))}
                   />
@@ -703,29 +704,29 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               // Nothing on this day yet: say so (and where you're sleeping), with quick ways to add something.
               <div className="no-activities nothing-yet">
                 {stayOn(day) ? (
-                  <span className="small"><BedDouble aria-hidden="true" /> Staying at <b>{stayOn(day)!.name}</b> · <span className="muted">no activities planned yet</span></span>
+                  <span className="small"><BedDouble aria-hidden="true" />{" "}{tr("Staying at")}{" "}<b>{stayOn(day)!.name}</b> · <span className="muted">{tr("no activities planned yet")}</span></span>
                 ) : (
-                  <span className="muted small">Nothing planned yet</span>
+                  <span className="muted small">{tr("Nothing planned yet")}</span>
                 )}
               </div>
             )}
             {category === "all" && dayItems.length > 0 && dayItems.every((i) => i.kind === "stay" || (i.kind === "activity" && i.category === "transfer")) && !plans[day] && (
               <p className="no-activities">
-                <span className="muted small">No activities planned yet</span>
+                <span className="muted small">{tr("No activities planned yet")}</span>
               </p>
             )}
             {category === "all" && plans[day] && (
               <div className="day-plan">
                 <div className="day-plan-head">
-                  <b>Places to visit</b>
+                  <b>{tr("Places to visit")}</b>
                   <span className="day-plan-actions">
                     {plans[day].custom && canEditTrip && (
-                      <button type="button" className="link" title="Put the places back in the order that's shortest to walk" onClick={() => api.orderDay(trip.id, day, null).then(load)}>
-                        Best walking order
+                      <button type="button" className="link" title={tr("Put the places back in the order that's shortest to walk")} onClick={() => api.orderDay(trip.id, day, null).then(load)}>
+                        {tr("Best walking order")}
                       </button>
                     )}
                     {plans[day].routeUrl && (
-                      <a className="small" href={plans[day].routeUrl} target="_blank" rel="noopener noreferrer">Route in Maps ↗</a>
+                      <a className="small" href={plans[day].routeUrl} target="_blank" rel="noopener noreferrer">{tr("Route in Maps ↗")}</a>
                     )}
                   </span>
                 </div>
@@ -758,7 +759,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
               <DayTextForm
                 multiline
                 initial={trip.dayNotes?.[day]}
-                placeholder="Note for this day"
+                placeholder={tr("Note for this day")}
                 onDone={async (text) => {
                   setDayForm(undefined);
                   if (text !== undefined && text !== (trip.dayNotes?.[day] ?? "")) await api.setDayNote(trip.id, day, text).then(load);
@@ -767,7 +768,7 @@ export default function TripDetail({ tripId, mockFlights, initialView, ai }: { t
             )}
             {dayForm?.day === day && dayForm.kind === "todo" && (
               <DayTextForm
-                placeholder="Checklist item for this day, e.g. Buy bus tickets"
+                placeholder={tr("Checklist item for this day, e.g. Buy bus tickets")}
                 onDone={async (text) => {
                   setDayForm(undefined);
                   if (text) await api.addPrep(trip.id, "todo", text, day).then(load);
@@ -812,19 +813,19 @@ function NightStayChoice({ trip, items, day, canEdit, onPick }: { trip: Trip; it
   if (chosen && !changing) {
     return (
       <p className="night-stay small">
-        <BedDouble aria-hidden="true" /> Base tonight: <b>{chosen.name}</b>
-        <span className="muted"> · also booked: {all.filter((s) => s !== chosen).map((s) => s.name).join(", ")}</span>
-        {canEdit && <> · <button type="button" className="link" onClick={() => setChanging(true)}>Change</button></>}
+        <BedDouble aria-hidden="true" />{" "}{tr("Base tonight:")}{" "}<b>{chosen.name}</b>
+        <span className="muted">{" "}{tr("· also booked: {v1}", { v1: all.filter((s) => s !== chosen).map((s) => s.name).join(", ") })}</span>
+        {canEdit && <> · <button type="button" className="link" onClick={() => setChanging(true)}>{tr("Change")}</button></>}
       </p>
     );
   }
   if (!canEdit || (!changing && nights[0] !== day)) {
-    return <p className="night-stay small muted"><BedDouble aria-hidden="true" /> {all.length} places booked for this night{canEdit ? " (choose your base on the first of them)" : ""}.</p>;
+    return <p className="night-stay small muted"><BedDouble aria-hidden="true" />{" "}{canEdit ? tr("{n} places booked for this night (choose your base on the first of them).", { n: all.length }) : tr("{n} places booked for this night.", { n: all.length })}</p>;
   }
   return (
-    <div className="night-stay-choice" role="group" aria-label="Which stay is your base">
+    <div className="night-stay-choice" role="group" aria-label={tr("Which stay is your base")}>
       <p className="small">
-        <b>{all.length} places are booked for {nights.length > 1 ? `these ${nights.length} nights` : "this night"}.</b> Which is your base? Your day's route, weather and Today start from it.
+        <b>{tr("{length} places are booked for {v2}.", { length: all.length, v2: nights.length > 1 ? tr("these {length} nights", { length: nights.length }) : tr("this night") })}</b>{" "}{tr("Which is your base? Your day's route, weather and Today start from it.")}
       </p>
       <div className="night-stay-options">
         {all.map((s) => (
@@ -838,7 +839,7 @@ function NightStayChoice({ trip, items, day, canEdit, onPick }: { trip: Trip; it
             <span className="muted tiny">{formatDay(s.checkIn)} – {formatDay(s.checkOut)}</span>
           </button>
         ))}
-        {changing && <button type="button" className="link" onClick={() => setChanging(false)}>Cancel</button>}
+        {changing && <button type="button" className="link" onClick={() => setChanging(false)}>{tr("Cancel")}</button>}
       </div>
     </div>
   );
@@ -853,13 +854,13 @@ function DayHeadingForm({ initial, onDone }: { initial: string; onDone: (title?:
         autoFocus
         maxLength={80}
         value={title}
-        placeholder="Heading for this day, e.g. Day trip to the coast"
-        aria-label="Heading for this day"
+        placeholder={tr("Heading for this day, e.g. Day trip to the coast")}
+        aria-label={tr("Heading for this day")}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && onDone()}
         onBlur={() => onDone(title.trim())}
       />
-      <button type="submit" onMouseDown={(e) => e.preventDefault()}>Save</button>
+      <button type="submit" onMouseDown={(e) => e.preventDefault()}>{tr("Save")}</button>
     </form>
   );
 }

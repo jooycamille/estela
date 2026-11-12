@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, signOutHere, type Device, type Me } from "../api.ts";
 import QrLink from "./QrLink.tsx";
 import * as sb from "../supabaseAuth.ts";
+import { language, LANGUAGES, locale, rememberLanguage, t, type LanguageCode } from "../i18n.ts";
 
 const ZONES: string[] = (() => {
   try {
@@ -29,15 +30,15 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
 
   return (
     <div className="account">
-      <h1>Your account</h1>
-      {me.isAdmin && <p className="small"><a href="#/settings">Flight data settings</a></p>}
+      <h1>{t("Your account")}</h1>
+      {me.isAdmin && <p className="small"><a href="#/settings">{t("Flight data settings")}</a></p>}
       {error && <p className="error">{error}</p>}
       {saved && <p className="notice">{saved}</p>}
       {(!me.email || !me.hasPassword) && (
-        <p className="claim-note">Finish setting up your account: add your email and a password, so you can sign in on any device.</p>
+        <p className="claim-note">{t("Finish setting up your account: add your email and a password, so you can sign in on any device.")}</p>
       )}
       <section className="card">
-        <h3>Your details</h3>
+        <h3>{t("Your details")}</h3>
         <form
           className="auth-form wide"
           onSubmit={async (e) => {
@@ -49,28 +50,28 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
                 if (emailChanged && me.email) {
                   await sb.changeEmail(email.trim(), me.email, emailPassword);
                   setEmailPassword("");
-                  return setSaved(`Almost done: we've sent a link to ${email.trim()}. Your email changes once you open it.`);
+                  return setSaved(t("Almost done: we've sent a link to {email}. Your email changes once you open it.", { email: email.trim() }));
                 }
-                return setSaved("Saved.");
+                return setSaved(t("Saved."));
               }
               onChanged((await api.updateMe({ name: name.trim(), email: email.trim() || undefined })).user);
-              setSaved("Saved.");
+              setSaved(t("Saved."));
             } catch (err) {
               setError((err as Error).message);
             }
           }}
         >
           <label>
-            Name <span className="muted tiny">(how people you share trips with see you)</span>
+            {t("Name")} <span className="muted tiny">{t("(how people you share trips with see you)")}</span>
             <input value={name} maxLength={40} autoComplete="name" onChange={(e) => setName(e.target.value)} />
           </label>
           <label>
-            Email <span className="muted tiny">(to sign in, and to reset your password)</span>
+            {t("Email")} <span className="muted tiny">{t("(to sign in, and to reset your password)")}</span>
             <input type="email" value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
           </label>
           {viaSupabase && emailChanged && me.email && (
             <label>
-              Your password <span className="muted tiny">(to change your email)</span>
+              {t("Your password")} <span className="muted tiny">{t("(to change your email)")}</span>
               <input type="password" autoComplete="current-password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} />
             </label>
           )}
@@ -78,34 +79,56 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
             type="submit"
             disabled={!name.trim() || (viaSupabase && !email.trim()) || (name.trim() === me.name && !emailChanged) || (viaSupabase && emailChanged && !!me.email && !emailPassword)}
           >
-            Save
+            {t("Save")}
           </button>
         </form>
       </section>
 
       <section className="card">
-        <h3>Home time zone</h3>
-        <p className="muted small">Flight times and time differences on your trips are shown against this.</p>
+        <h3>{t("Language")}</h3>
+        <p className="muted small">{t("Estela's screens, dates and Ask Estela's answers are in this language, on all your devices.")}</p>
         <select
-          aria-label="Home time zone"
-          value={me.homeTimeZone ?? ""}
+          aria-label={t("Language")}
+          value={language()}
           onChange={async (e) => {
+            const code = e.target.value as LanguageCode;
             setError(undefined);
             try {
-              onChanged((await api.updateMe({ homeTimeZone: e.target.value })).user);
-              setSaved("Saved.");
+              await api.updateMe({ language: code });
+              rememberLanguage(code);
+              location.reload();
             } catch (err) {
               setError((err as Error).message);
             }
           }}
         >
-          {!me.homeTimeZone && <option value="">Choose…</option>}
+          {LANGUAGES.map((l) => <option key={l.code} value={l.code} lang={l.code}>{l.name}</option>)}
+        </select>
+      </section>
+
+      <section className="card">
+        <h3>{t("Home time zone")}</h3>
+        <p className="muted small">{t("Flight times and time differences on your trips are shown against this.")}</p>
+        <select
+          aria-label={t("Home time zone")}
+          value={me.homeTimeZone ?? ""}
+          onChange={async (e) => {
+            setError(undefined);
+            try {
+              onChanged((await api.updateMe({ homeTimeZone: e.target.value })).user);
+              setSaved(t("Saved."));
+            } catch (err) {
+              setError((err as Error).message);
+            }
+          }}
+        >
+          {!me.homeTimeZone && <option value="">{t("Choose…")}</option>}
           {ZONES.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ").replace("/", " / ")}</option>)}
         </select>
       </section>
 
       <section className="card">
-        <h3>{me.hasPassword ? "Change password" : "Set a password"}</h3>
+        <h3>{me.hasPassword ? t("Change password") : t("Set a password")}</h3>
         <form
           className="auth-form wide"
           onSubmit={async (e) => {
@@ -117,7 +140,7 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
               onChanged({ ...me, hasPassword: true });
               setCurrent("");
               setPassword("");
-              setSaved("Password saved. Your other devices were signed out.");
+              setSaved(t("Password saved. Your other devices were signed out."));
             } catch (err) {
               setError((err as Error).message);
             }
@@ -125,45 +148,45 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
         >
           {me.hasPassword && (
             <label>
-              Current password
+              {t("Current password")}
               <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
             </label>
           )}
           <label>
-            New password
+            {t("New password")}
             <input type="password" autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <p className="muted tiny">At least 8 characters. Changing it signs out your other devices.</p>
-          <button type="submit" disabled={password.length < 8 || (me.hasPassword && !current)}>Save password</button>
+          <p className="muted tiny">{t("At least 8 characters. Changing it signs out your other devices.")}</p>
+          <button type="submit" disabled={password.length < 8 || (me.hasPassword && !current)}>{t("Save password")}</button>
         </form>
       </section>
 
       <section className="card">
-        <h3>Sign in another device</h3>
-        <p className="muted small">You can just sign in there with your email and password, or scan a code instead (handy for the Home Screen app on iPhone).</p>
+        <h3>{t("Sign in another device")}</h3>
+        <p className="muted small">{t("You can just sign in there with your email and password, or scan a code instead (handy for the Home Screen app on iPhone).")}</p>
         {link ? (
           <QrLink
             url={link.url}
-            title="Scan with the other device's camera"
-            note={`Or open this link on it. It works once and expires in ${link.expiresInMinutes} minutes. On a phone, Tailscale needs to be on.`}
+            title={t("Scan with the other device's camera")}
+            note={`${t("Or open this link on it. It works once and expires in {n} minutes.", { n: link.expiresInMinutes })} ${t("On a phone, Tailscale needs to be on.")}`}
           />
         ) : (
-          <button type="button" onClick={() => api.deviceLink().then(setLink).catch((e) => setError((e as Error).message))}>Show a sign-in code</button>
+          <button type="button" onClick={() => api.deviceLink().then(setLink).catch((e) => setError((e as Error).message))}>{t("Show a sign-in code")}</button>
         )}
       </section>
 
       <section className="card">
-        <h3>Signed-in devices</h3>
+        <h3>{t("Signed-in devices")}</h3>
         <ul className="devices">
           {devices.map((d) => (
             <li key={d.id}>
               <span>
                 {d.device}
-                {d.current && <span className="muted small"> · this device</span>}
-                <span className="muted tiny"> · last used {new Date(d.lastSeenAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
+                {d.current && <span className="muted small"> · {t("this device")}</span>}
+                <span className="muted tiny"> · {t("last used {when}", { when: new Date(d.lastSeenAt).toLocaleDateString(locale(), { day: "numeric", month: "short" }) })}</span>
               </span>
               {!d.current && (
-                <button type="button" className="link danger" onClick={() => api.removeDevice(d.id).then(load)}>Sign out</button>
+                <button type="button" className="link danger" onClick={() => api.removeDevice(d.id).then(load)}>{t("Sign out")}</button>
               )}
             </li>
           ))}
@@ -176,9 +199,9 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
             onSignedOut();
           }}
         >
-          Sign out of this device
+          {t("Sign out of this device")}
         </button>
-        <p className="muted tiny">Signing out also removes the offline copy of your trips from this device.</p>
+        <p className="muted tiny">{t("Signing out also removes the offline copy of your trips from this device.")}</p>
       </section>
     </div>
   );

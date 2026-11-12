@@ -1,4 +1,5 @@
 import type { PhotoChoice, DayLegs, Expense, Money, TripMapData, ExploreIdeas, ExplorePlace, DateCard, PriceLevel, TravellerView, TripRole, Essentials, TravelStyle, AreaGroup, Link, ListEntry, ListSuggestion, TripList, TripPlace, DraftItem, EmailParseResult, FlightChange, FlightLookupResult, ItineraryItem, PrepItem, Suggestion, Trip, TripInbox } from "../shared/types.ts";
+import { t as tr } from "./i18n.ts";
 
 /** Tells the app whether it's showing live data or the copy saved on this phone (see public/sw.js). */
 export type ConnectionState = { offline: false } | { offline: true; savedAt?: string };
@@ -15,7 +16,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     announce({ offline: true });
-    throw new Error(init?.method && init.method !== "GET" ? "You're offline. This change needs a connection to your Mac." : "You're offline and this hasn't been saved on this device yet.");
+    throw new Error(init?.method && init.method !== "GET" ? tr("You're offline. This change needs a connection to your Mac.") : tr("You're offline and this hasn't been saved on this device yet."));
   }
   const savedAt = res.headers.get("X-Joy-Saved-At");
   announce(savedAt ? { offline: true, savedAt } : { offline: false });
@@ -23,7 +24,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await res.json().catch(() => ({}));
   // Signed out (or the session was removed): the app shows its sign-in screen.
   if (res.status === 401 && body.signIn) dispatchEvent(new Event("joy-signed-out"));
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(body.error ?? tr("Request failed ({status})", { status: res.status }));
   return body as T;
 }
 
@@ -65,7 +66,7 @@ export type PrepData = {
 
 export type TripInput = Omit<Trip, "id" | "createdAt">;
 export type TripSummary = Trip & { itemCount: number; role: TripRole; ownerName?: string; travellers: number };
-export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean; tourPending?: boolean; homeTimeZone?: string | null };
+export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean; tourPending?: boolean; homeTimeZone?: string | null; language?: string | null };
 export type Device = { id: string; device: string; lastSeenAt: string; current: boolean };
 export type InviteLink = { name: string; url: string; expiresInDays: number };
 export type Travellers = { travellers: TravellerView[]; contacts: { id: string; name: string }[] };
@@ -185,7 +186,7 @@ export const api = {
   redeem: (token: string) => request<{ user: Me }>("/auth/redeem", json("POST", { token })),
   invite: (token: string) => request<{ tripName: string; invitedBy: string; invitedName?: string }>(`/auth/invite/${token}`),
   acceptInvite: (token: string) => request<{ tripId: string }>("/auth/accept-invite", json("POST", { token })),
-  updateMe: (body: { name?: string; email?: string; homeTimeZone?: string }) => request<{ user: Me }>("/auth/me", json("PATCH", body)),
+  updateMe: (body: { name?: string; email?: string; homeTimeZone?: string; language?: string }) => request<{ user: Me }>("/auth/me", json("PATCH", body)),
   tourDone: () => request<{ user: Me }>("/auth/tour-done", json("POST", {})),
   changePassword: (current: string | undefined, password: string) => request<{ ok: true }>("/auth/password", json("POST", { current, password })),
   signOut: () => request<void>("/auth/signout", json("POST")),

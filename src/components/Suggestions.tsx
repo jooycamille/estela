@@ -5,6 +5,7 @@ import { formatDay } from "../format.ts";
 import { BriefcaseBusiness, Compass, Flower2, Landmark, Luggage, ShieldCheck, Sparkles, Star, Utensils } from "lucide-react";
 import type { LucideIcon } from "../icons.ts";
 import Ico from "./Ico.tsx";
+import { t } from "../i18n.ts";
 
 const ICON: Record<Suggestion["category"], LucideIcon> = {
   logistics: Compass, productivity: BriefcaseBusiness, food: Utensils, sightseeing: Landmark, wellness: Flower2, packing: Luggage, safety: ShieldCheck, experience: Star,
@@ -39,10 +40,10 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
 
   return (
     <div className="suggestions">
-      <p className="muted small">Ideas and heads-ups based on your trip type, who's going, your travel style, and gaps in your plans.</p>
+      <p className="muted small">{t("Ideas and heads-ups based on your trip type, who's going, your travel style, and gaps in your plans.")}</p>
       {aiAvailable && (
         <button className="secondary" onClick={askClaude} disabled={loading}>
-          <Sparkles aria-hidden="true" /> {loading ? "Estela is thinking…" : usedAi ? "Ask Estela again" : "Ask Estela for more ideas"}
+          <Sparkles aria-hidden="true" /> {loading ? t("Estela is thinking…") : usedAi ? t("Ask Estela again") : t("Ask Estela for more ideas")}
         </button>
       )}
       {error && <p className="warning small">{error}</p>}
@@ -57,7 +58,7 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
             {s.day && <p className="muted small">{formatDay(s.day)}</p>}
             {s.links && s.links.length > 0 && (
               <div className="book-links">
-                <span className="muted tiny">{s.search?.kind === "stay" ? "Find a stay" : s.search ? "Find & book" : "Search"}{s.place ? ` in ${s.place}` : ""}:</span>
+                <span className="muted tiny">{s.search?.kind === "stay" ? t("Find a stay") : s.search ? t("Find & book") : t("Search")}{s.place ? t(" in {place}", { place: s.place }) : ""}:</span>
                 {s.links.map((l) => (
                   <a
                     key={l.label}
@@ -65,7 +66,7 @@ export default function Suggestions({ tripId, version, onCount }: { tripId: stri
                     href={l.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={l.label === "Agoda" ? `Opens Agoda — search for ${s.place ?? "your destination"} there` : `Search ${l.label}`}
+                    title={l.label === "Agoda" ? s.place ? t("Opens Agoda — search for {place} there", { place: s.place }) : t("Opens Agoda — search for your destination there") : t("Search {label}", { label: l.label })}
                   >
                     {l.label} ↗
                   </a>

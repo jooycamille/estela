@@ -9,6 +9,7 @@ import { itemIcon } from "../icons.ts";
 import { fileToBase64 } from "../files.ts";
 import Ico from "./Ico.tsx";
 import { FileText } from "lucide-react";
+import { t, tn } from "../i18n.ts";
 
 function draftSummary(d: DraftItem) {
   const price = d.price ? ` · ${formatMoney(d.price)}` : "";
@@ -21,7 +22,7 @@ function describe(d: DraftItem) {
     return `${d.flightNumber} ${d.from || "?"} → ${d.to || "?"} · ${formatDay(d.departureTime)} ${formatTime(d.departureTime)}${arrival}`;
   }
   if (d.kind === "stay") return `${d.name}${d.address ? `, ${d.address}` : ""} · ${formatDay(d.checkIn)} → ${formatDay(d.checkOut)}`;
-  return `${d.title} · ${formatDay(d.start)} ${formatTime(d.start)}${d.end ? `–${formatTime(d.end)}` : ""}${d.dateEstimated ? " (estimated date)" : ""}`;
+  return `${d.title} · ${formatDay(d.start)} ${formatTime(d.start)}${d.end ? `–${formatTime(d.end)}` : ""}${d.dateEstimated ? ` ${t("(estimated date)")}` : ""}`;
 }
 
 export default function EmailImport({
@@ -70,19 +71,18 @@ export default function EmailImport({
 
   return (
     <div className="card">
-      <h3>Import from email</h3>
+      <h3>{t("Import from email")}</h3>
       {!result ? (
         <>
           <ForwardingInbox tripId={tripId} onItemsChanged={onItemsChanged} />
-          <h4>Or paste an email</h4>
+          <h4>{t("Or paste an email")}</h4>
           <p className="muted small">
-            Paste a booking confirmation (airline, hotel, Airbnb, tour, restaurant), or upload a saved <code>.eml</code> file
-            or a PDF itinerary / e-ticket. You'll review everything before it's added.
+            {t("Paste a booking confirmation (airline, hotel, Airbnb, tour, restaurant), or upload a saved")}{" "}<code>{t(".eml")}</code>{" "}{t("file or a PDF itinerary / e-ticket. You'll review everything before it's added.")}
           </p>
-          <textarea rows={10} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Paste the email here…" />
+          <textarea rows={10} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("Paste the email here…")} />
           <div className="actions">
             <label className="file-btn">
-              Upload email or PDF
+              {t("Upload email or PDF")}
               <input
                 type="file"
                 multiple
@@ -103,18 +103,18 @@ export default function EmailImport({
             {pdfs.map((p) => (
               <span key={p.filename} className="file-chip">
                 <FileText aria-hidden="true" /> {p.filename}
-                <button className="link" title="Remove" onClick={() => setPdfs((x) => x.filter((y) => y !== p))}>✕</button>
+                <button className="link" title={t("Remove")} onClick={() => setPdfs((x) => x.filter((y) => y !== p))}>✕</button>
               </span>
             ))}
             <span className="spacer" />
-            <button className="ghost" onClick={onCancel}>Cancel</button>
-            <button onClick={parse} disabled={busy || (email.trim().length < 10 && pdfs.length === 0)}>{busy ? "Reading email…" : "Extract bookings"}</button>
+            <button className="ghost" onClick={onCancel}>{t("Cancel")}</button>
+            <button onClick={parse} disabled={busy || (email.trim().length < 10 && pdfs.length === 0)}>{busy ? t("Reading email…") : t("Extract bookings")}</button>
           </div>
         </>
       ) : (
         <>
           <p className="muted small">
-            Found {drafts.length} item{drafts.length === 1 ? "" : "s"} ({result.parser === "claude" ? "parsed by Claude" : "basic parser"}).
+            {tn(drafts.length, "Found {n} item ({how}).", "Found {n} items ({how}).", { how: result.parser === "claude" ? t("parsed by Claude") : t("basic parser") })}
           </p>
           {result.warnings.map((w) => <p key={w} className="warning small">{w}</p>)}
           <ul className="drafts">
@@ -125,7 +125,7 @@ export default function EmailImport({
                     kind={d.kind}
                     initial={d}
                     tripId={tripId}
-                    submitLabel="Done"
+                    submitLabel={t("Done")}
                     onCancel={() => setEditing(undefined)}
                     onSubmit={(updated) => {
                       setDrafts((ds) => ds.map((x, j) => (j === i ? { ...updated, source: "email" } : x)));
@@ -136,18 +136,18 @@ export default function EmailImport({
                   <div className="draft-row">
                     <span className={`kind ${d.kind}`}><Ico icon={itemIcon(d)} /> {KIND_LABEL[d.kind]}</span>
                     <span className="grow">{draftSummary(d)}</span>
-                    <button className="link" onClick={() => setEditing(i)}>Edit</button>
-                    <button className="link danger" onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}>Remove</button>
+                    <button className="link" onClick={() => setEditing(i)}>{t("Edit")}</button>
+                    <button className="link danger" onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}>{t("Remove")}</button>
                   </div>
                 )}
               </li>
             ))}
           </ul>
           <div className="actions">
-            <button className="ghost" onClick={() => setResult(undefined)}>Back</button>
+            <button className="ghost" onClick={() => setResult(undefined)}>{t("Back")}</button>
             <span className="spacer" />
             <button onClick={saveAll} disabled={busy || drafts.length === 0 || editing !== undefined}>
-              Add {drafts.length} to itinerary
+              {t("Add {length} to itinerary", { length: drafts.length })}
             </button>
           </div>
         </>

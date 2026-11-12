@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { api, type Me } from "./api.ts";
+import { t } from "./i18n.ts";
 
 // Signing in with Supabase Auth, when the server says it's in use (GET /api/auth/me → supabase). Passwords go to
 // Supabase only; then the server is handed the access token, checks it with Supabase, and signs this device in.
@@ -46,13 +47,13 @@ export function takePendingInvite() {
 }
 
 const message = (e: { message?: string; code?: string } | null) => {
-  if (!e) return "Something went wrong. Please try again.";
-  if (e.code === "invalid_credentials") return "Email or password is incorrect";
-  if (e.code === "email_not_confirmed") return "Confirm your email first: open the link we sent you.";
-  if (e.code === "user_already_exists") return "There's already an account with that email. Sign in instead.";
-  if (e.code === "weak_password") return "That password is too easy to guess. Try a longer one.";
-  if (e.code === "over_email_send_rate_limit" || e.code === "over_request_rate_limit") return "Too many emails just now. Wait a little and try again.";
-  return e.message ?? "Something went wrong. Please try again.";
+  if (!e) return t("Something went wrong. Please try again.");
+  if (e.code === "invalid_credentials") return t("Email or password is incorrect");
+  if (e.code === "email_not_confirmed") return t("Confirm your email first: open the link we sent you.");
+  if (e.code === "user_already_exists") return t("There's already an account with that email. Sign in instead.");
+  if (e.code === "weak_password") return t("That password is too easy to guess. Try a longer one.");
+  if (e.code === "over_email_send_rate_limit" || e.code === "over_request_rate_limit") return t("Too many emails just now. Wait a little and try again.");
+  return e.message ?? t("Something went wrong. Please try again.");
 };
 
 /** Hands Supabase's session to the server, which signs this device in. */
@@ -90,7 +91,7 @@ export async function setNewPassword(password: string): Promise<Me> {
   const { data, error } = await sb.auth.updateUser({ password });
   if (error) throw new Error(message(error));
   const session = (await sb.auth.getSession()).data.session;
-  if (!session || !data.user) throw new Error("This reset link has expired. Ask for a new one.");
+  if (!session || !data.user) throw new Error(t("This reset link has expired. Ask for a new one."));
   const me = await toServer(session.access_token);
   await sb.auth.signOut({ scope: "others" }).catch(() => undefined);
   await api.passwordChanged().catch(() => undefined);
@@ -101,7 +102,7 @@ export async function setNewPassword(password: string): Promise<Me> {
 export async function changePassword(email: string, current: string, password: string) {
   const sb = await supabase();
   const check = await sb.auth.signInWithPassword({ email, password: current });
-  if (check.error) throw new Error(check.error.code === "invalid_credentials" ? "Your current password is incorrect" : message(check.error));
+  if (check.error) throw new Error(check.error.code === "invalid_credentials" ? t("Your current password is incorrect") : message(check.error));
   const { error } = await sb.auth.updateUser({ password });
   if (error) throw new Error(message(error));
   await sb.auth.signOut({ scope: "others" }).catch(() => undefined);
@@ -112,7 +113,7 @@ export async function changePassword(email: string, current: string, password: s
 export async function changeEmail(email: string, current: string, password: string) {
   const sb = await supabase();
   const check = await sb.auth.signInWithPassword({ email: current, password });
-  if (check.error) throw new Error(check.error.code === "invalid_credentials" ? "Your password is incorrect" : message(check.error));
+  if (check.error) throw new Error(check.error.code === "invalid_credentials" ? t("Your password is incorrect") : message(check.error));
   const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: `${location.origin}/` });
   if (error) throw new Error(message(error));
 }
@@ -131,7 +132,7 @@ export function emailLinkInAddress(): { kind: "signin" | "reset" | "error"; erro
   if (!/(^|&)(access_token|error_description|error)=/.test(h)) return undefined;
   const p = new URLSearchParams(h);
   if (p.get("error") || p.get("error_description")) {
-    const why = p.get("error_code") === "otp_expired" ? "This link has expired or was already used. Ask for a new one." : (p.get("error_description") ?? "This link didn't work.");
+    const why = p.get("error_code") === "otp_expired" ? t("This link has expired or was already used. Ask for a new one.") : (p.get("error_description") ?? t("This link didn't work."));
     return { kind: "error", error: why };
   }
   return { kind: p.get("type") === "recovery" ? "reset" : "signin" };
@@ -144,7 +145,7 @@ export async function finishEmailLink(kind: "signin" | "reset"): Promise<Me | "r
   history.replaceState(null, "", `${location.pathname}${location.search}#/`);
   const access_token = p.get("access_token");
   const refresh_token = p.get("refresh_token");
-  if (!access_token || !refresh_token) throw new Error("This link didn't work. Ask for a new one.");
+  if (!access_token || !refresh_token) throw new Error(t("This link didn't work. Ask for a new one."));
   const { error } = await sb.auth.setSession({ access_token, refresh_token });
   if (error) throw new Error(message(error));
   if (kind === "reset") return "reset";

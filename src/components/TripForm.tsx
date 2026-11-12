@@ -1,10 +1,12 @@
+import { t } from "../i18n.ts";
+import { partyLabel, styleLabel } from "../labels.ts";
 import { useEffect, useState } from "react";
 import { TRAVEL_PARTIES, TRAVEL_STYLES, TRIP_PURPOSES, type Trip, type TripPlace, type TravelStyle } from "../../shared/types.ts";
 import type { TripInput } from "../api.ts";
 import PartsEditor from "./PartsEditor.tsx";
 import PlaceSelect from "./PlaceSelect.tsx";
 
-const PURPOSE_LABELS = { business: "Business", leisure: "Leisure", bleisure: "Business + leisure" };
+const purposeChip = (p: (typeof TRIP_PURPOSES)[number]) => ({ business: t("Business"), leisure: t("Leisure"), bleisure: t("Business + leisure") })[p];
 
 export default function TripForm({
   initial,
@@ -35,8 +37,8 @@ export default function TripForm({
       className="card form"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (form.endDate < form.startDate) return setError("End date must be after the start date");
-        if (!form.places?.length && !form.destination) return setError("Choose at least one destination");
+        if (form.endDate < form.startDate) return setError(t("End date must be after the start date"));
+        if (!form.places?.length && !form.destination) return setError(t("Choose at least one destination"));
         try {
           await onSubmit(form);
         } catch (err) {
@@ -44,14 +46,14 @@ export default function TripForm({
         }
       }}
     >
-      <h2>{initial ? "Edit trip" : "New trip"}</h2>
+      <h2>{initial ? t("Edit trip") : t("New trip")}</h2>
       <div className="grid2">
-        <label className="span2">Trip name<input required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Tokyo client visit" /></label>
+        <label className="span2">{t("Trip name")}<input required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder={t("Tokyo client visit")} /></label>
         <div className="span2">
           <PlaceSelect value={form.places ?? []} onChange={(places) => set("places", places)} />
         </div>
         <label>
-          Start
+          {t("Start")}
           <input
             required
             type="date"
@@ -68,39 +70,39 @@ export default function TripForm({
           />
         </label>
         <label>
-          End
+          {t("End")}
           <input required type="date" min={form.startDate || undefined} value={form.endDate} onChange={(e) => set("endDate", e.target.value)} />
         </label>
       </div>
 
       <fieldset>
-        <legend>Type of trip</legend>
+        <legend>{t("Type of trip")}</legend>
         <div className="chips">
           {TRIP_PURPOSES.map((p) => (
             <button type="button" key={p} className={`chip ${form.purpose === p ? "on" : ""}`} onClick={() => set("purpose", p)}>
-              {PURPOSE_LABELS[p]}
+              {purposeChip(p)}
             </button>
           ))}
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Who's travelling{form.parts?.length ? " (outside the parts below)" : ""}</legend>
+        <legend>{form.parts?.length ? t("Who's travelling (outside the parts below)") : t("Who's travelling")}</legend>
         <div className="chips">
           {TRAVEL_PARTIES.map((p) => (
             <button type="button" key={p} className={`chip ${form.party === p ? "on" : ""}`} onClick={() => set("party", p)}>
-              {p}
+              {partyLabel(p)}
             </button>
           ))}
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Travel style (pick any)</legend>
+        <legend>{t("Travel style (pick any)")}</legend>
         <div className="chips">
           {TRAVEL_STYLES.map((s) => (
             <button type="button" key={s} className={`chip ${form.styles.includes(s) ? "on" : ""}`} onClick={() => toggleStyle(s)}>
-              {s}
+              {styleLabel(s)}
             </button>
           ))}
         </div>
@@ -114,14 +116,14 @@ export default function TripForm({
         defaultParty={form.party}
       />
 
-      <label>Notes for suggestions (optional)
-        <textarea rows={2} value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} placeholder="Vegetarian, love jazz bars, first time in Japan…" />
+      <label>{t("Notes for suggestions (optional)")}
+        <textarea rows={2} value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} placeholder={t("Vegetarian, love jazz bars, first time in Japan…")} />
       </label>
 
       {error && <p className="error">{error}</p>}
       <div className="actions">
-        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit">{initial ? "Save" : "Create trip"}</button>
+        <button type="button" className="ghost" onClick={onCancel}>{t("Cancel")}</button>
+        <button type="submit">{initial ? t("Save") : t("Create trip")}</button>
       </div>
     </form>
   );

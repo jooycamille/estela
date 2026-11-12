@@ -1,3 +1,4 @@
+import { t, tn } from "./i18n.ts";
 // Time zones in the browser. Booking times are wall-clock times where they happen ("2026-12-21T13:23" in Bogotá);
 // these turn them into real moments, and say how far apart two places are.
 
@@ -42,17 +43,15 @@ export function hoursApart(tz: string, from: string, atMs = Date.now()) {
   return (offsetMinutes(tz, atMs) - offsetMinutes(from, atMs)) / 60;
 }
 
-const hrs = (h: number) => {
-  const a = Math.abs(h);
-  const whole = Math.floor(a), mins = Math.round((a - whole) * 60);
-  return mins ? `${whole} h ${mins} min` : `${whole} hour${whole === 1 ? "" : "s"}`;
-};
 
 /** "6 hours ahead of home", "1 h 30 min behind home", or undefined when it's the same time. */
-export function differenceText(tz: string, from: string, label = "home", atMs = Date.now()) {
+export function differenceText(tz: string, from: string, label = t("home"), atMs = Date.now()) {
   const h = hoursApart(tz, from, atMs);
   if (!h) return undefined;
-  return `${hrs(h)} ${h > 0 ? "ahead of" : "behind"} ${label}`;
+  const a = Math.abs(h);
+  const whole = Math.floor(a), mins = Math.round((a - whole) * 60);
+  if (mins) return h > 0 ? t("{h} h {m} min ahead of {place}", { h: whole, m: mins, place: label }) : t("{h} h {m} min behind {place}", { h: whole, m: mins, place: label });
+  return h > 0 ? tn(whole, "{n} hour ahead of {place}", "{n} hours ahead of {place}", { place: label }) : tn(whole, "{n} hour behind {place}", "{n} hours behind {place}", { place: label });
 }
 
 /** Short name of a zone's city: "America/Argentina/Buenos_Aires" → "Buenos Aires". */

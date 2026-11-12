@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type UpcomingReminder } from "../api.ts";
 import { Bell, BellOff } from "lucide-react";
+import { t, tn } from "../i18n.ts";
 
 // The bell in the header: turning on reminders (push notifications) for this device, and what's coming up on the trip
 // you're looking at. Browsers only allow notifications from an installed or secure app: on iPhone, from the Home Screen
@@ -84,9 +85,9 @@ export default function ReminderBell({ tripId }: { tripId?: string }) {
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
       await api.pushSubscribe(sub.toJSON());
       setState("on");
-      setMessage("Reminders are on. Send a test to see one.");
+      setMessage(t("Reminders are on. Send a test to see one."));
     } catch (e) {
-      setMessage(`Couldn't turn on reminders: ${(e as Error).message}`);
+      setMessage(t("Couldn't turn on reminders: {message}", { message: (e as Error).message }));
     } finally {
       setBusy(false);
     }
@@ -111,8 +112,8 @@ export default function ReminderBell({ tripId }: { tripId?: string }) {
         type="button"
         className={`bell-button ${on ? "on" : ""}`}
         aria-expanded={open}
-        aria-label={`Reminders${on ? ", on" : ", off"}${coming.length ? `, ${coming.length} coming up` : ""}`}
-        title="Reminders"
+        aria-label={`${on ? t("Reminders, on") : t("Reminders, off")}${coming.length ? `, ${tn(coming.length, "{n} coming up", "{n} coming up")}` : ""}`}
+        title={t("Reminders")}
         onClick={() => { setOpen((o) => !o); loadUpcoming(); }}
       >
         {on ? <Bell aria-hidden="true" /> : <BellOff aria-hidden="true" />}
@@ -120,37 +121,35 @@ export default function ReminderBell({ tripId }: { tripId?: string }) {
       </button>
       {open && (
       <div className="bell-panel reminders">
-      <h3>Reminders</h3>
-      {state === "on" && <p className="reminders-status"><span className="reminders-on">On for this device</span></p>}
+      <h3>{t("Reminders")}</h3>
+      {state === "on" && <p className="reminders-status"><span className="reminders-on">{t("On for this device")}</span></p>}
       {state === "off" && (
         <>
-          <p className="muted small">Get a notification on this device when it's time: Check-MIG opening (and a last call before it closes), other online border forms, and online check-in.</p>
-          <button type="button" onClick={turnOn} disabled={busy}>{busy ? "Turning on…" : "Turn on reminders"}</button>
+          <p className="muted small">{t("Get a notification on this device when it's time: Check-MIG opening (and a last call before it closes), other online border forms, and online check-in.")}</p>
+          <button type="button" onClick={turnOn} disabled={busy}>{busy ? t("Turning on…") : t("Turn on reminders")}</button>
         </>
       )}
       {state === "on" && (
         <div className="actions left">
-          <button type="button" className="secondary" onClick={() => api.pushTest().then((r) => setMessage(r.sent ? "Test sent. It should appear in a moment." : "Couldn't reach this device. Try turning reminders off and on."))}>
-            Send a test
+          <button type="button" className="secondary" onClick={() => api.pushTest().then((r) => setMessage(r.sent ? t("Test sent. It should appear in a moment.") : t("Couldn't reach this device. Try turning reminders off and on.")))}>
+            {t("Send a test")}
           </button>
-          <button type="button" className="ghost" onClick={turnOff}>Turn off here</button>
+          <button type="button" className="ghost" onClick={turnOff}>{t("Turn off here")}</button>
         </div>
       )}
       {state === "blocked" && (
         <p className="small">
-          Notifications are blocked for Estela on this device. On iPhone: <b>Settings → Notifications → Estela</b>. In a browser: the site settings
-          (the icon left of the address).
+          {t("Notifications are blocked for Estela on this device. On iPhone:")}{" "}<b>{t("Settings → Notifications → Estela")}</b>{t(". In a browser: the site settings (the icon left of the address).")}
         </p>
       )}
       {state === "needs-install" && (
         <p className="small">
-          On iPhone, reminders work in the Home Screen app: in Safari tap <b>Share → Add to Home Screen</b>, open Estela from there, sign in, and
-          turn reminders on.
+          {t("On iPhone, reminders work in the Home Screen app: in Safari tap")}{" "}<b>{t("Share → Add to Home Screen")}</b>{t(", open Estela from there, sign in, and turn reminders on.")}
         </p>
       )}
-      {state === "unsupported" && <p className="muted small">This browser can't show notifications. Try the Home Screen app on your phone, or Chrome, Edge, Firefox or Safari on a computer.</p>}
+      {state === "unsupported" && <p className="muted small">{t("This browser can't show notifications. Try the Home Screen app on your phone, or Chrome, Edge, Firefox or Safari on a computer.")}</p>}
       {message && <p className="notice">{message}</p>}
-      {tripId && (coming.length === 0 ? <p className="muted small bell-none">Nothing coming up on this trip.</p> : (
+      {tripId && (coming.length === 0 ? <p className="muted small bell-none">{t("Nothing coming up on this trip.")}</p> : (
         <ul className="upcoming-reminders">
           {coming.slice(0, 5).map((r) => (
             <li key={r.at + r.label}>
@@ -159,7 +158,7 @@ export default function ReminderBell({ tripId }: { tripId?: string }) {
           ))}
         </ul>
       ))}
-      <p className="muted tiny">Reminders come from your Mac, so it needs to be on. Ticked items aren't reminded.</p>
+      <p className="muted tiny">{t("Reminders come from your Mac, so it needs to be on. Ticked items aren't reminded.")}</p>
       </div>
       )}
     </div>

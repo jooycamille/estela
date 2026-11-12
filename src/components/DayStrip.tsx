@@ -2,6 +2,8 @@ import { useTripDays } from "../tripDays.tsx";
 import { nowIn } from "../zones.ts";
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "../icons.ts";
+import { t } from "../i18n.ts";
+import { formatDay, shortMonth, shortWeekday } from "../format.ts";
 
 // A strip of the trip's days that stays at the top while you scroll the itinerary: tap a day to jump to it. The day
 // you're looking at is highlighted (and kept in view on a phone). Days with nothing on them are greyed out, so gaps
@@ -16,8 +18,6 @@ export type DayInfo = {
   heading?: string; // your own heading for the day
 };
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const parse = (d: string) => new Date(`${d}T12:00:00Z`);
 export const dayId = (day: string) => `day-${day}`;
 
@@ -92,10 +92,10 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
 
   return (
     <div className="day-strip" ref={strip}>
-      <div className="day-strip-row" role="tablist" aria-label="Jump to a day" ref={row}>
+      <div className="day-strip-row" role="tablist" aria-label={t("Jump to a day")} ref={row}>
         {onTrip && (
           <button type="button" className="day-chip-today" onClick={() => jump(today)}>
-            Today
+            {t("Today")}
           </button>
         )}
         {days.map((d, i) => {
@@ -108,13 +108,13 @@ export default function DayStrip({ days, onEmptyDay, onJump }: { days: DayInfo[]
               role="tab"
               data-day={d.day}
               aria-selected={active === d.day}
-              aria-label={`${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}${d.hasContent ? "" : ", nothing planned"}`}
+              aria-label={d.hasContent ? formatDay(d.day) : t("{day}, nothing planned", { day: formatDay(d.day) })}
               className={`day-chip ${active === d.day ? "on" : ""} ${(d.planned ?? d.hasContent) || d.staying ? "" : "empty"} ${d.day === today ? "today" : ""}`}
               title={d.heading}
               onClick={() => jump(d.day)}
             >
-              <span className="day-chip-month">{newMonth ? MONTHS[date.getUTCMonth()] : " "}</span>
-              <span className="day-chip-weekday">{WEEKDAYS[date.getUTCDay()]}</span>
+              <span className="day-chip-month">{newMonth ? shortMonth(date) : " "}</span>
+              <span className="day-chip-weekday">{shortWeekday(date)}</span>
               <span className="day-chip-date">{date.getUTCDate()}</span>
               <span className="day-chip-icons" aria-hidden="true">{d.icons.length ? d.icons.slice(0, 3).map((I, n) => <I key={n} />) : "·"}</span>
             </button>

@@ -1,5 +1,6 @@
 import { Car, Footprints, TramFront } from "lucide-react";
 import type { DayLeg } from "../../shared/types.ts";
+import { t } from "../i18n.ts";
 
 // Between two stops of a day: how long it takes on foot or by car, and how far, with directions (and public transport
 // for the longer ones). Routes from OpenStreetMap (see server/routing.ts).
@@ -15,12 +16,12 @@ export default function LegLine({ leg, note }: { leg?: DayLeg; note?: string }) 
       <span className="day-leg-line" aria-hidden="true" />
       <span className="day-leg-text small">
         <Icon aria-hidden="true" />
-        <span className="sr-only">{leg.mode === "walk" ? "Walk" : leg.mode === "drive" ? "Drive" : "Public transport"}: </span>
-        {leg.mode === "transit" ? <span title="An estimate: tap Times for the real ones">about {duration(leg.minutes)}</span> : duration(leg.minutes)} · {distance(leg.km)}
+        <span className="sr-only">{leg.mode === "walk" ? t("Walk") : leg.mode === "drive" ? t("Drive") : t("Public transport")}: </span>
+        {leg.mode === "transit" ? <span title={t("An estimate: tap Times for the real ones")}>{t("about {duration}", { duration: duration(leg.minutes) })}</span> : duration(leg.minutes)} · {distance(leg.km)}
         {note && <span className="muted"> {note}</span>}
-        <a href={leg.url} target="_blank" rel="noopener noreferrer">{leg.mode === "transit" ? "Times ↗" : "Directions ↗"}</a>
-        {leg.transitUrl && <a className="muted" href={leg.transitUrl} target="_blank" rel="noopener noreferrer">Public transport ↗</a>}
-        {leg.driveUrl && <a className="muted" href={leg.driveUrl} target="_blank" rel="noopener noreferrer">By car ↗</a>}
+        <a href={leg.url} target="_blank" rel="noopener noreferrer">{leg.mode === "transit" ? t("Times ↗") : t("Directions ↗")}</a>
+        {leg.transitUrl && <a className="muted" href={leg.transitUrl} target="_blank" rel="noopener noreferrer">{t("Public transport ↗")}</a>}
+        {leg.driveUrl && <a className="muted" href={leg.driveUrl} target="_blank" rel="noopener noreferrer">{t("By car ↗")}</a>}
       </span>
     </div>
   );

@@ -4,18 +4,19 @@ import type { PrepItem } from "../../shared/types.ts";
 import { api } from "../api.ts";
 import type { LucideIcon } from "../icons.ts";
 import Ico from "./Ico.tsx";
+import { t } from "../i18n.ts";
 
 // What you can add to a day from the itinerary, and your own notes and checklist items for it.
 
 export type DayAdd = "note" | "activity" | "place" | "todo" | "stay" | "flight";
 
 const CHOICES: { key: DayAdd; label: string; icon: LucideIcon }[] = [
-  { key: "note", label: "Note", icon: NotebookPen },
-  { key: "activity", label: "Activity", icon: Ticket },
-  { key: "place", label: "Place", icon: MapPin },
-  { key: "todo", label: "Checklist item", icon: ClipboardCheck },
-  { key: "stay", label: "Accommodation", icon: Hotel },
-  { key: "flight", label: "Flight", icon: Plane },
+  { key: "note", get label() { return t("Note"); }, icon: NotebookPen },
+  { key: "activity", get label() { return t("Activity"); }, icon: Ticket },
+  { key: "place", get label() { return t("Place"); }, icon: MapPin },
+  { key: "todo", get label() { return t("Checklist item"); }, icon: ClipboardCheck },
+  { key: "stay", get label() { return t("Accommodation"); }, icon: Hotel },
+  { key: "flight", get label() { return t("Flight"); }, icon: Plane },
 ];
 
 /**
@@ -44,14 +45,14 @@ export function DayAddMenu({ day, label, extra, between, onPick }: { day: string
         className="day-add-plus"
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={`Add to ${label}`}
-        title={`Add to ${label}`}
+        aria-label={t("Add to {label}", { label })}
+        title={t("Add to {label}", { label })}
         onClick={() => setOpen((o) => !o)}
       >
         <Plus aria-hidden="true" />
       </button>
       {open && (
-        <div className="day-add-menu" role="menu" aria-label={`Add to ${label}`}>
+        <div className="day-add-menu" role="menu" aria-label={t("Add to {label}", { label })}>
           {choices.map((c) => (
             <button key={c.key} type="button" role="menuitem" onClick={() => { setOpen(false); onPick(c.key); }} data-day={day}>
               <Ico icon={c.icon} /> {c.label}
@@ -81,8 +82,8 @@ export function DayTextForm({ initial = "", placeholder, multiline, onDone }: { 
     <form className="day-text-form" onSubmit={(e) => { e.preventDefault(); onDone(text.trim()); }}>
       {multiline ? <textarea rows={3} maxLength={2000} {...props} /> : <input maxLength={200} {...props} />}
       <span className="day-text-actions">
-        <button type="submit">Save</button>
-        <button type="button" className="ghost" onClick={() => onDone()}>Cancel</button>
+        <button type="submit">{t("Save")}</button>
+        <button type="button" className="ghost" onClick={() => onDone()}>{t("Cancel")}</button>
       </span>
     </form>
   );
@@ -96,8 +97,8 @@ export function DayNote({ text, canEdit, onEdit, onRemove }: { text: string; can
       <p>{text}</p>
       {canEdit && (
         <span className="prep-actions edit-only">
-          <button type="button" className="prep-action" title="Edit note" aria-label="Edit note" onClick={onEdit}><Pencil aria-hidden="true" /></button>
-          <button type="button" className="prep-action danger" title="Remove note" aria-label="Remove note" onClick={onRemove}><X aria-hidden="true" /></button>
+          <button type="button" className="prep-action" title={t("Edit note")} aria-label={t("Edit note")} onClick={onEdit}><Pencil aria-hidden="true" /></button>
+          <button type="button" className="prep-action danger" title={t("Remove note")} aria-label={t("Remove note")} onClick={onRemove}><X aria-hidden="true" /></button>
         </span>
       )}
     </div>

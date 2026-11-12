@@ -11,6 +11,7 @@ import { formatDay } from "../format.ts";
 import { formatMoney } from "./PriceField.tsx";
 import Ico from "./Ico.tsx";
 import { itemIcon } from "../icons.ts";
+import { t as tr, tn } from "../i18n.ts";
 
 // The Spending tab: what's booked so far, in one currency of your choice, split by category and spread across the
 // trip's days, with the largest bookings and the ones still missing a price. Amounts in other currencies are converted
@@ -22,10 +23,10 @@ let fxPromise: Promise<Fx> | undefined; // one request per page load, shared by 
 type Kind = ItineraryItem["kind"] | "trip";
 // Fixed order, and each category always keeps its colour (checked for colour-blind readers in light and dark).
 const KINDS: { kind: Kind; label: string }[] = [
-  { kind: "flight", label: "Flights" },
-  { kind: "stay", label: "Accommodation" },
-  { kind: "activity", label: "Activities & transport" },
-  { kind: "trip", label: "On the trip" },
+  { kind: "flight", get label() { return tr("Flights"); } },
+  { kind: "stay", get label() { return tr("Accommodation"); } },
+  { kind: "activity", get label() { return tr("Activities & transport"); } },
+  { kind: "trip", get label() { return tr("On the trip"); } },
 ];
 const emptyRow = (): Record<Kind, number> => ({ flight: 0, stay: 0, activity: 0, trip: 0 });
 
@@ -125,7 +126,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
     return (
       <div className="spending">
         <div className="card empty">
-          <p>{items.length ? <>None of your bookings has a price yet. Add one with <b>Edit</b> on a booking (or it comes in with an imported email), and your spending shows here.</> : "Nothing booked yet. Add bookings with their prices, and what you've spent shows here."}</p>
+          <p>{items.length ? <>{tr("None of your bookings has a price yet. Add one with")}{" "}<b>{tr("Edit")}</b>{" "}{tr("on a booking (or it comes in with an imported email), and your spending shows here.")}</> : tr("Nothing booked yet. Add bookings with their prices, and what you've spent shows here.")}</p>
         </div>
         {log}
       </div>
@@ -168,19 +169,19 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
   return (
     <div className="spending">
       <section className="card spend-hero">
-        <span className="spend-label">{expenses.length ? "Booked and spent so far" : "Booked so far"}</span>
+        <span className="spend-label">{expenses.length ? tr("Booked and spent so far") : tr("Booked so far")}</span>
         <div className="spend-hero-row">
           <span className="spend-hero-total">
             {ready ? <>{estimate ? "≈ " : ""}{money(total, target, false)}</> : original}
           </span>
           {ready && (
-            <label className="currency-pick" title="Show amounts in another currency">
+            <label className="currency-pick" title={tr("Show amounts in another currency")}>
               <span aria-hidden="true">{target} <ChevronDown /></span>
-              <select value={target} onChange={(e) => choose(e.target.value)} aria-label="Show amounts in currency">
-                <optgroup label="Your currencies & common">
+              <select value={target} onChange={(e) => choose(e.target.value)} aria-label={tr("Show amounts in currency")}>
+                <optgroup label={tr("Your currencies & common")}>
                   {[...new Set([...byCurrency.keys(), ...COMMON_CURRENCIES])].filter((c) => fx!.rates[c]).map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}
                 </optgroup>
-                <optgroup label="All currencies">
+                <optgroup label={tr("All currencies")}>
                   {Object.keys(fx!.rates).sort().map((c) => <option key={c} value={c}>{currencyLabel(c)}</option>)}
                 </optgroup>
               </select>
@@ -188,18 +189,18 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
           )}
         </div>
         <p className="spend-note">
-          {ready && expenses.length > 0 && <>Bookings {money(bookedTotal, target, false)} · On the trip {money(spentTotal, target, false)} · </>}
-          {priced.length} of {items.length} booking{items.length === 1 ? "" : "s"} with a price
+          {ready && expenses.length > 0 && <>{tr("Bookings {money} · On the trip {v2} ·", { money: money(bookedTotal, target, false), v2: money(spentTotal, target, false) })}{" "}</>}
+          {tn(items.length, "{priced} of {n} booking with a price", "{priced} of {n} bookings with a price", { priced: priced.length })}
           {ready && estimate && <> · {original}</>}
         </p>
-        {[...missingRate, ...missingExpenseRate].length > 0 && <p className="spend-note warning">No exchange rate for {[...new Set([...missingRate, ...missingExpenseRate])].join(", ")}, so not included.</p>}
+        {[...missingRate, ...missingExpenseRate].length > 0 && <p className="spend-note warning">{tr("No exchange rate for {v1}, so not included.", { v1: [...new Set([...missingRate, ...missingExpenseRate])].join(", ") })}</p>}
         {ready && (
-          <p className="spend-note" title={`Rates updated ${new Date(fx!.updatedAt).toLocaleDateString()}`}>
-            {estimate ? `Converted at ${fx!.stale ? "the last saved" : "today's"} rates · ` : ""}
-            <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">Rates By Exchange Rate API</a>
+          <p className="spend-note" title={tr("Rates updated {v1}", { v1: new Date(fx!.updatedAt).toLocaleDateString() })}>
+            {estimate ? fx!.stale ? tr("Converted at the last saved rates · ") : tr("Converted at today's rates · ") : ""}
+            <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">{tr("Rates By Exchange Rate API")}</a>
           </p>
         )}
-        {error && <p className="spend-note">Exchange rates are unavailable right now, so amounts are shown in their own currencies.</p>}
+        {error && <p className="spend-note">{tr("Exchange rates are unavailable right now, so amounts are shown in their own currencies.")}</p>}
       </section>
 
       {ready && <Budget trip={trip} total={total} target={target} fx={fx!} canEdit={canEdit} onChanged={onChanged} />}
@@ -207,7 +208,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
       {ready && total > 0 && (
         <>
           <section className="card">
-            <h3 className="spend-heading">By category</h3>
+            <h3 className="spend-heading">{tr("By category")}</h3>
             {/* One whole, split: each part's share printed on it where it fits. */}
             <div className="seg-bar" role="img" aria-label={kinds.map((k) => `${k.label} ${Math.round((k.sum / total) * 100)}%`).join(", ")}>
               {kinds.filter((k) => k.sum > 0).map((k) => (
@@ -223,7 +224,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
                   <span className="cat-name">
                     {k.label}
                     <span className="spend-note">
-                      {k.count} {k.kind === "trip" ? `expense${k.count === 1 ? "" : "s"}` : `booking${k.count === 1 ? "" : "s"}`}{k.unpriced ? ` · ${k.unpriced} without a price` : ""}
+                      {k.count} {k.kind === "trip" ? tn(k.count, "expense", "expenses") : tn(k.count, "booking", "bookings")}{k.unpriced ? tr(" · {unpriced} without a price", { unpriced: k.unpriced }) : ""}
                     </span>
                   </span>
                   <span className="cat-amount">{money(k.sum, target)}</span>
@@ -235,8 +236,8 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
 
           <section className="card">
             <div className="spend-heading-row">
-              <h3 className="spend-heading">Across your trip</h3>
-              <button type="button" className="link muted-link" aria-pressed={asTable} onClick={() => setAsTable((t) => !t)}>{asTable ? "Show chart" : "Show as table"}</button>
+              <h3 className="spend-heading">{tr("Across your trip")}</h3>
+              <button type="button" className="link muted-link" aria-pressed={asTable} onClick={() => setAsTable((t) => !t)}>{asTable ? tr("Show chart") : tr("Show as table")}</button>
             </div>
             <ul className="chart-legend" aria-hidden={asTable}>
               {kinds.map((k) => <li key={k.kind}><span className={`swatch cat-${k.kind}`} />{k.label}</li>)}
@@ -244,7 +245,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
             {asTable ? (
               <div className="table-wrap">
                 <table className="spend-table">
-                  <thead><tr><th>Day</th>{kinds.map((k) => <th key={k.kind}>{k.label}</th>)}<th>Total</th></tr></thead>
+                  <thead><tr><th>{tr("Day")}</th>{kinds.map((k) => <th key={k.kind}>{k.label}</th>)}<th>{tr("Total")}</th></tr></thead>
                   <tbody>
                     {days.filter((d) => dayTotal(d) > 0).map((d) => (
                       <tr key={d}>
@@ -261,7 +262,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
                 <div className="day-chart-grid" aria-hidden="true">
                   {[...ticks].reverse().map((t) => <div key={t} className="gridline"><span>{money(t, target, false)}</span></div>)}
                 </div>
-                <div className="day-chart-cols" role="list" aria-label="Spending by day">
+                <div className="day-chart-cols" role="list" aria-label={tr("Spending by day")}>
                   {days.map((d, n) => {
                     const row = perDay.get(d);
                     const sum = dayTotal(d);
@@ -271,7 +272,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
                         role="listitem"
                         className={`day-col ${active === d ? "on" : ""}`}
                         tabIndex={sum ? 0 : -1}
-                        aria-label={`${formatDay(d)}: ${sum ? money(sum, target) : "nothing booked"}`}
+                        aria-label={`${formatDay(d)}: ${sum ? money(sum, target) : tr("nothing booked")}`}
                         onPointerEnter={() => setActive(d)}
                         onFocus={() => setActive(d)}
                         onClick={() => setActive(d)}
@@ -288,7 +289,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
                             {KINDS.filter((k) => row?.[k.kind]).map((k) => (
                               <span key={k.kind} className="tip-row"><span className={`swatch cat-${k.kind}`} />{k.label}<span className="tip-amount">{money(row![k.kind], target)}</span></span>
                             ))}
-                            {KINDS.filter((k) => row?.[k.kind]).length > 1 && <span className="tip-row tip-total">Total<span className="tip-amount">{money(sum, target)}</span></span>}
+                            {KINDS.filter((k) => row?.[k.kind]).length > 1 && <span className="tip-row tip-total">{tr("Total")}<span className="tip-amount">{money(sum, target)}</span></span>}
                           </div>
                         )}
                       </div>
@@ -297,7 +298,7 @@ export default function SpendingView({ trip, items, canEdit, onChanged }: { trip
                 </div>
               </div>
             )}
-            <p className="spend-note">A stay's price is spread over its nights; flights, activities and spending fall on their day.</p>
+            <p className="spend-note">{tr("A stay's price is spread over its nights; flights, activities and spending fall on their day.")}</p>
           </section>
 
           <div className="spend-columns">
@@ -325,9 +326,9 @@ export function budgetStatus(spent: number, budget: number): "on-track" | "close
 }
 
 const STATUS = {
-  "on-track": { label: "On track", icon: CircleCheck },
-  close: { label: "Close to your budget", icon: TriangleAlert },
-  over: { label: "Over budget", icon: CircleAlert },
+  "on-track": { get label() { return tr("On track"); }, icon: CircleCheck },
+  close: { get label() { return tr("Close to your budget"); }, icon: TriangleAlert },
+  over: { get label() { return tr("Over budget"); }, icon: CircleAlert },
 } as const;
 
 /**
@@ -341,7 +342,7 @@ function Budget({ trip, total, target, fx, canEdit, onChanged }: { trip: Trip; t
   if (editing) {
     return (
       <section className="card budget-card">
-        <h3 className="spend-heading">Budget</h3>
+        <h3 className="spend-heading">{tr("Budget")}</h3>
         <form
           className="budget-form"
           onSubmit={async (e) => {
@@ -352,10 +353,10 @@ function Budget({ trip, total, target, fx, canEdit, onChanged }: { trip: Trip; t
             onChanged();
           }}
         >
-          <label>For the whole trip (bookings and spending), in {target}<input autoFocus inputMode="decimal" value={amount} placeholder="e.g. 4000" onChange={(e) => setAmount(e.target.value)} /></label>
-          <button type="submit">Save</button>
-          <button type="button" className="secondary" onClick={() => setEditing(false)}>Cancel</button>
-          {trip.budget && <button type="button" className="link danger" onClick={async () => { await api.setBudget(trip.id, null); setEditing(false); onChanged(); }}>Remove budget</button>}
+          <label>{tr("For the whole trip (bookings and spending), in {target}", { target })}<input autoFocus inputMode="decimal" value={amount} placeholder="e.g. 4000" onChange={(e) => setAmount(e.target.value)} /></label>
+          <button type="submit">{tr("Save")}</button>
+          <button type="button" className="secondary" onClick={() => setEditing(false)}>{tr("Cancel")}</button>
+          {trip.budget && <button type="button" className="link danger" onClick={async () => { await api.setBudget(trip.id, null); setEditing(false); onChanged(); }}>{tr("Remove budget")}</button>}
         </form>
       </section>
     );
@@ -364,10 +365,10 @@ function Budget({ trip, total, target, fx, canEdit, onChanged }: { trip: Trip; t
     return canEdit ? (
       <section className="card budget-card budget-empty">
         <div>
-          <h3 className="spend-heading">Budget</h3>
-          <p className="spend-note">Set one, and Estela shows whether you're on track, getting close or over.</p>
+          <h3 className="spend-heading">{tr("Budget")}</h3>
+          <p className="spend-note">{tr("Set one, and Estela shows whether you're on track, getting close or over.")}</p>
         </div>
-        <button type="button" className="secondary" onClick={() => setEditing(true)}>Set a budget</button>
+        <button type="button" className="secondary" onClick={() => setEditing(true)}>{tr("Set a budget")}</button>
       </section>
     ) : null;
   }
@@ -381,22 +382,22 @@ function Budget({ trip, total, target, fx, canEdit, onChanged }: { trip: Trip; t
   return (
     <section className={`card budget-card ${status}`}>
       <div className="budget-head">
-        <h3 className="spend-heading">Budget</h3>
-        {canEdit && <button type="button" className="link" onClick={() => setEditing(true)}>Change</button>}
+        <h3 className="spend-heading">{tr("Budget")}</h3>
+        {canEdit && <button type="button" className="link" onClick={() => setEditing(true)}>{tr("Change")}</button>}
       </div>
       <p className={`budget-status ${status}`}><Icon aria-hidden="true" /> {label}</p>
       <p className="budget-figures">
-        <b>{money(total, target, false)}</b> of {money(budget, target, false)} <span className="muted">· {Math.round(share * 100)}%</span>
+        <b>{money(total, target, false)}</b>{" "}{tr("of {money}", { money: money(budget, target, false) })}{" "}<span className="muted">· {Math.round(share * 100)}%</span>
       </p>
-      <div className="budget-bar" role="img" aria-label={`${Math.round(share * 100)}% of your budget used`}>
+      <div className="budget-bar" role="img" aria-label={tr("{v1}% of your budget used", { v1: Math.round(share * 100) })}>
         <div className="budget-used" style={{ width: `${Math.min(share, 1) * 100}%` }} />
-        <span className="budget-mark" style={{ left: "85%" }} title="85%: close to your budget" />
+        <span className="budget-mark" style={{ left: "85%" }} title={tr("85%: close to your budget")} />
       </div>
       <p className="spend-note">
         {left >= 0
-          ? <>{money(left, target, false)} left{daysLeft > 0 ? ` · about ${money(left / daysLeft, target, false)} a day for the ${daysLeft} day${daysLeft === 1 ? "" : "s"} to go` : ""}.</>
-          : <>{money(-left, target, false)} more than you planned{daysLeft > 0 ? `, with ${daysLeft} day${daysLeft === 1 ? "" : "s"} to go` : ""}.</>}
-        {trip.budget && trip.budget.currency !== target && <> Set in {trip.budget.currency}; shown at today's rate.</>}
+          ? <>{tr("{money} left{v2}.", { money: money(left, target, false), v2: daysLeft > 0 ? ` · about ${money(left / daysLeft, target, false)} a day for the ${daysLeft} day${daysLeft === 1 ? "" : "s"} to go` : "" })}</>
+          : <>{tr("{money} more than you planned{v2}.", { money: money(-left, target, false), v2: daysLeft > 0 ? `, with ${daysLeft} day${daysLeft === 1 ? "" : "s"} to go` : "" })}</>}
+        {trip.budget && trip.budget.currency !== target && <>{" "}{tr("Set in {currency}; shown at today's rate.", { currency: trip.budget.currency })}</>}
       </p>
     </section>
   );
@@ -424,12 +425,12 @@ function Bookings({ rows, people, canEdit, target, onChanged }: {
   const [draft, setDraft] = useState<Split>(null);
   const shown = all ? rows : rows.slice(0, 5);
   const together = people.length > 1;
-  const name = (id: string) => { const p = people.find((x) => x.userId === id); return p?.you ? "You" : p?.name ?? "someone who left"; };
+  const name = (id: string) => { const p = people.find((x) => x.userId === id); return p?.you ? tr("You") : p?.name ?? tr("someone who left"); };
   return (
     <section className="card">
-      <h3 className="spend-heading">Bookings <span className="spend-count">{rows.length}</span></h3>
-      {rows.length === 0 && <p className="spend-note">None of your bookings has a price yet.</p>}
-      {together && rows.length > 0 && <p className="spend-note">Split a booking to share its cost in Settle up.</p>}
+      <h3 className="spend-heading">{tr("Bookings")}{" "}<span className="spend-count">{rows.length}</span></h3>
+      {rows.length === 0 && <p className="spend-note">{tr("None of your bookings has a price yet.")}</p>}
+      {together && rows.length > 0 && <p className="spend-note">{tr("Split a booking to share its cost in Settle up.")}</p>}
       <ol className="largest">
         {shown.map(({ item, amount }) => (
           <li key={item.id} className={editing === item.id ? "editing" : ""}>
@@ -438,7 +439,7 @@ function Bookings({ rows, people, canEdit, target, onChanged }: {
               {itemName(item)}
               <span className="spend-note">
                 {formatDay(itemDay(item))}
-                {item.paidBy && item.split?.length ? <> · {name(item.paidBy)} paid, shared by {item.split.length === people.length ? "everyone" : item.split.length}</> : null}
+                {item.paidBy && item.split?.length ? <>{" "}{item.split.length === people.length ? tr("· {name} paid, shared by everyone", { name: name(item.paidBy) }) : tr("· {name} paid, shared by {n}", { name: name(item.paidBy), n: item.split.length })}</> : null}
               </span>
             </span>
             <span className="cat-amount">{money(amount!, target)}</span>
@@ -448,7 +449,7 @@ function Bookings({ rows, people, canEdit, target, onChanged }: {
                 className="link booking-split"
                 onClick={() => { setEditing(item.id); setDraft(item.paidBy && item.split?.length ? { paidBy: item.paidBy, split: item.split } : null); }}
               >
-                {item.split?.length ? "Change split" : "Split"}
+                {item.split?.length ? tr("Change split") : tr("Split")}
               </button>
             )}
             {editing === item.id && (
@@ -461,16 +462,16 @@ function Bookings({ rows, people, canEdit, target, onChanged }: {
                     await api.setItemSplit(item.id, v);
                     setEditing(undefined);
                     onChanged();
-                  }}>Save</button>
-                  {item.split?.length ? <button type="button" className="secondary" onClick={async () => { await api.setItemSplit(item.id, null); setEditing(undefined); onChanged(); }}>Don't split</button> : null}
-                  <button type="button" className="link" onClick={() => setEditing(undefined)}>Cancel</button>
+                  }}>{tr("Save")}</button>
+                  {item.split?.length ? <button type="button" className="secondary" onClick={async () => { await api.setItemSplit(item.id, null); setEditing(undefined); onChanged(); }}>{tr("Don't split")}</button> : null}
+                  <button type="button" className="link" onClick={() => setEditing(undefined)}>{tr("Cancel")}</button>
                 </div>
               </div>
             )}
           </li>
         ))}
       </ol>
-      {rows.length > 5 && <button type="button" className="link unpriced-more" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${rows.length}`}</button>}
+      {rows.length > 5 && <button type="button" className="link unpriced-more" onClick={() => setAll(!all)}>{all ? tr("Show fewer") : tr("Show all {length}", { length: rows.length })}</button>}
     </section>
   );
 }
@@ -478,23 +479,23 @@ function Bookings({ rows, people, canEdit, target, onChanged }: {
 function SettleUp({ expenses, people, me, value, target }: { expenses: Expense[]; people: TravellerView[]; me?: string; value: (e: Expense) => number | undefined; target: string }) {
   if (people.length < 2 || !expenses.length) return null;
   const payments = settleUp(balances(expenses, value));
-  const name = (id: string) => (id === me ? "You" : people.find((p) => p.userId === id)?.name ?? "Someone who left");
+  const name = (id: string) => (id === me ? tr("You") : people.find((p) => p.userId === id)?.name ?? tr("Someone who left"));
   return (
     <section className="card settle">
-      <h3 className="spend-heading">Settle up</h3>
+      <h3 className="spend-heading">{tr("Settle up")}</h3>
       {payments.length ? (
         <ul className="settle-rows">
           {payments.map((p) => (
             <li key={`${p.from}>${p.to}`}>
-              <span><b>{name(p.from)}</b> {p.from === me ? "pay" : "pays"} <b>{p.to === me ? "you" : name(p.to)}</b></span>
+              <span><b>{name(p.from)}</b> {p.from === me ? tr("pay") : tr("pays")} <b>{p.to === me ? tr("you") : name(p.to)}</b></span>
               <span className="cat-amount">{money(p.amount, target)}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="spend-note">Everyone's even.</p>
+        <p className="spend-note">{tr("Everyone's even.")}</p>
       )}
-      <p className="spend-note">From your spending on the trip and the bookings you've split, in {target}.</p>
+      <p className="spend-note">{tr("From your spending on the trip and the bookings you've split, in {target}.", { target })}</p>
     </section>
   );
 }
@@ -509,8 +510,8 @@ function Unpriced({ items, canEdit, currency, onChanged }: { items: ItineraryIte
   const shown = all ? items : items.slice(0, 6);
   return (
     <section className="card unpriced-card">
-      <h3 className="spend-heading">Without a price <span className="spend-count">{items.length}</span></h3>
-      <p className="spend-note">Add what each cost{canEdit ? "" : " (with Edit, by someone who can change the trip)"}, so your totals are complete.</p>
+      <h3 className="spend-heading">{tr("Without a price")}{" "}<span className="spend-count">{items.length}</span></h3>
+      <p className="spend-note">{canEdit ? tr("Add what each cost, so your totals are complete.") : tr("Add what each cost (with Edit, by someone who can change the trip), so your totals are complete.")}</p>
       <ul className="unpriced">
         {shown.map((i) => (
           <li key={i.id}>
@@ -518,7 +519,7 @@ function Unpriced({ items, canEdit, currency, onChanged }: { items: ItineraryIte
             <span className="unpriced-name" title={itemName(i)}>{itemName(i)}</span>
             <span className="unpriced-day">{formatDay(itemDay(i)).replace(/^\w+, /, "")}</span>
             {canEdit && editing !== i.id && (
-              <button type="button" className="link unpriced-add" onClick={() => setEditing(i.id)} aria-label={`Add a price for ${itemName(i)}`}>Add price</button>
+              <button type="button" className="link unpriced-add" onClick={() => setEditing(i.id)} aria-label={tr("Add a price for {v1}", { v1: itemName(i) })}>{tr("Add price")}</button>
             )}
             {editing === i.id && (
               <PriceRow
@@ -535,7 +536,7 @@ function Unpriced({ items, canEdit, currency, onChanged }: { items: ItineraryIte
         ))}
       </ul>
       {items.length > 6 && (
-        <button type="button" className="link unpriced-more" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${items.length}`}</button>
+        <button type="button" className="link unpriced-more" onClick={() => setAll(!all)}>{all ? tr("Show fewer") : tr("Show all {length}", { length: items.length })}</button>
       )}
     </section>
   );
@@ -557,12 +558,12 @@ function PriceRow({ currency, onSave, onCancel }: { currency: string; onSave: (p
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
-      <input autoFocus inputMode="decimal" placeholder="0.00" aria-label="Price" value={amount} onChange={(e) => setAmount(e.target.value)} />
-      <select aria-label="Currency" value={cur} onChange={(e) => setCur(e.target.value)}>
+      <input autoFocus inputMode="decimal" placeholder="0.00" aria-label={tr("Price")} value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <select aria-label={tr("Currency")} value={cur} onChange={(e) => setCur(e.target.value)}>
         {[...new Set([cur, ...COMMON_CURRENCIES])].map((c) => <option key={c}>{c}</option>)}
       </select>
-      <button type="submit" disabled={busy || !(value > 0)}>Save</button>
-      <button type="button" className="link" onClick={onCancel}>Cancel</button>
+      <button type="submit" disabled={busy || !(value > 0)}>{tr("Save")}</button>
+      <button type="button" className="link" onClick={onCancel}>{tr("Cancel")}</button>
     </form>
   );
 }

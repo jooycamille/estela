@@ -15,7 +15,8 @@
     "airports": "node scripts/airports/build.mjs",
     "places": "node scripts/places/build.mjs",
     "privacy": "node scripts/privacy/check.mjs",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "i18n:extract": "node scripts/i18n/extract.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

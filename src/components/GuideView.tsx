@@ -12,26 +12,27 @@ import { PRICE_LABEL } from "./Price.tsx";
 import Ico from "./Ico.tsx";
 import type { LucideIcon } from "../icons.ts";
 import { Banknote, LifeBuoy, CalendarDays, Hospital, Hotel, Landmark, MapPin, Pill, ScrollText, ShieldCheck, Smartphone, Soup, Star, Stethoscope, Ticket, TriangleAlert, Utensils } from "lucide-react";
+import { t } from "../i18n.ts";
 
 // A destination guide Estela makes for each city you stay in: what to eat, do and see (matched to your travel styles),
 // and your saved picks. (What's near where you're staying is in the Essentials tab.)
 
 type SectionKey = "restaurants" | "food" | "activities" | "sights";
 const SECTIONS: { key: SectionKey; icon: LucideIcon; title: string; one: string; add: Pick<ListEntry, "kind" | "section"> }[] = [
-  { key: "restaurants", icon: Utensils, title: "Restaurants", one: "Restaurant", add: { kind: "place", section: "eat" } },
-  { key: "food", icon: Soup, title: "Food to try", one: "Food to try", add: { kind: "thing" } },
-  { key: "activities", icon: Ticket, title: "Things to do for your style", one: "Thing to do", add: { kind: "activity" } },
-  { key: "sights", icon: Landmark, title: "Must-visit places", one: "Place to visit", add: { kind: "place", section: "see" } },
+  { key: "restaurants", icon: Utensils, get title() { return t("Restaurants"); }, get one() { return t("Restaurant"); }, add: { kind: "place", section: "eat" } },
+  { key: "food", icon: Soup, get title() { return t("Food to try"); }, get one() { return t("Food to try"); }, add: { kind: "thing" } },
+  { key: "activities", icon: Ticket, get title() { return t("Things to do for your style"); }, get one() { return t("Thing to do"); }, add: { kind: "activity" } },
+  { key: "sights", icon: Landmark, get title() { return t("Must-visit places"); }, get one() { return t("Place to visit"); }, add: { kind: "place", section: "see" } },
 ];
 const sectionOf = (e: ListEntry): SectionKey =>
   e.kind === "thing" ? "food" : e.kind === "activity" ? "activities" : e.section === "eat" ? "restaurants" : "sights";
 
 const ESSENTIALS: { kind: EssentialKind; icon: LucideIcon; title: string }[] = [
-  { kind: "pharmacy", icon: Pill, title: "Pharmacies" },
-  { kind: "hospital", icon: Hospital, title: "Hospitals" },
-  { kind: "clinic", icon: Stethoscope, title: "Clinics" },
-  { kind: "police", icon: ShieldCheck, title: "Police" },
-  { kind: "atm", icon: Banknote, title: "ATMs & banks" },
+  { kind: "pharmacy", icon: Pill, get title() { return t("Pharmacies"); } },
+  { kind: "hospital", icon: Hospital, get title() { return t("Hospitals"); } },
+  { kind: "clinic", icon: Stethoscope, get title() { return t("Clinics"); } },
+  { kind: "police", icon: ShieldCheck, get title() { return t("Police"); } },
+  { kind: "atm", icon: Banknote, get title() { return t("ATMs & banks"); } },
 ];
 
 const ROW_PLACES = 3; // places shown for each tour before "+N more"
@@ -89,7 +90,7 @@ export default function GuideView({
     key: s.key,
     ...s.add,
     label: s.one,
-    placeholder: s.key === "food" ? "e.g. Tacos al pastor" : s.key === "activities" ? "e.g. Salsa class" : undefined,
+    placeholder: s.key === "food" ? t("e.g. Tacos al pastor") : s.key === "activities" ? t("e.g. Salsa class") : undefined,
   }));
 
   return (
@@ -98,8 +99,8 @@ export default function GuideView({
         <div>
           <h2>{list.name}</h2>
           <p className="muted small">
-            Estela's guide, made for this stop on your trip
-            {trip.styles.length > 0 && <> · for your style: {trip.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}</>}
+            {t("Estela's guide, made for this stop on your trip")}
+            {trip.styles.length > 0 && <>{" "}{t("· for your style:")}{" "}{trip.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}</>}
           </p>
         </div>
       </div>
@@ -107,9 +108,9 @@ export default function GuideView({
       <SectionBar
         listId={list.id}
         sections={[
-          ...(dateCards.length || areasLeft.length ? [{ key: "dates", label: "Plan by date" }] : []),
-          { key: "picks", label: "Your picks" },
-          ...(ideas?.guide ? SECTIONS.map((s) => ({ key: s.key, label: s.title.replace(" for your style", "") })) : []),
+          ...(dateCards.length || areasLeft.length ? [{ key: "dates", label: t("Plan by date") }] : []),
+          { key: "picks", label: t("Your picks") },
+          ...(ideas?.guide ? SECTIONS.map((s) => ({ key: s.key, label: s.key === "activities" ? t("Things to do") : s.title })) : []),
         ]}
       />
 
@@ -118,8 +119,8 @@ export default function GuideView({
 
       {(dateCards.length > 0 || areasLeft.length > 0) && (
         <section id={`${list.id}-dates`} className="card areas by-date guide-part">
-          <Fold id={`${list.id}:dates`} title={<><CalendarDays aria-hidden="true" /> Plan by date</>} summary={toAdd ? `${toAdd} to add` : dateCards.length || undefined}>
-          {dateCards.length > 0 && <p className="muted small">What's on each date, places on your list close by, and things to do when there's time. Tour stops are already covered.</p>}
+          <Fold id={`${list.id}:dates`} title={<><CalendarDays aria-hidden="true" /> {t("Plan by date")}</>} summary={toAdd ? t("{toAdd} to add", { toAdd }) : dateCards.length || undefined}>
+          {dateCards.length > 0 && <p className="muted small">{t("What's on each date, places on your list close by, and things to do when there's time. Tour stops are already covered.")}</p>}
           {dateCards.map((c) => {
             const key = `${c.day}|${c.tour ?? ""}`;
             return (
@@ -147,8 +148,8 @@ export default function GuideView({
           })}
           {areasLeft.length > 0 && (
             <div className="areas-left">
-              <h4>{dateCards.length ? "Your other picks, by area" : "Your picks, by area"}</h4>
-              <p className="muted small">Close together, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.</p>
+              <h4>{dateCards.length ? t("Your other picks, by area") : t("Your picks, by area")}</h4>
+              <p className="muted small">{t("Close together, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.")}</p>
               {areasLeft.map((g) => (
                 <AreaCard key={g.entries.map((e) => e.id).join()} group={g} listId={list.id} days={days} onPlan={(day) =>
                   act(() => api.planDay(trip.id, day, g.entries.map((e) => ({ listId: e.listId, entryId: e.id }))))
@@ -161,10 +162,10 @@ export default function GuideView({
       )}
 
       <section id={`${list.id}-picks`} className="card guide-part">
-        <Fold id={`${list.id}:picks`} title={<><Star aria-hidden="true" /> Your picks</>} summary={picks.reduce((n, s) => n + s.entries.length, 0)}>
-        {picks.length === 0 && <p className="muted small">Tap <b>+ Add</b> on anything below to save it here.</p>}
+        <Fold id={`${list.id}:picks`} title={<><Star aria-hidden="true" /> {t("Your picks")}</>} summary={picks.reduce((n, s) => n + s.entries.length, 0)}>
+        {picks.length === 0 && <p className="muted small">{t("Tap")}{" "}<b>{t("+ Add")}</b>{" "}{t("on anything below to save it here.")}</p>}
         <button type="button" className="link add-own edit-only" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
-          {adding ? "Close" : "+ Add your own"}
+          {adding ? t("Close") : t("+ Add your own")}
         </button>
         {adding && <AddEntry list={list} tripId={trip.id} options={options} onAdd={(body) => act(() => api.addEntry(list.id, body))} />}
         <div className="list-columns">
@@ -190,16 +191,15 @@ export default function GuideView({
         </div>
         {(ideas?.bookedPicks?.length ?? 0) > 0 && (
           <p className="muted small booked-picks">
-            Already booked, so moved off this list:{" "}
-            {ideas!.bookedPicks!.map((p) => p.title).join(" · ")}
+            {t("Already booked, so moved off this list: {v1}", { v1: ideas!.bookedPicks!.map((p) => p.title).join(" · ") })}
           </p>
         )}
         </Fold>
       </section>
 
-      {!ideas && <p className="muted">Estela is putting your guide together…</p>}
+      {!ideas && <p className="muted">{t("Estela is putting your guide together…")}</p>}
       {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
-        <p className="muted small booked-ideas">✓ Left out because they're booked or planned: {ideas!.bookedIdeas!.join(" · ")}</p>
+        <p className="muted small booked-ideas">{t("✓ Left out because they're booked or planned: {v1}", { v1: ideas!.bookedIdeas!.join(" · ") })}</p>
       )}
       {ideas?.guide &&
         SECTIONS.map((s) => {
@@ -211,7 +211,7 @@ export default function GuideView({
               <Fold id={`${list.id}:${s.key}`} title={<><Ico icon={s.icon} /> {s.title}</>} summary={all.length}>
               {s.key === "restaurants" && (
                 <>
-                  <div className="price-filter" role="radiogroup" aria-label="Price">
+                  <div className="price-filter" role="radiogroup" aria-label={t("Price")}>
                     {(["any", 1, 2, 3] as const).map((p) => (
                       <button
                         key={p}
@@ -219,18 +219,18 @@ export default function GuideView({
                         role="radio"
                         aria-checked={priceFilter === p}
                         className={priceFilter === p ? "on" : ""}
-                        title={p === "any" ? "All prices" : PRICE_LABEL[p]}
+                        title={p === "any" ? t("All prices") : PRICE_LABEL[p]}
                         onClick={() => setPriceFilter(p)}
                       >
-                        {p === "any" ? "Any price" : "$".repeat(p)}
+                        {p === "any" ? t("Any price") : "$".repeat(p)}
                       </button>
                     ))}
                   </div>
-                  <p className="muted tiny">Long-running local favourites. $ cheap eats · $$ mid-range · $$$ splurge (for this city). Opening hours change, so check before you go.</p>
+                  <p className="muted tiny">{t("Long-running local favourites. $ cheap eats · $$ mid-range · $$$ splurge (for this city). Opening hours change, so check before you go.")}</p>
                 </>
               )}
               {all.length === 0 ? (
-                <p className="muted small">Nothing more to suggest here. Try the searches at the bottom.</p>
+                <p className="muted small">{t("Nothing more to suggest here. Try the searches at the bottom.")}</p>
               ) : (
                 <ul className="idea-grid">
                   {shown.map((idea) => (
@@ -246,7 +246,7 @@ export default function GuideView({
               )}
               {all.length > 6 && (
                 <button type="button" className="link more" onClick={() => setExpanded((x) => ({ ...x, [s.key]: !x[s.key] }))}>
-                  {expanded[s.key] ? "Show fewer" : `Show ${all.length - 6} more`}
+                  {expanded[s.key] ? t("Show fewer") : t("Show {v1} more", { v1: all.length - 6 })}
                 </button>
               )}
               </Fold>
@@ -255,7 +255,7 @@ export default function GuideView({
         })}
       {ideas && ideas.finders.length > 0 && (
         <div className="finders">
-          <span className="muted small">Find more:</span>
+          <span className="muted small">{t("Find more:")}</span>
           {ideas.finders.map((l) => (
             <a key={l.url} className="book-link" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
           ))}
@@ -296,15 +296,15 @@ function DateRow({
   return (
     <div className="area by-date-card">
       <div className="area-head">
-        <button type="button" className="link plain by-date-day" title="Show this day in your itinerary" onClick={onShowDay}><b>{formatDay(card.day)}</b></button>
-        {card.tour && <span className="muted small"> · {card.tour}{card.tourStart && ` · ${card.tourStart}${card.tourEnd ? `–${formatTimeOn(card.tourEnd, card.day)}` : ""}`} · {stops} place{stops === 1 ? "" : "s"}</span>}
-        {!card.tour && !card.planned.length && <span className="muted small"> · Nothing booked</span>}
+        <button type="button" className="link plain by-date-day" title={t("Show this day in your itinerary")} onClick={onShowDay}><b>{formatDay(card.day)}</b></button>
+        {card.tour && <span className="muted small">{" "}{t("· {tour}{v2} · {stops} place{v4}", { tour: card.tour, v2: card.tourStart && ` · ${card.tourStart}${card.tourEnd ? `–${formatTimeOn(card.tourEnd, card.day)}` : ""}`, stops, v4: stops === 1 ? "" : "s" })}</span>}
+        {!card.tour && !card.planned.length && <span className="muted small">{" "}{t("· Nothing booked")}</span>}
       </div>
       {stops > 0 && (
         <ol className="by-date-places">
           {(open ? card.places : card.places.slice(0, ROW_PLACES)).map((p) => (
             <li key={p.title} className="small">
-              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.lat !== undefined ? `${p.lat},${p.lon}` : p.address ?? `${p.title}, ${listName}`)}`} target="_blank" rel="noopener noreferrer" title="Open in Maps">
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.lat !== undefined ? `${p.lat},${p.lon}` : p.address ?? `${p.title}, ${listName}`)}`} target="_blank" rel="noopener noreferrer" title={t("Open in Maps")}>
                 <MapPin aria-hidden="true" /> {p.title}
               </a>
             </li>
@@ -313,20 +313,20 @@ function DateRow({
       )}
       {stops > ROW_PLACES && (
         <button type="button" className="link tiny by-date-more" aria-expanded={open} onClick={onToggle}>
-          {open ? "Show less" : `+${stops - ROW_PLACES} more`}
+          {open ? t("Show less") : t("+{v1} more", { v1: stops - ROW_PLACES })}
         </button>
       )}
       {card.planned.length > 0 && (
         <ul className="by-date-picks">
           {card.planned.map((e) => (
             <li key={e.id} className="small">
-              <span><b>{e.title}</b> <span className="muted tiny">· added to this day</span></span>
-              <button type="button" className="link muted-link edit-only" onClick={() => onPlan(null, [e])}>Remove</button>
+              <span><b>{e.title}</b> <span className="muted tiny">{t("· added to this day")}</span></span>
+              <button type="button" className="link muted-link edit-only" onClick={() => onPlan(null, [e])}>{t("Remove")}</button>
             </li>
           ))}
         </ul>
       )}
-      {card.free?.room === 0 && <p className="muted tiny by-date-full">Not much free time this day, so nothing more is suggested.</p>}
+      {card.free?.room === 0 && <p className="muted tiny by-date-full">{t("Not much free time this day, so nothing more is suggested.")}</p>}
       {(card.nearby.length > 0 || toDo > 0) && (
         <div className="by-date-nearby">
           {freeLine(card.free) && <div className="muted tiny by-date-free">{freeLine(card.free)}</div>}
@@ -388,7 +388,7 @@ function SectionBar({ listId, sections }: { listId: string; sections: { key: str
 
   return (
     <div className="guide-bar" ref={bar}>
-      <nav className="guide-nav" aria-label="Guide sections">
+      <nav className="guide-nav" aria-label={t("Guide sections")}>
         {/* Buttons, not #links: the app's routing lives in the URL hash, so changing it would leave the trip. */}
         {sections.map((s) => (
           <button key={s.key} type="button" data-section={s.key} className={active === s.key ? "on" : ""} aria-current={active === s.key ? "true" : undefined} onClick={() => jump(s.key)}>
@@ -415,37 +415,37 @@ export function EssentialsCard({ list }: { list: TripList }) {
 
   return (
     <section id={`${list.id}-essentials`} className="card essentials">
-      <Fold id={`${list.id}:essentials`} title={<><LifeBuoy aria-hidden="true" /> {list.name}</>} summary={data?.emergency ? `Emergency: ${data.emergency.number}` : undefined}>
+      <Fold id={`${list.id}:essentials`} title={<><LifeBuoy aria-hidden="true" /> {list.name}</>} summary={data?.emergency ? t("Emergency: {number}", { number: data.emergency.number }) : undefined}>
       {data?.emergency && (
         <p className="emergency">
-          Emergency number in {list.name}: <a href={`tel:${data.emergency.number}`}><b>{data.emergency.number}</b></a>
+          {t("Emergency number in {name}:", { name: list.name })}{" "}<a href={`tel:${data.emergency.number}`}><b>{data.emergency.number}</b></a>
           {data.emergency.note && <span className="muted small"> · {data.emergency.note}</span>}
         </p>
       )}
-      {!data && !error && <p className="muted small">Finding pharmacies, hospitals, police and ATMs near your stays… The first time takes a few seconds.</p>}
-      {error && <p className="muted small">Couldn't reach the map service right now. Try again later.</p>}
-      {data && data.stays.length === 0 && <p className="muted small">Add where you're staying in {list.name}, and Estela will find what's nearby.</p>}
+      {!data && !error && <p className="muted small">{t("Finding pharmacies, hospitals, police and ATMs near your stays… The first time takes a few seconds.")}</p>}
+      {error && <p className="muted small">{t("Couldn't reach the map service right now. Try again later.")}</p>}
+      {data && data.stays.length === 0 && <p className="muted small">{t("Add where you're staying in {name}, and Estela will find what's nearby.", { name: list.name })}</p>}
       {data?.stays.map((st) => (
         <div key={st.stayId} className="stay-essentials">
           <h4>
             <Hotel aria-hidden="true" /> {st.stayName}
-            {st.located === "approximate" && <span className="muted tiny"> · near this address (the map doesn't have the exact building)</span>}
+            {st.located === "approximate" && <span className="muted tiny">{" "}{t("· near this address (the map doesn't have the exact building)")}</span>}
           </h4>
           {st.located === "not-found" ? (
-            <p className="muted small">Couldn't find this address on the map. Edit the stay and use Find to pick it.</p>
+            <p className="muted small">{t("Couldn't find this address on the map. Edit the stay and use Find to pick it.")}</p>
           ) : (
             <div className="essentials-grid">
               {ESSENTIALS.map((k) => (
                 <div key={k.kind} className="essential">
                   <h5><Ico icon={k.icon} /> {k.title}</h5>
                   {st.places[k.kind].length === 0 ? (
-                    <p className="muted tiny">None found nearby on the map</p>
+                    <p className="muted tiny">{t("None found nearby on the map")}</p>
                   ) : (
                     <ul>
                       {st.places[k.kind].map((p) => (
                         <li key={`${p.name}-${p.lat}`}>
                           <a href={directions(st.directionsFrom, p)} target="_blank" rel="noopener noreferrer">{p.name}</a>
-                          <span className="muted tiny"> · {p.km} km</span>
+                          <span className="muted tiny">{" "}{t("· {km} km", { km: p.km })}</span>
                           {p.open247 && <span className="open247">24/7</span>}
                           {p.phone && <> · <a className="tiny" href={`tel:${p.phone.replace(/[^\d+]/g, "")}`}>{p.phone}</a></>}
                         </li>
@@ -459,12 +459,11 @@ export function EssentialsCard({ list }: { list: TripList }) {
         </div>
       ))}
       <p className="muted tiny">
-        Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors. Distances are
-        straight-line; tap a name for directions. In an emergency, call the number above first.
+        {t("Map data ©")}{" "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">{t("OpenStreetMap")}</a>{" "}{t("contributors. Distances are straight-line; tap a name for directions. In an emergency, call the number above first.")}
       </p>
       {(data?.apps?.length ?? 0) > 0 && (
         <div className="safety-tips safety-part">
-          <Fold id={`${list.id}:apps`} heading="h4" title={<><Smartphone aria-hidden="true" /> Useful apps</>} summary={data!.apps!.length}>
+          <Fold id={`${list.id}:apps`} heading="h4" title={<><Smartphone aria-hidden="true" /> {t("Useful apps")}</>} summary={data!.apps!.length}>
             <ul className="small">
               {data!.apps!.map((app) => (
                 <li key={app.name}>
@@ -473,7 +472,7 @@ export function EssentialsCard({ list }: { list: TripList }) {
                 </li>
               ))}
             </ul>
-            <p className="muted tiny">Each links to a page confirming it. Check it still works in your area when you download it.</p>
+            <p className="muted tiny">{t("Each links to a page confirming it. Check it still works in your area when you download it.")}</p>
           </Fold>
         </div>
       )}
@@ -485,10 +484,10 @@ export function EssentialsCard({ list }: { list: TripList }) {
 
 function SafetyTipsPart({ listId, place, tips }: { listId: string; place: string; tips: SafetyTips }) {
   const parts = [
-    { key: "scams", title: "Scams to look out for", icon: TriangleAlert, items: tips.scams },
-    { key: "here", title: `In ${place}`, icon: MapPin, items: tips.here ?? [] },
-    { key: "safety", title: "Staying safe", icon: ShieldCheck, items: tips.safety },
-    { key: "rules", title: "Local rules", icon: ScrollText, items: tips.rules },
+    { key: "scams", get title() { return t("Scams to look out for"); }, icon: TriangleAlert, items: tips.scams },
+    { key: "here", title: t("In {place}", { place }), icon: MapPin, items: tips.here ?? [] },
+    { key: "safety", get title() { return t("Staying safe"); }, icon: ShieldCheck, items: tips.safety },
+    { key: "rules", get title() { return t("Local rules"); }, icon: ScrollText, items: tips.rules },
   ].filter((p) => p.items.length);
   return (
     <div className="safety-tips">
@@ -504,8 +503,8 @@ function SafetyTipsPart({ listId, place, tips }: { listId: string; place: string
       ))}
       <p className="muted tiny">
         {parts.length
-          ? <>From <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a>{tips.checked && `, checked ${formatDay(tips.checked)} ${tips.checked.slice(0, 4)}`}. Written for UK travellers, and it changes, so read the latest before you go, along with your own government's advice.</>
-          : <>Estela doesn't have scam and safety tips for here yet. See <a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a> or your own government's advice.</>}
+          ? <>{t("From")}{" "}<a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a>{t("{v1}. Written for UK travellers, and it changes, so read the latest before you go, along with your own government's advice.", { v1: tips.checked && `, checked ${formatDay(tips.checked)} ${tips.checked.slice(0, 4)}` })}</>
+          : <>{t("Estela doesn't have scam and safety tips for here yet. See")}{" "}<a href={tips.sourceUrl} target="_blank" rel="noopener noreferrer">{tips.sourceName} ↗</a>{" "}{t("or your own government's advice.")}</>}
       </p>
     </div>
   );

@@ -10,6 +10,7 @@ import { itemIcon } from "../icons.ts";
 import { DayWeatherChip } from "../tripDays.tsx";
 import { nowIn, wallToMs } from "../zones.ts";
 import Ico from "./Ico.tsx";
+import { t as tr } from "../i18n.ts";
 
 // Today, while a trip is on: what's next and how long until it, how to get there, the booking reference and tickets,
 // then the rest of the day, where you sleep tonight and what's first tomorrow.
@@ -27,10 +28,10 @@ function momentsOn(day: string, items: ItineraryItem[], days?: TripDays): Moment
     if (i.kind === "flight") {
       const dep = i.live?.departureTime ?? i.departureTime;
       if (dep.slice(0, 10) !== day) continue;
-      out.push({ item: i, at: wallToMs(dep, days?.airports[i.from.toUpperCase()] ?? tz), time: formatTime(dep), title: `${i.flightNumber} ${i.from} → ${i.to}`, label: "Flight" });
+      out.push({ item: i, at: wallToMs(dep, days?.airports[i.from.toUpperCase()] ?? tz), time: formatTime(dep), title: `${i.flightNumber} ${i.from} → ${i.to}`, label: tr("Flight") });
     } else if (i.kind === "stay") {
-      if (i.checkIn.slice(0, 10) === day) out.push({ item: i, at: wallToMs(i.checkIn, tz), time: formatTime(i.checkIn), title: i.name, label: "Check in" });
-      if (i.checkOut.slice(0, 10) === day) out.push({ item: i, at: wallToMs(i.checkOut, tz), time: formatTime(i.checkOut), title: i.name, label: "Check out" });
+      if (i.checkIn.slice(0, 10) === day) out.push({ item: i, at: wallToMs(i.checkIn, tz), time: formatTime(i.checkIn), title: i.name, label: tr("Check in") });
+      if (i.checkOut.slice(0, 10) === day) out.push({ item: i, at: wallToMs(i.checkOut, tz), time: formatTime(i.checkOut), title: i.name, label: tr("Check out") });
     } else {
       const on = activityDays(i);
       if (!on.includes(day)) continue;
@@ -43,11 +44,11 @@ function momentsOn(day: string, items: ItineraryItem[], days?: TripDays): Moment
 
 function countdown(ms: number) {
   const min = Math.round(ms / 60_000);
-  if (min < 1) return "now";
-  if (min < 60) return `in ${min} min`;
+  if (min < 1) return tr("now");
+  if (min < 60) return tr("in {n} min", { n: min });
   const h = Math.floor(min / 60), m = min % 60;
-  if (h < 24) return `in ${h} h${m ? ` ${m} min` : ""}`;
-  return h < 48 ? "tomorrow" : `in ${Math.round(h / 24)} days`;
+  if (h < 24) return m ? tr("in {h} h {m} min", { h, m }) : tr("in {h} h", { h });
+  return h < 48 ? tr("tomorrow") : tr("in {n} days", { n: Math.round(h / 24) });
 }
 
 /** Directions to where a booking happens (an airport by its code). */
@@ -94,61 +95,61 @@ export default function TodayCard({ trip, items, plans, days, onShowDay }: { tri
     <section className="today-card card" aria-labelledby="today-title">
       <div className="today-head">
         <div>
-          <span className="today-kicker">{before ? "Tomorrow your trip begins" : `Today · Day ${daysBetween(trip.startDate, today) + 1} of ${daysBetween(trip.startDate, trip.endDate) + 1}`}</span>
-          <h2 id="today-title">{formatDay(today)}{days?.days[today]?.city && !before ? <span className="today-where"> in {days.days[today].city}</span> : null}</h2>
+          <span className="today-kicker">{before ? tr("Tomorrow your trip begins") : tr("Today · Day {v1} of {v2}", { v1: daysBetween(trip.startDate, today) + 1, v2: daysBetween(trip.startDate, trip.endDate) + 1 })}</span>
+          <h2 id="today-title">{formatDay(today)}{days?.days[today]?.city && !before ? <span className="today-where">{" "}{tr("in {city}", { city: days.days[today].city })}</span> : null}</h2>
         </div>
         {weather && <DayWeatherChip w={weather} />}
       </div>
 
       {next ? (
         <div className="today-next">
-          <span className="today-label">Next{next.label ? ` · ${next.label}` : ""}</span>
+          <span className="today-label">{tr("Next{v1}", { v1: next.label ? ` · ${next.label}` : "" })}</span>
           <div className="today-next-main">
             <span className="item-icon" aria-hidden="true"><Ico icon={itemIcon(next.item)} /></span>
             <div>
               <b>{next.title}</b>
               <span className="today-when">
-                {next.at > now ? countdown(next.at - now) : "now"}
-                {next.time && ` · ${!todays.includes(next) ? "tomorrow " : ""}${next.time}`}
-                {next.item.kind === "flight" && next.item.live?.departureGate && ` · Gate ${next.item.live.departureGate}`}
-                {next.item.kind === "flight" && next.item.live?.departureTerminal && ` · Terminal ${next.item.live.departureTerminal}`}
+                {next.at > now ? countdown(next.at - now) : tr("now")}
+                {next.time && ` · ${!todays.includes(next) ? tr("tomorrow {time}", { time: next.time }) : next.time}`}
+                {next.item.kind === "flight" && next.item.live?.departureGate && tr(" · Gate {departureGate}", { departureGate: next.item.live.departureGate })}
+                {next.item.kind === "flight" && next.item.live?.departureTerminal && tr(" · Terminal {departureTerminal}", { departureTerminal: next.item.live.departureTerminal })}
               </span>
               {next.item.kind === "flight" && next.item.baggage && (
-                <span className="today-when">Bags: {[next.item.baggage.cabin && `cabin ${next.item.baggage.cabin}`, next.item.baggage.checked && `checked ${next.item.baggage.checked}`].filter(Boolean).join(" · ")}</span>
+                <span className="today-when">{tr("Bags: {v1}", { v1: [next.item.baggage.cabin && `cabin ${next.item.baggage.cabin}`, next.item.baggage.checked && `checked ${next.item.baggage.checked}`].filter(Boolean).join(" · ") })}</span>
               )}
             </div>
           </div>
           <div className="today-actions">
-            {route && <a className="button secondary" href={route} target="_blank" rel="noopener noreferrer"><Navigation aria-hidden="true" /> Directions</a>}
+            {route && <a className="button secondary" href={route} target="_blank" rel="noopener noreferrer"><Navigation aria-hidden="true" />{" "}{tr("Directions")}</a>}
             {files.map((f) => (
-              <a key={f.id} className="button secondary" href={attachmentUrl(f.id)} target="_blank" rel="noopener noreferrer"><Paperclip aria-hidden="true" /> {files.length > 1 ? f.filename : "Ticket"}</a>
+              <a key={f.id} className="button secondary" href={attachmentUrl(f.id)} target="_blank" rel="noopener noreferrer"><Paperclip aria-hidden="true" /> {files.length > 1 ? f.filename : tr("Ticket")}</a>
             ))}
-            {ref && <span className="today-ref">Ref <b>{ref}</b></span>}
+            {ref && <span className="today-ref">{tr("Ref")}{" "}<b>{ref}</b></span>}
           </div>
         </div>
       ) : (
-        <p className="muted today-none">{todays.length || places.length ? "Nothing else at a set time today." : "Nothing planned for today. A free day."}</p>
+        <p className="muted today-none">{todays.length || places.length ? tr("Nothing else at a set time today.") : tr("Nothing planned for today. A free day.")}</p>
       )}
 
       {(later.length > 0 || places.length > 0 || trip.dayNotes?.[today]) && !before && (
         <div className="today-rest">
-          <span className="today-label">Also today</span>
+          <span className="today-label">{tr("Also today")}</span>
           <ul>
             {later.map((m) => (
               <li key={`${m.item.id}:${m.label ?? ""}`} className={m.at < now - 15 * 60_000 && !m.allDay ? "done" : ""}>
-                <span className="today-time">{m.allDay ? "All day" : m.time}</span> {m.label && m.label !== "Flight" ? `${m.label}: ` : ""}{m.title}
+                <span className="today-time">{m.allDay ? tr("All day") : m.time}</span> {m.label && m.label !== "Flight" ? `${m.label}: ` : ""}{m.title}
               </li>
             ))}
-            {places.length > 0 && <li><span className="today-time" /> {places.length === 1 ? places[0].title : `${places.length} places to visit`}</li>}
+            {places.length > 0 && <li><span className="today-time" /> {places.length === 1 ? places[0].title : tr("{length} places to visit", { length: places.length })}</li>}
           </ul>
           {trip.dayNotes?.[today] && <p className="today-note small">{trip.dayNotes[today]}</p>}
         </div>
       )}
 
       <div className="today-foot small">
-        {tonight && <span><BedDouble aria-hidden="true" /> Tonight: <b>{tonight.name}</b></span>}
-        {firstTomorrow && tomorrow <= trip.endDate && !before && <span><Sunrise aria-hidden="true" /> Tomorrow: {firstTomorrow.time && `${firstTomorrow.time} `}{firstTomorrow.label && firstTomorrow.label !== "Flight" ? `${firstTomorrow.label}: ` : ""}{firstTomorrow.title}</span>}
-        <button type="button" className="link" onClick={() => onShowDay(before ? trip.startDate : today)}>See the whole day</button>
+        {tonight && <span><BedDouble aria-hidden="true" />{" "}{tr("Tonight:")}{" "}<b>{tonight.name}</b></span>}
+        {firstTomorrow && tomorrow <= trip.endDate && !before && <span><Sunrise aria-hidden="true" />{" "}{tr("Tomorrow: {v1}{v2}{title}", { v1: firstTomorrow.time && `${firstTomorrow.time} `, v2: firstTomorrow.label && firstTomorrow.label !== "Flight" ? `${firstTomorrow.label}: ` : "", title: firstTomorrow.title })}</span>}
+        <button type="button" className="link" onClick={() => onShowDay(before ? trip.startDate : today)}>{tr("See the whole day")}</button>
       </div>
     </section>
   );

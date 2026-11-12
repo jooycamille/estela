@@ -1,10 +1,12 @@
 // The browser tab's title: "Estela", then "— Craft your perfect journey." typed in once when the app opens (never again,
 // and never on a loop). With reduced motion on, the whole title is just there.
 
+import { t } from "./i18n.ts";
+
 const NAME = "Estela";
-const TAGLINE = " — Craft your perfect journey.";
 
 export function introduceTabTitle() {
+  const TAGLINE = ` — ${t("Craft your perfect journey.")}`;
   const full = NAME + TAGLINE;
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
     document.title = full;

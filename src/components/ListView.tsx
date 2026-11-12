@@ -9,6 +9,7 @@ import { PricePicker, PriceTag } from "./Price.tsx";
 import Ico from "./Ico.tsx";
 import { listIcon } from "../icons.ts";
 import { Map as MapIcon, Sparkles } from "lucide-react";
+import { t, tn } from "../i18n.ts";
 
 export const tripDays = (trip: Trip) => {
   const out: string[] = [];
@@ -64,7 +65,7 @@ export default function ListView({
   const columns: ["place" | "thing" | "activity", ListEntry[], string][] = [
     ["place", places, labels.place],
     ["thing", things, labels.thing],
-    ...(activities.length ? [["activity", activities, "Things to do"] as ["activity", ListEntry[], string]] : []),
+    ...(activities.length ? [["activity", activities, t("Things to do")] as ["activity", ListEntry[], string]] : []),
   ];
   // Areas that include something from this list (other lists' places nearby are shown too).
   // Your own lists keep everything, but say what's covered already, and leave it out of the day planning.
@@ -80,20 +81,20 @@ export default function ListView({
         <div>
           <h2><Ico icon={listIcon(list)} /> {list.name}</h2>
           <p className="muted small">
-            {list.place ? <>{list.place.name} · </> : "Anywhere on this trip · "}
-            {list.entries.length ? `${list.entries.length} saved` : "Nothing on it yet"}
+            {list.place ? <>{list.place.name} · </> : t("Anywhere on this trip · ")}
+            {list.entries.length ? t("{length} saved", { length: list.entries.length }) : t("Nothing on it yet")}
           </p>
           <FoldAll ids={[...columns.map(([kind]) => kind), ...(myAreas.length ? ["areas"] : []), "ideas"].map((key) => `${list.id}:${key}`)} />
         </div>
         <div className="list-head-actions edit-only">
-          <button className="link" onClick={onEdit}>Edit</button>
+          <button className="link" onClick={onEdit}>{t("Edit")}</button>
           <button
             className="link danger"
             onClick={() => {
-              if (confirm(`Delete “${list.name}” and everything on it?`)) act(() => api.deleteList(list.id)).then(onDeleted);
+              if (confirm(t("Delete “{name}” and everything on it?", { name: list.name }))) act(() => api.deleteList(list.id)).then(onDeleted);
             }}
           >
-            Delete
+            {t("Delete")}
           </button>
         </div>
       </div>
@@ -104,7 +105,7 @@ export default function ListView({
         {columns.map(([kind, entries, heading]) => (
           <section key={kind} className="card list-col">
             <Fold id={`${list.id}:${kind}`} title={<>{heading} <span className="muted small">{entries.length || ""}</span></>}>
-            {entries.length === 0 && <p className="muted small">None yet. Add your own below, or pick from Estela's ideas.</p>}
+            {entries.length === 0 && <p className="muted small">{t("None yet. Add your own below, or pick from Estela's ideas.")}</p>}
             <ul className="entries">
               {entries.map((e) => (
                 <EntryRow
@@ -129,18 +130,17 @@ export default function ListView({
         tripId={trip.id}
         options={[
           { key: "place", kind: "place", label: labels.placeOne },
-          { key: "thing", kind: "thing", label: labels.thingOne, placeholder: labels.thingOne === "Food to try" ? "e.g. Tacos al pastor" : "e.g. Lucha libre night" },
-          ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: "Thing to do", placeholder: "e.g. Salsa class" }]),
+          { key: "thing", kind: "thing", label: labels.thingOne, placeholder: labels.thingOne === t("Food to try") ? t("e.g. Tacos al pastor") : t("e.g. Lucha libre night") },
+          ...(merged ? [] : [{ key: "activity", kind: "activity" as const, label: t("Thing to do"), placeholder: t("e.g. Salsa class") }]),
         ]}
         onAdd={(body) => act(() => api.addEntry(list.id, body))}
       />
 
       {(myAreas.length > 0 || unlocated.length > 0) && (
         <section className="card areas">
-          <Fold id={`${list.id}:areas`} title={<><MapIcon aria-hidden="true" /> Plan by area</>} summary={myAreas.length}>
+          <Fold id={`${list.id}:areas`} title={<><MapIcon aria-hidden="true" /> {t("Plan by area")}</>} summary={myAreas.length}>
           <p className="muted small">
-            Places close together, including ones from your other lists, so one day covers them. Pick a day and they'll show
-            up in your itinerary in walking order.
+            {t("Places close together, including ones from your other lists, so one day covers them. Pick a day and they'll show up in your itinerary in walking order.")}
           </p>
           {myAreas.map((g) => (
             <AreaCard key={g.entries.map((e) => e.id).join()} group={g} listId={list.id} days={days} onPlan={(day) =>
@@ -149,8 +149,7 @@ export default function ListView({
           ))}
           {unlocated.length > 0 && (
             <p className="muted tiny">
-              Not found on the map yet, so not grouped: {unlocated.map((e) => e.title).join(", ")}. Edit the name, or plan them with
-              the day menu.
+              {t("Not found on the map yet, so not grouped: {v1}. Edit the name, or plan them with the day menu.", { v1: unlocated.map((e) => e.title).join(", ") })}
             </p>
           )}
           </Fold>
@@ -158,13 +157,13 @@ export default function ListView({
       )}
 
       <section className="card list-ideas">
-        <Fold id={`${list.id}:ideas`} title={<><Sparkles aria-hidden="true" /> Estela's ideas for {list.name}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
-        {!ideas && <p className="muted small">Thinking…</p>}
+        <Fold id={`${list.id}:ideas`} title={<><Sparkles aria-hidden="true" /> {t("Estela's ideas for {name}", { name: list.name })}</>} summary={ideas ? ideas.suggestions.length + ideas.styleIdeas.length : undefined}>
+        {!ideas && <p className="muted small">{t("Thinking…")}</p>}
         {(ideas?.bookedIdeas?.length ?? 0) > 0 && (
-          <p className="muted small booked-ideas">✓ Left out because they're booked, planned or part of a tour: {ideas!.bookedIdeas!.join(" · ")}</p>
+          <p className="muted small booked-ideas">{t("✓ Left out because they're booked, planned or part of a tour: {v1}", { v1: ideas!.bookedIdeas!.join(" · ") })}</p>
         )}
         {ideas && ideas.suggestions.length === 0 && (
-          <p className="muted small">No more ideas right now. Try the searches below.</p>
+          <p className="muted small">{t("No more ideas right now. Try the searches below.")}</p>
         )}
         <ul className="idea-grid">
           {ideas?.suggestions.map((s) => (
@@ -179,11 +178,11 @@ export default function ListView({
         </ul>
         {ideas && ideas.styleIdeas.length > 0 && (
           <div className="style-ideas">
-            <h4>Things to do for your travel style</h4>
+            <h4>{t("Things to do for your travel style")}</h4>
             <p className="muted small">
-              Matched to your trip's styles:{" "}
+              {t("Matched to your trip's styles:")}{" "}
               {ideas.styles.map((st) => <span key={st} className="style-chip">{STYLE_LABELS[st]}</span>)}
-              <span className="tiny"> (change them in Edit trip)</span>
+              <span className="tiny">{" "}{t("(change them in Edit trip)")}</span>
             </p>
             <ul className="idea-grid">
               {ideas.styleIdeas.map((s) => (
@@ -200,7 +199,7 @@ export default function ListView({
         )}
         {ideas && ideas.finders.length > 0 && (
           <div className="finders">
-            <span className="muted small">Find more:</span>
+            <span className="muted small">{t("Find more:")}</span>
             {ideas.finders.map((l) => (
               <a key={l.url} className="book-link" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
             ))}
@@ -208,8 +207,7 @@ export default function ListView({
         )}
         {ideas && !ideas.ai && (
           <p className="muted tiny">
-            Ideas from Estela's built-in guide: local dishes, drinks and well-known sights. With Claude connected, Estela also names
-            specific restaurants and spots.
+            {t("Ideas from Estela's built-in guide: local dishes, drinks and well-known sights. With Claude connected, Estela also names specific restaurants and spots.")}
           </p>
         )}
         </Fold>
@@ -243,32 +241,32 @@ export function EntryRow({
           {onPrice && <PriceTag level={entry.price} />}
           {entry.area && <span className="muted tiny"> · {entry.area}</span>}
         </div>
-        {coveredBy && <div className="small covered-by">✓ Covered by {coveredBy}</div>}
+        {coveredBy && <div className="small covered-by">{t("✓ Covered by {coveredBy}", { coveredBy })}</div>}
         {entry.notes && <div className="small muted entry-notes">{entry.notes}</div>}
         <div className="entry-actions edit-only">
           <select
             className={`day-select ${entry.day ? "set" : ""}`}
             value={entry.day ?? ""}
             onChange={(e) => onDay(e.target.value || null)}
-            aria-label={`Day for ${entry.title}`}
+            aria-label={t("Day for {title}", { title: entry.title })}
           >
-            <option value="">Plan a day…</option>
+            <option value="">{t("Plan a day…")}</option>
             {days.map((d) => <option key={d} value={d}>{formatDay(d)}</option>)}
           </select>
-          <button type="button" className="link" onClick={onAddToItinerary}>+ Itinerary</button>
+          <button type="button" className="link" onClick={onAddToItinerary}>{t("+ Itinerary")}</button>
           {onPrice && <PricePicker value={entry.price} onChange={onPrice} />}
           {entry.links?.map((l) => (
             <a key={l.url} className="small" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
           ))}
           {entry.lat !== undefined && !entry.links?.some((l) => l.label === "Map") && (
             <a className="small" href={`https://www.google.com/maps/search/?api=1&query=${entry.lat},${entry.lon}`} target="_blank" rel="noopener noreferrer">
-              Map ↗
+              {t("Map ↗")}
             </a>
           )}
           {entry.link && (
-            <a className="small" href={entry.link} target="_blank" rel="noopener noreferrer">Link ↗</a>
+            <a className="small" href={entry.link} target="_blank" rel="noopener noreferrer">{t("Link ↗")}</a>
           )}
-          <button type="button" className="link danger" onClick={onDelete} aria-label={`Remove ${entry.title}`}>Remove</button>
+          <button type="button" className="link danger" onClick={onDelete} aria-label={t("Remove {title}", { title: entry.title })}>{t("Remove")}</button>
         </div>
       </div>
     </li>
@@ -356,7 +354,7 @@ export function AddEntry({
         submit();
       }}
     >
-      <div className="kind-switch" role="radiogroup" aria-label="What are you adding?">
+      <div className="kind-switch" role="radiogroup" aria-label={t("What are you adding?")}>
         {options.map((o) => (
           <button key={o.key} type="button" role="radio" aria-checked={o.key === option.key} className={o.key === option.key ? "on" : ""} onClick={() => setOptionKey(o.key)}>
             {o.label}
@@ -366,10 +364,10 @@ export function AddEntry({
       <div className="grid2">
         {kind === "place" ? (
           <LodgingField
-            label="Name"
+            label={t("Name")}
             value={title}
             required
-            placeholder="Its name — Find shows where it is"
+            placeholder={t("Its name — Find shows where it is")}
             search={(q) => api.searchPlaces(q, near, near ? undefined : tripId)}
             onChange={(v) => {
               setTitle(v);
@@ -382,17 +380,17 @@ export function AddEntry({
           />
         ) : (
           <label>
-            Name
+            {t("Name")}
             <input required value={title} placeholder={option.placeholder} onChange={(e) => setTitle(e.target.value)} />
           </label>
         )}
         <label>
-          Notes
+          {t("Notes")}
           {describes ? (
             <textarea
               rows={3}
               value={notes}
-              placeholder="A description appears here as you type the name. Add your own notes too."
+              placeholder={t("A description appears here as you type the name. Add your own notes too.")}
               onChange={(e) => {
                 setNotes(e.target.value);
                 setNotesEdited(true);
@@ -400,20 +398,20 @@ export function AddEntry({
               }}
             />
           ) : (
-            <input value={notes} placeholder="Why, who recommended it, what to order…" onChange={(e) => setNotes(e.target.value)} />
+            <input value={notes} placeholder={t("Why, who recommended it, what to order…")} onChange={(e) => setNotes(e.target.value)} />
           )}
-          {describes && lookup.state === "looking" && <span className="muted tiny">Looking that up…</span>}
-          {describes && lookup.state === "none" && <span className="muted tiny">No description found. You can write your own.</span>}
+          {describes && lookup.state === "looking" && <span className="muted tiny">{t("Looking that up…")}</span>}
+          {describes && lookup.state === "none" && <span className="muted tiny">{t("No description found. You can write your own.")}</span>}
           {describes && lookup.state === "found" && (
             <span className="muted tiny">
-              {lookup.source === "guide" ? "From Estela's guide" : <>From <a href={lookup.url} target="_blank" rel="noopener noreferrer">Wikipedia</a></>}, so check it fits. You can edit it.
+              {lookup.source === "guide" ? t("From Estela's guide") : <>{t("From")}{" "}<a href={lookup.url} target="_blank" rel="noopener noreferrer">{t("Wikipedia")}</a></>}{t(", so check it fits. You can edit it.")}
             </span>
           )}
         </label>
       </div>
       {kind === "place" && picked.address && <p className="muted tiny">{picked.address}</p>}
       <div className="actions">
-        <button type="submit" disabled={busy || !title.trim()}>{busy ? "Adding…" : "Save"}</button>
+        <button type="submit" disabled={busy || !title.trim()}>{busy ? t("Adding…") : t("Save")}</button>
       </div>
     </form>
   );
@@ -425,25 +423,25 @@ export function AreaCard({ group, listId, days, onPlan }: { group: AreaGroup; li
       <div className="area-head">
         <b>{group.area}</b>
         {group.city && <span className="muted small"> · {group.city}</span>}
-        <span className="muted small"> · {group.entries.length} place{group.entries.length === 1 ? "" : "s"}</span>
+        <span className="muted small">{" "}{tn(group.entries.length, "· {n} place", "· {n} places")}</span>
         {group.routeUrl && (
-          <a className="small" href={group.routeUrl} target="_blank" rel="noopener noreferrer">Route ↗</a>
+          <a className="small" href={group.routeUrl} target="_blank" rel="noopener noreferrer">{t("Route ↗")}</a>
         )}
       </div>
       <ol className="area-stops">
         {group.entries.map((e) => (
-          <li key={e.id} className={e.listId === listId ? "" : "other-list"} title={e.listId === listId ? undefined : `From ${e.listName}`}>
+          <li key={e.id} className={e.listId === listId ? "" : "other-list"} title={e.listId === listId ? undefined : t("From {listName}", { listName: e.listName })}>
             {e.title}
           </li>
         ))}
       </ol>
       <div className="area-days edit-only">
-        <span className="muted small">{group.suggestedDays.length ? "Good days:" : "Your days look full. Pick one:"}</span>
+        <span className="muted small">{group.suggestedDays.length ? t("Good days:") : t("Your days look full. Pick one:")}</span>
         {group.suggestedDays.map((d) => (
           <button key={d} type="button" className="day-chip" onClick={() => onPlan(d)}>{formatDay(d)}</button>
         ))}
-        <select className="day-select" value="" onChange={(e) => e.target.value && onPlan(e.target.value)} aria-label={`Another day for ${group.area}`}>
-          <option value="">Other day…</option>
+        <select className="day-select" value="" onChange={(e) => e.target.value && onPlan(e.target.value)} aria-label={t("Another day for {area}", { area: group.area })}>
+          <option value="">{t("Other day…")}</option>
           {days.map((d) => <option key={d} value={d}>{formatDay(d)}</option>)}
         </select>
       </div>
@@ -467,7 +465,7 @@ export function IdeaCard({
     <li className="idea">
       <div className="idea-top">
         <span className="idea-kind muted tiny">
-          {idea.style ? STYLE_LABELS[idea.style] : idea.kind === "place" ? labels.placeOne : idea.kind === "activity" ? "Thing to do" : labels.thingOne}
+          {idea.style ? STYLE_LABELS[idea.style] : idea.kind === "place" ? labels.placeOne : idea.kind === "activity" ? t("Thing to do") : labels.thingOne}
         </span>
         {idea.tag && <span className="idea-tag">{idea.tag}</span>}
       </div>
@@ -484,12 +482,12 @@ export function IdeaCard({
             onAdd();
           }}
         >
-          {busy ? "Adding…" : "+ Add"}
+          {busy ? t("Adding…") : t("+ Add")}
         </button>
         {idea.links?.map((l) => (
           <a key={l.url} className="small" href={l.url} target="_blank" rel="noopener noreferrer">{l.label} ↗</a>
         ))}
-        <button type="button" className="link muted-link edit-only" onClick={onDismiss} aria-label={`Not interested in ${idea.title}`}>Not for me</button>
+        <button type="button" className="link muted-link edit-only" onClick={onDismiss} aria-label={t("Not interested in {title}", { title: idea.title })}>{t("Not for me")}</button>
       </div>
     </li>
   );

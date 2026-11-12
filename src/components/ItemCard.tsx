@@ -14,18 +14,19 @@ import Ico from "./Ico.tsx";
 import { Clock, CloudRain, Link2, Luggage, Paperclip } from "lucide-react";
 import { differenceText, msToWall, wallToMs, zoneCity } from "../zones.ts";
 import { isOutdoor, useTripDays } from "../tripDays.tsx";
+import { t } from "../i18n.ts";
 
 /** "Free cancellation until Tue, 8 Dec, 7:39 PM", "Non-refundable"… as a tag on the card. */
 function CancelTag({ terms }: { terms?: Cancellation }) {
   if (!terms) return null;
-  if (terms.kind === "partial") return <span className="cancel-tag partial">Partial refund</span>;
-  if (terms.kind === "nonrefundable") return <span className="cancel-tag closed">Non-refundable</span>;
-  if (!terms.until) return <span className="cancel-tag free">Free cancellation</span>;
+  if (terms.kind === "partial") return <span className="cancel-tag partial">{t("Partial refund")}</span>;
+  if (terms.kind === "nonrefundable") return <span className="cancel-tag closed">{t("Non-refundable")}</span>;
+  if (!terms.until) return <span className="cancel-tag free">{t("Free cancellation")}</span>;
   // The device's clock, near enough for a label: the reminders work from the activity's real time zone.
-  if (terms.until < new Date().toLocaleString("sv").slice(0, 16).replace(" ", "T")) return <span className="cancel-tag closed">Free cancellation ended</span>;
+  if (terms.until < new Date().toLocaleString("sv").slice(0, 16).replace(" ", "T")) return <span className="cancel-tag closed">{t("Free cancellation ended")}</span>;
   return (
-    <span className="cancel-tag free" title="Local time where the activity is">
-      Free cancellation until {formatDay(terms.until.slice(0, 10))}{terms.timed ? `, ${formatTime(terms.until)}` : ""}
+    <span className="cancel-tag free" title={t("Local time where the activity is")}>
+      {t("Free cancellation until {formatDay}{v2}", { formatDay: formatDay(terms.until.slice(0, 10)), v2: terms.timed ? `, ${formatTime(terms.until)}` : "" })}
     </span>
   );
 }
@@ -55,7 +56,7 @@ function IncludedPlaces({ item, onChange }: { item: ActivityItem; onChange: () =
     <div className="included-places">
       {places.length > 0 && (
         <>
-          <b className="small">Places included</b>
+          <b className="small">{t("Places included")}</b>
           <ul>
             {places.map((p) => (
               <li key={p.title} className="small">
@@ -66,26 +67,26 @@ function IncludedPlaces({ item, onChange }: { item: ActivityItem; onChange: () =
                 >
                   {p.title}
                 </a>
-                <button type="button" className="chip-x edit-only" aria-label={`Remove ${p.title}`} onClick={() => save(places.filter((x) => x !== p))}>×</button>
+                <button type="button" className="chip-x edit-only" aria-label={t("Remove {title}", { title: p.title })} onClick={() => save(places.filter((x) => x !== p))}>×</button>
               </li>
             ))}
           </ul>
         </>
       )}
       <button type="button" className="link small edit-only" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>
-        {adding ? "Done adding places" : "+ Add a place this includes"}
+        {adding ? t("Done adding places") : t("+ Add a place this includes")}
       </button>
       {adding && (
         <div className="included-add edit-only">
           <LodgingField
-            label="Place"
+            label={t("Place")}
             value={name}
-            placeholder="A place this visits, e.g. a museum or ruins"
+            placeholder={t("A place this visits, e.g. a museum or ruins")}
             search={(q) => api.searchPlaces(q, undefined, item.tripId, item.start.slice(0, 10))}
             onChange={setName}
             onPick={(r) => add({ title: r.name ?? name, address: r.address, lat: r.lat, lon: r.lon })}
           />
-          <button type="button" className="secondary" disabled={!name.trim()} onClick={() => add({ title: name })}>Add</button>
+          <button type="button" className="secondary" disabled={!name.trim()} onClick={() => add({ title: name })}>{t("Add")}</button>
         </div>
       )}
       {error && <p className="error small">{error}</p>}
@@ -115,8 +116,8 @@ function CoveredLists({ item, onChange }: { item: ActivityItem; onChange: () => 
     if (!now.some((x) => x.toLowerCase() === value.toLowerCase())) save(adding, [...now, value]);
   };
   const groups = [
-    { key: "included", label: "Included", mark: "✓", values: item.guide?.included ?? [] },
-    { key: "notIncluded", label: "Not included", mark: "✕", values: item.guide?.notIncluded ?? [] },
+    { key: "included", label: t("Included"), mark: "✓", values: item.guide?.included ?? [] },
+    { key: "notIncluded", label: t("Not included"), mark: "✕", values: item.guide?.notIncluded ?? [] },
   ] as const;
   return (
     <div className="covered-lists">
@@ -128,13 +129,13 @@ function CoveredLists({ item, onChange }: { item: ActivityItem; onChange: () => 
               {g.values.map((v) => (
                 <li key={v} className="small">
                   <span aria-hidden="true" className="mark">{g.mark}</span> {v}
-                  <button type="button" className="chip-x edit-only" aria-label={`Remove ${v}`} onClick={() => save(g.key, g.values.filter((x) => x !== v))}>×</button>
+                  <button type="button" className="chip-x edit-only" aria-label={t("Remove {v}", { v })} onClick={() => save(g.key, g.values.filter((x) => x !== v))}>×</button>
                 </li>
               ))}
             </ul>
           )}
           <button type="button" className="link small edit-only" aria-expanded={adding === g.key} onClick={() => { setAdding(adding === g.key ? undefined : g.key); setText(""); }}>
-            {adding === g.key ? "Done" : `+ ${g.label}`}
+            {adding === g.key ? t("Done") : `+ ${g.label}`}
           </button>
         </div>
       ))}
@@ -148,12 +149,12 @@ function CoveredLists({ item, onChange }: { item: ActivityItem; onChange: () => 
         >
           <input
             autoFocus
-            aria-label={adding === "included" ? "What's included" : "What's not included"}
+            aria-label={adding === "included" ? t("What's included") : t("What's not included")}
             value={text}
-            placeholder={adding === "included" ? "e.g. Lunch, hotel pickup, entry fees" : "e.g. Tips, drinks, national park fee"}
+            placeholder={adding === "included" ? t("e.g. Lunch, hotel pickup, entry fees") : t("e.g. Tips, drinks, national park fee")}
             onChange={(e) => setText(e.target.value)}
           />
-          <button type="submit" className="secondary" disabled={!text.trim()}>Add</button>
+          <button type="submit" className="secondary" disabled={!text.trim()}>{t("Add")}</button>
         </form>
       )}
       {error && <p className="error small">{error}</p>}
@@ -170,14 +171,14 @@ function BaggageLine({ f }: { f: FlightItem }) {
       <Luggage aria-hidden="true" />
       {b ? (
         <>
-          {b.cabin && <span>Cabin <b>{b.cabin}</b></span>}
-          {b.checked && <span>Checked <b>{b.checked}</b></span>}
+          {b.cabin && <span>{t("Cabin")}{" "}<b>{b.cabin}</b></span>}
+          {b.checked && <span>{t("Checked")}{" "}<b>{b.checked}</b></span>}
         </>
       ) : (
         <span className="muted">
-          Baggage allowance not known.{" "}
-          <a href={`https://www.google.com/search?q=${encodeURIComponent(`${airline} baggage allowance`)}`} target="_blank" rel="noopener noreferrer">Check {f.airline ?? "the airline"}'s rules ↗</a>
-          <span className="edit-only">, then add it with Edit</span>
+          {t("Baggage allowance not known.")}{" "}
+          <a href={`https://www.google.com/search?q=${encodeURIComponent(`${airline} baggage allowance`)}`} target="_blank" rel="noopener noreferrer">{f.airline ? t("Check {airline}'s rules ↗", { airline: f.airline }) : t("Check the airline's rules ↗")}</a>
+          <span className="edit-only">{t(", then add it with Edit")}</span>
         </span>
       )}
     </div>
@@ -200,16 +201,16 @@ function FlightTimes({ dep, arr, from, to }: { dep: string; arr?: string; from?:
   const atHome = home && home !== to ? msToWall(lands, home) : undefined;
   return (
     <div className="row small muted flight-times">
-      <span><Clock aria-hidden="true" /> {span(minutes)} in the air</span>
-      {clocks && <span>{zoneCity(to)} is {clocks}</span>}
-      {atHome && <span>Lands at {formatTimeOn(atHome, arr)} home time</span>}
+      <span><Clock aria-hidden="true" />{" "}{t("{span} in the air", { span: span(minutes) })}</span>
+      {clocks && <span>{t("{zoneCity} is {clocks}", { zoneCity: zoneCity(to), clocks })}</span>}
+      {atHome && <span>{t("Lands at {formatTimeOn} home time", { formatTimeOn: formatTimeOn(atHome, arr) })}</span>}
     </div>
   );
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  scheduled: "Scheduled", on_time: "On time", delayed: "Delayed", boarding: "Boarding", departed: "Departed",
-  landed: "Landed", cancelled: "Cancelled", diverted: "Diverted", unknown: "Unknown",
+  get scheduled() { return t("Scheduled"); }, get on_time() { return t("On time"); }, get delayed() { return t("Delayed"); }, get boarding() { return t("Boarding"); }, get departed() { return t("Departed"); },
+  get landed() { return t("Landed"); }, get cancelled() { return t("Cancelled"); }, get diverted() { return t("Diverted"); }, get unknown() { return t("Unknown"); },
 };
 
 function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockFlights: boolean; onChange: () => void }) {
@@ -232,30 +233,30 @@ function FlightBody({ f: flight, mockFlights, onChange }: { f: FlightItem; mockF
       </div>
       <div className="row small">
         <span>
-          Departs {depMoved && <s className="muted">{formatTime(f.departureTime)}</s>} <b>{formatTimeOn(dep, f.departureTime)}</b>
+          {t("Departs")}{" "}{depMoved && <s className="muted">{formatTime(f.departureTime)}</s>} <b>{formatTimeOn(dep, f.departureTime)}</b>
           {f.live?.departureTerminal && ` · T${f.live.departureTerminal}`}
-          {f.live?.departureGate && ` · Gate ${f.live.departureGate}`}
+          {f.live?.departureGate && t(" · Gate {departureGate}", { departureGate: f.live.departureGate })}
         </span>
-        {arr && <span>Arrives <b>{formatTimeOn(arr, f.departureTime)}</b>{zones.to && zones.from && zones.to !== zones.from ? " local" : ""}</span>}
-        {f.seat && <span>Seat {f.seat}</span>}
+        {arr && <span>{t("Arrives")}{" "}<b>{formatTimeOn(arr, f.departureTime)}</b>{zones.to && zones.from && zones.to !== zones.from ? t(" local") : ""}</span>}
+        {f.seat && <span>{t("Seat {seat}", { seat: f.seat })}</span>}
       </div>
       <FlightTimes dep={dep} arr={arr} from={zones.from} to={zones.to} />
       <BaggageLine f={f} />
       {pending.length > 0 && (
         <div className="change-alert">
-          <strong>Estela noticed a change to {f.flightNumber}</strong>
+          <strong>{t("Estela noticed a change to {flightNumber}", { flightNumber: f.flightNumber })}</strong>
           <ul>
             {pending.map((c, i) => (
               <li key={i}>{c.field}: {c.from ? <s>{c.from.replace("T", " ")}</s> : "—"} → <b>{c.to?.replace("T", " ")}</b></li>
             ))}
           </ul>
-          <button className="small-btn" onClick={() => api.acknowledge(f.id).then(onChange)}>Got it</button>
+          <button className="small-btn" onClick={() => api.acknowledge(f.id).then(onChange)}>{t("Got it")}</button>
         </div>
       )}
       <div className="row small muted">
-        {f.live ? `Checked ${new Date(f.live.checkedAt).toLocaleString()} via ${f.live.provider}` : "Live status not available yet — checked automatically closer to departure"}
+        {f.live ? t("Checked {v1} via {provider}", { v1: new Date(f.live.checkedAt).toLocaleString(), provider: f.live.provider }) : t("Live status not available yet — checked automatically closer to departure")}
         {mockFlights && (
-          <button className="link" onClick={() => api.simulateChange(f.id).then(onChange)}>Simulate a change</button>
+          <button className="link" onClick={() => api.simulateChange(f.id).then(onChange)}>{t("Simulate a change")}</button>
         )}
       </div>
     </>
@@ -297,7 +298,7 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
     <div className={`item ${item.kind}`}>
       <div className={`item-time ${isLaterDay ? "later-day" : ""}`}>
         {item.kind === "activity" && isLaterDay
-          ? isLastDay ? `Until ${formatTime(item.end)}` : "All day"
+          ? isLastDay ? t("Until {v1}", { v1: formatTime(item.end) }) : t("All day")
           : formatTime(item.kind === "flight" ? item.live?.departureTime ?? item.departureTime : item.kind === "stay" ? item.checkIn : item.start)}
       </div>
       <div className="item-body">
@@ -306,8 +307,8 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
           <>
             <div className="row"><strong><span className="item-icon" aria-hidden="true"><Ico icon={itemIcon(item)} /></span>{item.name}</strong></div>
             <div className="row small">
-              <span>Check-in {formatTime(item.checkIn)}</span>
-              <span>Check-out {item.checkOut.slice(0, 10)} {formatTime(item.checkOut)}</span>
+              <span>{t("Check-in {formatTime}", { formatTime: formatTime(item.checkIn) })}</span>
+              <span>{t("Check-out {day} {time}", { day: formatDay(item.checkOut), time: formatTime(item.checkOut) })}</span>
               {item.address && <span className="muted">{item.address}</span>}
             </div>
           </>
@@ -316,7 +317,7 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
           <>
             <div className="row">
               <strong><span className="item-icon" aria-hidden="true"><Ico icon={itemIcon(item)} /></span>{item.title}</strong>
-              {dayIndex >= 0 && <span className="tag day-of">Day {dayIndex + 1} of {runsOn.length}</span>}
+              {dayIndex >= 0 && <span className="tag day-of">{t("Day {v1} of {length}", { v1: dayIndex + 1, length: runsOn.length })}</span>}
               {item.category && <span className="tag">{item.category}</span>}
               <CancelTag terms={cancellationOf(item)} />
             </div>
@@ -328,11 +329,11 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
               </span>
               {linkedFlight && item.transferLeg === "pickup" && (
                 <span className={landsAt && landsAt !== item.start ? "warning" : "muted"}>
-                  {landsAt && landsAt !== item.start ? `${linkedFlight.flightNumber} has changed, booked for ${formatTime(item.start)}` : `Follows ${linkedFlight.flightNumber}`}
+                  {landsAt && landsAt !== item.start ? t("{flightNumber} has changed, booked for {v2}", { flightNumber: linkedFlight.flightNumber, v2: formatTime(item.start) }) : t("Follows {flightNumber}", { flightNumber: linkedFlight.flightNumber })}
                 </span>
               )}
               {linkedFlight && item.transferLeg === "dropoff" && (
-                <span className="muted">For {linkedFlight.flightNumber}, departs {formatTime(linkedFlight.live?.provider === "mock" ? linkedFlight.departureTime : linkedFlight.live?.departureTime ?? linkedFlight.departureTime)}</span>
+                <span className="muted">{t("For {flightNumber}, departs {formatTime}", { flightNumber: linkedFlight.flightNumber, formatTime: formatTime(linkedFlight.live?.provider === "mock" ? linkedFlight.departureTime : linkedFlight.live?.departureTime ?? linkedFlight.departureTime) })}</span>
               )}
               {item.location && <span className="muted">{item.location}</span>}
               {item.location && (
@@ -342,7 +343,7 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Map ↗
+                  {t("Map ↗")}
                 </a>
               )}
             </div>
@@ -350,20 +351,20 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
               // Rain likely on the day of something outdoors.
               const w = day ? days?.days[day]?.weather : undefined;
               return w && w.rain >= 60 && isOutdoor(item) && !isLaterDay ? (
-                <p className="rain-note small"><CloudRain aria-hidden="true" /> {w.rain}% chance of rain this day. Worth packing a rain jacket{item.price ? " or checking the operator's rain policy" : ""}.</p>
+                <p className="rain-note small"><CloudRain aria-hidden="true" />{" "}{item.price ? t("{rain}% chance of rain this day. Worth packing a rain jacket or checking the operator's rain policy.", { rain: w.rain }) : t("{rain}% chance of rain this day. Worth packing a rain jacket.", { rain: w.rain })}</p>
               ) : null;
             })()}
             {item.dateEstimated && (
               <p className="warning small estimate">
-                ⚠︎ Estimated date — the email didn't say when this is. Check your booking, then Edit and save to confirm.
+                {t("⚠︎ Estimated date — the email didn't say when this is. Check your booking, then Edit and save to confirm.")}
               </p>
             )}
           </>
         )}
         <div className="row small muted">
           {item.price && <span className="price">{formatMoney(item.price)}</span>}
-          {item.confirmationCode && <span>Ref {item.confirmationCode}</span>}
-          {item.source === "email" && <span>from email</span>}
+          {item.confirmationCode && <span>{t("Ref {confirmationCode}", { confirmationCode: item.confirmationCode })}</span>}
+          {item.source === "email" && <span>{t("from email")}</span>}
         </div>
         {item.notes && <div className="row small notes">{item.notes}</div>}
         <Files item={item} onChange={onChange} />
@@ -372,12 +373,12 @@ export default function ItemCard({ item, day, mockFlights, onChange, linkedFligh
         {item.kind === "activity" && item.guide && <ActivityGuidePanel guide={item.guide} item={item} onChange={onChange} />}
       </div>
       <div className="item-actions edit-only">
-        <button className="link" onClick={() => setEditing(true)}>Edit</button>
+        <button className="link" onClick={() => setEditing(true)}>{t("Edit")}</button>
         <button
           className="link danger"
-          onClick={() => confirm(dayIndex >= 0 ? `Delete this from all ${runsOn.length} days?` : "Delete this item?") && api.deleteItem(item.id).then(onChange)}
+          onClick={() => confirm(dayIndex >= 0 ? t("Delete this from all {length} days?", { length: runsOn.length }) : t("Delete this item?")) && api.deleteItem(item.id).then(onChange)}
         >
-          Delete
+          {t("Delete")}
         </button>
       </div>
     </div>
@@ -399,15 +400,15 @@ function Files({ item, onChange }: { item: ItineraryItem; onChange: () => void }
           <span className="muted"> {formatSize(a.size)}</span>
           <button
             className="link danger edit-only"
-            title="Remove file"
-            onClick={() => confirm(`Remove ${a.filename}?`) && api.removeAttachment(item.id, a.id).then(onChange)}
+            title={t("Remove file")}
+            onClick={() => confirm(t("Remove {filename}?", { filename: a.filename })) && api.removeAttachment(item.id, a.id).then(onChange)}
           >
             ✕
           </button>
         </span>
       ))}
       <label className="file-btn small edit-only">
-        {busy ? "Uploading…" : "+ Attach file"}
+        {busy ? t("Uploading…") : t("+ Attach file")}
         <input
           type="file"
           accept=".pdf,image/*,.pkpass"
@@ -416,7 +417,7 @@ function Files({ item, onChange }: { item: ItineraryItem; onChange: () => void }
             const file = e.target.files?.[0];
             e.target.value = "";
             if (!file) return;
-            if (file.size > 15 * 1024 * 1024) return setError("Files must be 15 MB or smaller");
+            if (file.size > 15 * 1024 * 1024) return setError(t("Files must be 15 MB or smaller"));
             setBusy(true);
             setError(undefined);
             try {

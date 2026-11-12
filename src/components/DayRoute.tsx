@@ -4,6 +4,7 @@ import type { DayLeg } from "../../shared/types.ts";
 import type { DayPlans } from "../api.ts";
 import LegLine from "./LegLine.tsx";
 import PlaceCard from "./PlaceCard.tsx";
+import { t } from "../i18n.ts";
 
 // The places planned for a day, as a route: from where you sleep, place to place, and back, with how long each way
 // takes. Drag a place by its handle (or use the arrow keys on it) to put it somewhere else in the day.
@@ -47,7 +48,7 @@ export default function DayRoute({ entries, legs, home, canEdit, onOrder, onOpen
 
   return (
     <div className={`place-cards ${drag ? "dragging" : ""}`}>
-      {order[0] && <div className="route-leg"><LegLine leg={legs?.[`stay>${order[0].id}`]} note={home && `from ${home}`} /></div>}
+      {order[0] && <div className="route-leg"><LegLine leg={legs?.[`stay>${order[0].id}`]} note={home && t("from {home}", { home })} /></div>}
       {order.map((e, n) => (
         <Fragment key={e.id}>
           <div
@@ -59,8 +60,8 @@ export default function DayRoute({ entries, legs, home, canEdit, onOrder, onOpen
               <button
                 type="button"
                 className="route-handle edit-only"
-                aria-label={`Move ${e.title}. Drag, or use the up and down arrow keys`}
-                title="Drag to reorder"
+                aria-label={t("Move {title}. Drag, or use the up and down arrow keys", { title: e.title })}
+                title={t("Drag to reorder")}
                 onPointerDown={(ev) => {
                   if (ev.button !== 0) return;
                   ev.preventDefault();
@@ -99,7 +100,7 @@ export default function DayRoute({ entries, legs, home, canEdit, onOrder, onOpen
           {n < order.length - 1 && <div className="route-leg"><LegLine leg={legs?.[`${e.id}>${order[n + 1].id}`]} /></div>}
         </Fragment>
       ))}
-      {order.length > 0 && <div className="route-leg"><LegLine leg={legs?.[`${order.at(-1)!.id}>stay`]} note={home && `back to ${home}`} /></div>}
+      {order.length > 0 && <div className="route-leg"><LegLine leg={legs?.[`${order.at(-1)!.id}>stay`]} note={home && t("back to {home}", { home })} /></div>}
     </div>
   );
 }

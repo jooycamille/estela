@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { TripInbox } from "../../shared/types.ts";
 import { api } from "../api.ts";
+import { t as tr, locale } from "../i18n.ts";
 
-const STATUS_TEXT = { imported: "Imported", no_bookings: "No bookings found", error: "Failed" };
+const STATUS_TEXT = { get imported() { return tr("Imported"); }, get no_bookings() { return tr("No bookings found"); }, get error() { return tr("Failed"); } };
 
 function timeAgo(iso?: string) {
-  if (!iso) return "never";
+  if (!iso) return tr("never");
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  return new Date(iso).toLocaleString();
+  if (s < 60) return tr("just now");
+  if (s < 3600) return tr("{n} min ago", { n: Math.round(s / 60) });
+  return new Date(iso).toLocaleString(locale());
 }
 
 /** The trip's forwarding address: forward booking emails here and they load into the itinerary. */
@@ -37,7 +38,7 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
   }, [tripId, onItemsChanged]);
 
   const create = async () => {
-    if (inbox && !confirm("Replace this address? Emails sent to the old one will no longer be imported.")) return;
+    if (inbox && !confirm(tr("Replace this address? Emails sent to the old one will no longer be imported."))) return;
     setBusy("create");
     setError(undefined);
     try {
@@ -64,18 +65,17 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
     }
   };
 
-  if (inbox === undefined) return <p className="muted small">Loading forwarding address…</p>;
+  if (inbox === undefined) return <p className="muted small">{tr("Loading forwarding address…")}</p>;
 
   return (
     <div className="inbox">
-      <h4>Forward your bookings to Estela</h4>
+      <h4>{tr("Forward your bookings to Estela")}</h4>
       {!inbox ? (
         <>
           <p className="muted small">
-            Get an email address just for this trip. Forward any airline, hotel or tour confirmation to it and the
-            bookings are added to your itinerary automatically.
+            {tr("Get an email address just for this trip. Forward any airline, hotel or tour confirmation to it and the bookings are added to your itinerary automatically.")}
           </p>
-          <button onClick={create} disabled={!!busy}>{busy ? "Creating…" : "Create forwarding address"}</button>
+          <button onClick={create} disabled={!!busy}>{busy ? tr("Creating…") : tr("Create forwarding address")}</button>
         </>
       ) : (
         <>
@@ -89,21 +89,21 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
                 setTimeout(() => setCopied(false), 1500);
               }}
             >
-              {copied ? "Copied ✓" : "Copy"}
+              {copied ? tr("Copied ✓") : tr("Copy")}
             </button>
           </div>
           <p className="muted small">
             {inbox.provider === "mailtm"
-              ? `Checked every ${inbox.pollSeconds}s · last checked ${timeAgo(inbox.lastCheckedAt)}`
-              : "Emails are imported as soon as they arrive"}
+              ? tr("Checked every {pollSeconds}s · last checked {v2}", { pollSeconds: inbox.pollSeconds, v2: timeAgo(inbox.lastCheckedAt) })
+              : tr("Emails are imported as soon as they arrive")}
             {" · "}
-            {inbox.provider === "mailtm" && <button className="link" onClick={check} disabled={!!busy}>{busy === "check" ? "Checking…" : "Check now"}</button>}
+            {inbox.provider === "mailtm" && <button className="link" onClick={check} disabled={!!busy}>{busy === "check" ? tr("Checking…") : tr("Check now")}</button>}
             {inbox.provider === "mailtm" && " · "}
-            <button className="link" onClick={create} disabled={!!busy}>New address</button>
+            <button className="link" onClick={create} disabled={!!busy}>{tr("New address")}</button>
           </p>
 
           {inbox.emails.length === 0 ? (
-            <p className="muted small waiting">Estela is waiting for your first email…</p>
+            <p className="muted small waiting">{tr("Estela is waiting for your first email…")}</p>
           ) : (
             <ul className="inbox-log">
               {inbox.emails.slice(0, 8).map((e) => (
@@ -117,7 +117,7 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
                         type="button"
                         className="link"
                         disabled={!!busy}
-                        title="Read this email again and update the itinerary"
+                        title={tr("Read this email again and update the itinerary")}
                         onClick={async () => {
                           setBusy(e.id);
                           setError(undefined);
@@ -131,12 +131,12 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
                           }
                         }}
                       >
-                        {busy === e.id ? "Re-importing…" : "Re-import"}
+                        {busy === e.id ? tr("Re-importing…") : tr("Re-import")}
                       </button>
                     )}
                   </div>
                   <p className="muted small">
-                    {e.status === "imported" && `${e.added} added${e.updated ? `, ${e.updated} updated` : ""}`}
+                    {e.status === "imported" && tr("{added} added{v2}", { added: e.added, v2: e.updated ? `, ${e.updated} updated` : "" })}
                     {e.status === "error" && e.error}
                     {e.status === "no_bookings" && e.preview}
                   </p>
@@ -146,8 +146,7 @@ export default function ForwardingInbox({ tripId, onItemsChanged }: { tripId: st
           )}
           {inbox.provider === "mailtm" && (
             <p className="muted tiny">
-              Temporary inbox powered by <a href="https://mail.tm" target="_blank" rel="noreferrer">mail.tm</a>, a public
-              disposable-email service. For Gmail auto-forwarding, the confirmation code Google sends will appear above.
+              {tr("Temporary inbox powered by")}{" "}<a href="https://mail.tm" target="_blank" rel="noreferrer">{tr("mail.tm")}</a>{tr(", a public disposable-email service. For Gmail auto-forwarding, the confirmation code Google sends will appear above.")}
             </p>
           )}
         </>

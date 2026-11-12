@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Me } from "../api.ts";
 import * as sb from "../supabaseAuth.ts";
+import { t } from "../i18n.ts";
 import { Wordmark } from "./Logo.tsx";
 
 type Mode = "signin" | "signup" | "forgot";
@@ -79,7 +80,7 @@ export default function SignIn({
     return (
       <div className="signin">
         <Wordmark />
-        <p>Signing you in…</p>
+        <p>{t("Signing you in…")}</p>
       </div>
     );
   }
@@ -88,18 +89,18 @@ export default function SignIn({
     return (
       <div className="signin">
         <Wordmark />
-        <h1>Choose a new password</h1>
+        <h1>{t("Choose a new password")}</h1>
         {error && <p className="error">{error}</p>}
         <form
           className="auth-form"
           onSubmit={submit(async () => onSignedIn(supabase ? await sb.setNewPassword(password) : (await api.reset(links.reset!, password)).user))}
         >
           <label>
-            New password
+            {t("New password")}
             <input type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <p className="muted tiny">At least 8 characters. A short sentence is easy to remember and hard to guess.</p>
-          <button type="submit" disabled={busy || password.length < 8}>{busy ? "Saving…" : "Save and sign in"}</button>
+          <p className="muted tiny">{t("At least 8 characters. A short sentence is easy to remember and hard to guess.")}</p>
+          <button type="submit" disabled={busy || password.length < 8}>{busy ? t("Saving…") : t("Save and sign in")}</button>
         </form>
       </div>
     );
@@ -110,23 +111,23 @@ export default function SignIn({
       <Wordmark />
       {invite ? (
         <div className="invite-banner">
-          <b>{invite.invitedBy}</b> invited you to join <b>{invite.tripName}</b>.
-          <div className="small">Create a free account (or sign in) to see it. You'll only see the trips you're part of.</div>
+          {t("{who} invited you to join {trip}.", { who: invite.invitedBy, trip: invite.tripName })}
+          <div className="small">{t("Create a free account (or sign in) to see it. You'll only see the trips you're part of.")}</div>
         </div>
       ) : (
-        <h1>{mode === "signup" ? "Create your Estela account" : mode === "forgot" ? "Forgot your password?" : "Welcome back"}</h1>
+        <h1>{mode === "signup" ? t("Create your Estela account") : mode === "forgot" ? t("Forgot your password?") : t("Welcome back")}</h1>
       )}
       {claimHere && mode === "signup" && !invite && (
-        <p className="claim-note">You're setting up Estela on the Mac it runs on, so your account will own the trips already here.</p>
+        <p className="claim-note">{t("You're setting up Estela on the Mac it runs on, so your account will own the trips already here.")}</p>
       )}
 
       {mode !== "forgot" && (
         <div className="kind-switch auth-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={mode === "signin"} className={mode === "signin" ? "on" : ""} onClick={() => setMode("signin")}>
-            Sign in
+            {t("Sign in")}
           </button>
           <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "on" : ""} onClick={() => setMode("signup")}>
-            Create account
+            {t("Create account")}
           </button>
         </div>
       )}
@@ -136,16 +137,16 @@ export default function SignIn({
       {mode === "signin" && (
         <form className="auth-form" onSubmit={submit(async () => done(supabase ? await sb.signInWithPassword(email, password) : (await api.signIn({ email, password })).user))}>
           <label>
-            Email
+            {t("Email")}
             <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
           <label>
-            Password
+            {t("Password")}
             <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+          <button type="submit" disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
           <button type="button" className="link" onClick={() => { setMode("forgot"); setError(undefined); }}>
-            Forgot password?
+            {t("Forgot password?")}
           </button>
         </form>
       )}
@@ -158,23 +159,27 @@ export default function SignIn({
             const r = await sb.signUp(name.trim(), email, password, links.invite);
             if (r !== "confirm") return done(r);
             setPassword("");
-            setNotice(`Almost there: we've sent a link to ${email}. Open it to confirm your email and finish creating your account${invite ? `, then you'll join ${invite.tripName}` : ""}.`);
+            setNotice(
+              invite
+                ? t("Almost there: we've sent a link to {email}. Open it to confirm your email and finish creating your account, then you'll join {trip}.", { email, trip: invite.tripName })
+                : t("Almost there: we've sent a link to {email}. Open it to confirm your email and finish creating your account.", { email }),
+            );
           })}
         >
           <label>
-            Your name
-            <input autoComplete="name" required maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder="How travel companions will see you" />
+            {t("Your name")}
+            <input autoComplete="name" required maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("How travel companions will see you")} />
           </label>
           <label>
-            Email
+            {t("Email")}
             <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
           <label>
-            Password
+            {t("Password")}
             <input type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <p className="muted tiny">At least 8 characters. A short sentence is easy to remember and hard to guess.</p>
-          <button type="submit" disabled={busy}>{busy ? "Creating your account…" : invite ? "Create account and join" : "Create account"}</button>
+          <p className="muted tiny">{t("At least 8 characters. A short sentence is easy to remember and hard to guess.")}</p>
+          <button type="submit" disabled={busy}>{busy ? t("Creating your account…") : invite ? t("Create account and join") : t("Create account")}</button>
         </form>
       )}
 
@@ -186,25 +191,25 @@ export default function SignIn({
             else await api.forgot(email);
             setNotice(
               supabase || emailReset
-                ? "If there's an account with that email, we've sent a link to reset your password. It works for 1 hour."
-                : "If there's an account with that email, a reset link was made. Email isn't set up yet, so it's shown in the Terminal where Estela is running.",
+                ? t("If there's an account with that email, we've sent a link to reset your password. It works for 1 hour.")
+                : t("If there's an account with that email, a reset link was made. Email isn't set up yet, so it's shown in the Terminal where Estela is running."),
             );
           })}
         >
-          <p className="muted small">Enter your account's email and we'll send you a link to choose a new password.</p>
+          <p className="muted small">{t("Enter your account's email and we'll send you a link to choose a new password.")}</p>
           <label>
-            Email
+            {t("Email")}
             <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
-          <button type="submit" disabled={busy}>{busy ? "Sending…" : "Send reset link"}</button>
+          <button type="submit" disabled={busy}>{busy ? t("Sending…") : t("Send reset link")}</button>
           <button type="button" className="link" onClick={() => { setMode("signin"); setNotice(undefined); }}>
-            Back to sign in
+            {t("Back to sign in")}
           </button>
         </form>
       )}
 
       <p className="muted tiny signin-foot">
-        Signed in on another device? Open <i>your name → Sign in another device</i> there and scan the code. That's handy for the Home Screen app.
+        {t("Signed in on another device? Open your name → Sign in another device there and scan the code. That's handy for the Home Screen app.")}
       </p>
     </div>
   );
@@ -219,5 +224,5 @@ export function JoinTrip({ token, onJoined }: { token: string; onJoined: (tripId
     used.current = true;
     api.acceptInvite(token).then(({ tripId }) => onJoined(tripId)).catch((e) => setError((e as Error).message));
   }, [token, onJoined]);
-  return <div className="signin">{error ? <p className="error">{error}</p> : <p>Joining the trip…</p>}</div>;
+  return <div className="signin">{error ? <p className="error">{error}</p> : <p>{t("Joining the trip…")}</p>}</div>;
 }

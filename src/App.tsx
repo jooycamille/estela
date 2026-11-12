@@ -4,6 +4,7 @@ import { api, type ConnectionState, type Me } from "./api.ts";
 import AccountView from "./components/AccountView.tsx";
 import SignIn, { JoinTrip } from "./components/SignIn.tsx";
 import { emailLinkInAddress, finishEmailLink, setSupabaseConfig, takePendingInvite } from "./supabaseAuth.ts";
+import { language, locale, rememberLanguage, t, type LanguageCode } from "./i18n.ts";
 import TripDetail from "./components/TripDetail.tsx";
 import TripList from "./components/TripList.tsx";
 import FlightDataSettings from "./components/FlightDataSettings.tsx";
@@ -104,6 +105,16 @@ export default function App() {
   }, []);
   // Your home time zone, for "lands 07:10 there, 01:10 at home": the first device you use is taken to be at home
   // (you can change it under Account).
+  // Your language follows you: a new device switches to the one you chose; your first device's language is kept.
+  useEffect(() => {
+    if (!me) return;
+    if (me.language && me.language !== language()) {
+      rememberLanguage(me.language as LanguageCode);
+      location.reload();
+    } else if (!me.language) {
+      api.updateMe({ language: language() }).then((r) => setMe(r.user)).catch(() => undefined);
+    }
+  }, [me?.language]);
   useEffect(() => {
     if (!me || me.homeTimeZone) return;
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -166,21 +177,21 @@ export default function App() {
     <div className="app">
       {/* The name centred, with its tagline beneath; your trips on the left, reminders and account on the right. */}
       <header className="topbar">
-        <nav className="topbar-left" aria-label="Main">
-          <a href="#/" className="topbar-link">Trips</a>
+        <nav className="topbar-left" aria-label={t("Main")}>
+          <a href="#/" className="topbar-link">{t("Trips")}</a>
         </nav>
-        <a href="#/" className="brand" aria-label="Estela, craft your perfect journey. Home">
+        <a href="#/" className="brand" aria-label={t("Estela, {v1} {v2}", { v1: t("Craft your perfect journey."), v2: t("Home") })}>
           <Wordmark />
-          <span className="brand-tagline" aria-hidden="true">Craft your perfect journey.</span>
+          <span className="brand-tagline" aria-hidden="true">{t("Craft your perfect journey.")}</span>
         </a>
         {!status && <span />}
         {status && (
           <div className="status">
-            <a href="#/help" className={`help-link ${help ? "on" : ""}`} title="Help" aria-label="Help">
+            <a href="#/help" className={`help-link ${help ? "on" : ""}`} title={t("Help")} aria-label={t("Help")}>
               <CircleHelp aria-hidden="true" />
             </a>
             <ReminderBell tripId={tripId} />
-            <a href="#/account" className="account-link" title="You, your devices, sign out" aria-label={`Your account: ${me.name}`}>
+            <a href="#/account" className="account-link" title={t("You, your devices, sign out")} aria-label={t("Your account: {name}", { name: me.name })}>
               <span className="avatar" aria-hidden="true">{[...me.name.trim()][0]?.toUpperCase() ?? "?"}</span>
               <span className="account-name">{me.name}</span>
             </a>
@@ -189,9 +200,11 @@ export default function App() {
       </header>
       {connection.offline && (
         <div className="offline-banner" role="status">
-          Offline: showing the copy saved on this device
-          {connection.savedAt && <> (from {new Date(connection.savedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })})</>}
-          . Changes need a connection to your Mac.
+          {connection.savedAt
+            ? t("Offline: showing the copy saved on this device (from {when}). Changes need a connection.", {
+                when: new Date(connection.savedAt).toLocaleString(locale(), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
+              })
+            : t("Offline: showing the copy saved on this device. Changes need a connection.")}
         </div>
       )}
       <main>
@@ -211,7 +224,7 @@ export default function App() {
       {(me.tourPending || tourAgain) && <WelcomeTour ai={!!status?.ai} onClose={closeTour} />}
       {status && status.flightProvider !== "mock" && (
         <footer className="attribution">
-          Flight data by{" "}
+          {t("Flight data by")}{" "}
           <a href={PROVIDER_SITES[status.flightProvider]} target="_blank" rel="noreferrer">
             {PROVIDER_NAMES[status.flightProvider] ?? status.flightProvider}
           </a>

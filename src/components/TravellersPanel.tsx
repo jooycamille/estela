@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { TripRole } from "../../shared/types.ts";
 import { api, type InviteLink, type Travellers } from "../api.ts";
 import QrLink from "./QrLink.tsx";
+import { t as tr } from "../i18n.ts";
 
-const ROLE_LABEL: Record<TripRole, string> = { owner: "Owner", editor: "Can edit", viewer: "View only" };
+const ROLE_LABEL: Record<TripRole, string> = { get owner() { return tr("Owner"); }, get editor() { return tr("Can edit"); }, get viewer() { return tr("View only"); } };
 
 /**
  * Who's on this trip. The owner adds people (each gets a one-time link to sign in, and then sees only the trips
@@ -33,11 +34,11 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
   return (
     <section className="card travellers">
       <div className="travellers-head">
-        <h3>Travellers</h3>
-        <button type="button" className="link" onClick={onClose}>Close</button>
+        <h3>{tr("Travellers")}</h3>
+        <button type="button" className="link" onClick={onClose}>{tr("Close")}</button>
       </div>
       <p className="muted small">
-        Everyone here sees this trip ({tripName}) and nothing else of yours. {owner ? "People who can edit can add and change bookings, lists and the checklist." : ""}
+        {owner ? tr("Everyone here sees this trip ({tripName}) and nothing else of yours. People who can edit can add and change bookings, lists and the checklist.", { tripName }) : tr("Everyone here sees this trip ({tripName}) and nothing else of yours.", { tripName })}
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -46,22 +47,22 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
           <li key={t.userId}>
             <span className="traveller-name">
               <b>{t.name}</b>
-              {t.you && <span className="muted small"> (you)</span>}
-              {!t.signedIn && t.role !== "owner" && <span className="pending">Invited, hasn't joined yet</span>}
+              {t.you && <span className="muted small">{" "}{tr("(you)")}</span>}
+              {!t.signedIn && t.role !== "owner" && <span className="pending">{tr("Invited, hasn't joined yet")}</span>}
             </span>
             {owner && t.role !== "owner" ? (
               <span className="traveller-actions">
-                <select value={t.role} onChange={(e) => act(() => api.setTravellerRole(tripId, t.userId, e.target.value as "editor" | "viewer"))} aria-label={`What ${t.name} can do`}>
-                  <option value="editor">Can edit</option>
-                  <option value="viewer">View only</option>
+                <select value={t.role} onChange={(e) => act(() => api.setTravellerRole(tripId, t.userId, e.target.value as "editor" | "viewer"))} aria-label={tr("What {name} can do", { name: t.name })}>
+                  <option value="editor">{tr("Can edit")}</option>
+                  <option value="viewer">{tr("View only")}</option>
                 </select>
-                {!t.signedIn && <button type="button" className="link" onClick={() => act(async () => setInvite(await api.travellerLink(tripId, t.userId)))}>New link</button>}
+                {!t.signedIn && <button type="button" className="link" onClick={() => act(async () => setInvite(await api.travellerLink(tripId, t.userId)))}>{tr("New link")}</button>}
                 <button
                   type="button"
                   className="link danger"
-                  onClick={() => confirm(`Remove ${t.name} from this trip? They'll no longer see it.`) && act(() => api.removeTraveller(tripId, t.userId))}
+                  onClick={() => confirm(tr("Remove {name} from this trip? They'll no longer see it.", { name: t.name })) && act(() => api.removeTraveller(tripId, t.userId))}
                 >
-                  Remove
+                  {tr("Remove")}
                 </button>
               </span>
             ) : (
@@ -74,8 +75,8 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
       {invite && (
         <QrLink
           url={invite.url}
-          title={`Send this to ${invite.name}`}
-          note={`They open it, create a free account (or sign in), and the trip appears in their Estela. It works once and expires in ${invite.expiresInDays} days. Send it yourself (Messages, WhatsApp…).`}
+          title={tr("Send this to {name}", { name: invite.name })}
+          note={tr("They open it, create a free account (or sign in), and the trip appears in their Estela. It works once and expires in {expiresInDays} days. Send it yourself (Messages, WhatsApp…).", { expiresInDays: invite.expiresInDays })}
         />
       )}
 
@@ -92,33 +93,33 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
             });
           }}
         >
-          <h4>Add someone</h4>
+          <h4>{tr("Add someone")}</h4>
           <div className="grid2">
             {data?.contacts.length ? (
               <label>
-                Someone you've travelled with
+                {tr("Someone you've travelled with")}
                 <select value={existing} onChange={(e) => setExisting(e.target.value)}>
-                  <option value="">A new person…</option>
+                  <option value="">{tr("A new person…")}</option>
                   {data.contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </label>
             ) : null}
             {!existing && (
               <label>
-                Their name
-                <input value={name} maxLength={40} placeholder="e.g. Andrés" onChange={(e) => setName(e.target.value)} />
+                {tr("Their name")}
+                <input value={name} maxLength={40} placeholder={tr("e.g. Andrés")} onChange={(e) => setName(e.target.value)} />
               </label>
             )}
             <label>
-              They can
+              {tr("They can")}
               <select value={newRole} onChange={(e) => setNewRole(e.target.value as "editor" | "viewer")}>
-                <option value="editor">Edit the trip</option>
-                <option value="viewer">Only view it</option>
+                <option value="editor">{tr("Edit the trip")}</option>
+                <option value="viewer">{tr("Only view it")}</option>
               </select>
             </label>
           </div>
           <div className="actions">
-            <button type="submit" disabled={!existing && !name.trim()}>Add to trip</button>
+            <button type="submit" disabled={!existing && !name.trim()}>{tr("Add to trip")}</button>
           </div>
         </form>
       )}
@@ -127,12 +128,12 @@ export default function TravellersPanel({ tripId, tripName, role, onClose, onLef
         <button
           type="button"
           className="ghost"
-          onClick={() => confirm(`Leave ${tripName}? You'll no longer see it.`) && data && act(async () => {
+          onClick={() => confirm(tr("Leave {tripName}? You'll no longer see it.", { tripName })) && data && act(async () => {
             await api.removeTraveller(tripId, data.travellers.find((t) => t.you)!.userId);
             onLeft();
           })}
         >
-          Leave this trip
+          {tr("Leave this trip")}
         </button>
       )}
     </section>
