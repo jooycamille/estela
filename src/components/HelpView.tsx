@@ -128,6 +128,7 @@ const topics = (): Topic[] => [
     title: tr("Your account"),
     points: [
       tr("Tap your initial at the top right to change your name, email or password, sign in another device with a QR code, or sign out."),
+      tr("At the bottom of your account page you can delete your account. It shows what happens to each of your trips first: trips shared with someone who can edit them go to that person, so they keep them."),
     ],
   },
 ];

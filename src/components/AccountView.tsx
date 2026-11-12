@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, signOutHere, type Device, type Me } from "../api.ts";
+import { api, signOutHere, type AccountDeletion, type Device, type Me } from "../api.ts";
 import QrLink from "./QrLink.tsx";
 import * as sb from "../supabaseAuth.ts";
 import { language, LANGUAGES, locale, rememberLanguage, t, type LanguageCode } from "../i18n.ts";
@@ -203,6 +203,73 @@ export default function AccountView({ me, onChanged, onSignedOut }: { me: Me; on
         </button>
         <p className="muted tiny">{t("Signing out also removes the offline copy of your trips from this device.")}</p>
       </section>
+
+      <DeleteAccount me={me} onDeleted={onSignedOut} />
     </div>
+  );
+}
+
+/**
+ * Deleting your account, at the bottom of Account. It first says what happens to each of your trips, then asks you to
+ * type your email (or name) to confirm.
+ */
+function DeleteAccount({ me, onDeleted }: { me: Me; onDeleted: () => void }) {
+  const [plan, setPlan] = useState<AccountDeletion & { owner: boolean }>();
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const expected = me.email ?? me.name;
+  return (
+    <section className="card danger-zone" aria-labelledby="delete-account-title">
+      <h3 id="delete-account-title">{t("Delete your account")}</h3>
+      {!plan ? (
+        <>
+          <p className="muted small">{t("Removes your account and your trips from Estela for good. You'll see what happens to each trip before anything is deleted.")}</p>
+          <button type="button" className="ghost danger" onClick={() => api.accountDeletion().then(setPlan).catch((e) => setError((e as Error).message))}>
+            {t("Delete account…")}
+          </button>
+        </>
+      ) : plan.owner ? (
+        <p className="small">{t("You own this copy of Estela (it runs on your Mac), so your account can't be deleted here. You can delete any of your trips instead.")}</p>
+      ) : (
+        <form
+          className="auth-form wide"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError(undefined);
+            setBusy(true);
+            try {
+              await api.deleteAccount(confirm);
+              await signOutHere(); // this device's offline copy and Supabase sign-in go too
+              onDeleted();
+            } catch (err) {
+              setError((err as Error).message);
+              setBusy(false);
+            }
+          }}
+        >
+          <ul className="deletion-plan small">
+            {plan.deleted.length > 0 && <li>{t("Deleted, with everything in them: {trips}", { trips: plan.deleted.join(", ") })}</li>}
+            {plan.handedOver.map((h) => (
+              <li key={h.trip}>{t("{trip} goes to {name}, who can edit it, so they keep it", { trip: h.trip, name: h.to })}</li>
+            ))}
+            {plan.left.length > 0 && <li>{t("You'll leave trips shared with you: {trips}", { trips: plan.left.join(", ") })}</li>}
+            <li>{t("Your sign-in, devices and reminders are removed. This can't be undone.")}</li>
+          </ul>
+          <label>
+            {me.email ? t("Type your email to confirm") : t("Type your name to confirm")}
+            <input value={confirm} autoComplete="off" spellCheck={false} placeholder={expected} onChange={(e) => setConfirm(e.target.value)} />
+          </label>
+          {error && <p className="error small">{error}</p>}
+          <div className="actions left">
+            <button type="submit" className="danger-button" disabled={busy || confirm.trim().toLowerCase() !== expected.trim().toLowerCase()}>
+              {busy ? t("Deleting…") : t("Delete my account")}
+            </button>
+            <button type="button" className="ghost" onClick={() => { setPlan(undefined); setConfirm(""); setError(undefined); }}>{t("Cancel")}</button>
+          </div>
+        </form>
+      )}
+      {!plan && error && <p className="error small">{error}</p>}
+    </section>
   );
 }

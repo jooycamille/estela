@@ -66,6 +66,8 @@ export type PrepData = {
 
 export type TripInput = Omit<Trip, "id" | "createdAt">;
 export type TripSummary = Trip & { itemCount: number; role: TripRole; ownerName?: string; travellers: number };
+/** What deleting your account does to your trips (their names). */
+export type AccountDeletion = { deleted: string[]; handedOver: { trip: string; to: string }[]; left: string[] };
 export type Me = { id: string; name: string; email: string | null; isAdmin: boolean; hasPassword: boolean; tourPending?: boolean; homeTimeZone?: string | null; language?: string | null };
 export type Device = { id: string; device: string; lastSeenAt: string; current: boolean };
 export type InviteLink = { name: string; url: string; expiresInDays: number };
@@ -179,6 +181,8 @@ export const api = {
   me: () => request<{ user: Me | null; claimHere: boolean; emailReset: boolean; supabase: { url: string; publishableKey: string } | null }>("/auth/me"),
   supabaseSession: (accessToken: string, name?: string) => request<{ user: Me }>("/auth/supabase", json("POST", { accessToken, name })),
   passwordChanged: () => request<{ ok: true }>("/auth/password-changed", json("POST")),
+  accountDeletion: () => request<AccountDeletion & { owner: boolean }>("/auth/me/deletion"),
+  deleteAccount: (confirm: string) => request<AccountDeletion>("/auth/me", json("DELETE", { confirm })),
   signUp: (body: { name: string; email: string; password: string }) => request<{ user: Me }>("/auth/signup", json("POST", body)),
   signIn: (body: { email: string; password: string }) => request<{ user: Me }>("/auth/signin", json("POST", body)),
   forgot: (email: string) => request<{ ok: true }>("/auth/forgot", json("POST", { email })),

@@ -14,8 +14,8 @@ import { getRates } from "./fx.ts";
 import { prepGroupFor } from "../shared/prepAdd.ts";
 import { buildPrep } from "./prep.ts";
 import { describe, describeEntry, fillPhoto, photoDue, recheckDescription } from "./describe.ts";
-import { acceptInvite, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signInWithIdentity, signOut, signOutOtherDevices, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
-import { identityOf, supabaseAuthOn, supabasePublic } from "./supabaseAuth.ts";
+import { acceptInvite, accountDeletionPlan, canSeeAttachment, changePassword, clientAddress, contactsOf, createLink, currentSessionId, deleteAccount, findByEmail, guard, invitePreview, needsOwner, normaliseEmail, onThisMac, redeemLink, resetPassword, setUpPeople, signIn, signInWithIdentity, signOut, signOutOtherDevices, signUp, tooMany, tripRole, userFrom, userOf } from "./auth.ts";
+import { deleteIdentity, identityOf, supabaseAuthOn, supabasePublic } from "./supabaseAuth.ts";
 import { emailConfigured, sendEmail } from "./mailer.ts";
 import { notifyUser, pushPublicKey, startReminderLoop, subscribe, unsubscribe } from "./push.ts";
 import type { UserRecord } from "./db.ts";
@@ -287,6 +287,31 @@ app.post("/api/auth/password", async (req, res) => {
   res.json({ ok: true });
 });
 
+// Deleting your account. First what it would do (which trips are deleted, handed over or left), then doing it, once
+// you've typed your email (or name) to confirm. The owner of this Estela can't: it would be left without an owner.
+const deletionView = (plan: ReturnType<typeof accountDeletionPlan>) => ({
+  deleted: plan.deleted.map((t) => t.name),
+  handedOver: plan.handedOver.map(({ trip, to }) => ({ trip: trip.name, to: to.name })),
+  left: plan.left.map((t) => t.name),
+});
+
+app.get("/api/auth/me/deletion", (_req, res) => {
+  const me = userFrom(res);
+  res.json({ ...deletionView(accountDeletionPlan(me)), owner: me.isAdmin });
+});
+
+app.delete("/api/auth/me", async (req, res) => {
+  const me = userFrom(res);
+  const { confirm } = z.object({ confirm: z.string().max(200) }).parse(req.body);
+  if (me.isAdmin) return void res.status(400).json({ error: "You own this copy of Estela, so your account can't be deleted here." });
+  const expected = (me.email ?? me.name).trim().toLowerCase();
+  if (confirm.trim().toLowerCase() !== expected) return void res.status(400).json({ error: me.email ? "Type your email exactly to confirm." : "Type your name exactly to confirm." });
+  // The Supabase login first: if that can't be removed, nothing else is.
+  if (me.authId && !(await deleteIdentity(me.authId))) return void res.status(502).json({ error: "Couldn't delete your sign-in just now. Nothing was changed; please try again." });
+  const plan = await deleteAccount(req, res, me, deleteTrip);
+  res.json(deletionView(plan));
+});
+
 app.post("/api/auth/signout", (req, res) => {
   signOut(req, res);
   res.status(204).end();
@@ -547,13 +572,18 @@ app.put("/api/trips/:id/night-stay", (req, res) => {
   res.json(trip.nightStay);
 });
 
-app.delete("/api/trips/:id", async (req, res) => {
-  await deleteInbox(req.params.id);
-  db.trips = db.trips.filter((t) => t.id !== req.params.id);
-  db.items = db.items.filter((i) => i.tripId !== req.params.id);
-  db.lists = db.lists.filter((l) => l.tripId !== req.params.id);
+/** A trip and everything in it: bookings, lists, its email inbox, and files nothing else uses. */
+async function deleteTrip(id: string) {
+  await deleteInbox(id);
+  db.trips = db.trips.filter((t) => t.id !== id);
+  db.items = db.items.filter((i) => i.tripId !== id);
+  db.lists = db.lists.filter((l) => l.tripId !== id);
   save();
   pruneAttachments();
+}
+
+app.delete("/api/trips/:id", async (req, res) => {
+  await deleteTrip(req.params.id);
   res.status(204).end();
 });
 

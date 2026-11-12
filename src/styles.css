@@ -1349,3 +1349,9 @@ a.button:not(.secondary):hover { background: var(--btn-gradient-hover); }
 .trip-menu-list button.danger svg.lucide { color: var(--danger); }
 /* The open menu reaches past its card (and over the next one). */
 .swipe-row:has(.trip-menu.open) { overflow: visible; z-index: 6; }
+
+/* ---------- Account: deleting it ---------- */
+.danger-zone { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.deletion-plan { margin: 4px 0 12px; padding-left: 18px; display: grid; gap: 6px; }
+.danger-button { background: var(--danger); color: #fff; border-color: var(--danger); }
+.danger-button:hover:not(:disabled) { background: var(--danger); filter: brightness(1.08); }

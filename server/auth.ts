@@ -245,6 +245,52 @@ export function signOutOtherDevices(req: Request, user: UserRecord) {
   save();
 }
 
+// ---------- Deleting an account ----------
+
+/**
+ * What deleting this account does to its trips: ones it owns are deleted, unless someone else on them can edit (then
+ * they're handed to that person, so travel companions keep them); ones shared with it are left.
+ */
+export function accountDeletionPlan(user: UserRecord) {
+  const owned = db.trips.filter((t) => t.ownerId === user.id);
+  const heir = (t: Trip) =>
+    t.members?.find((m) => m.role === "editor" && db.users.some((u) => u.id === m.userId && !u.placeholder));
+  return {
+    deleted: owned.filter((t) => !heir(t)),
+    handedOver: owned.flatMap((t) => {
+      const h = heir(t);
+      return h ? [{ trip: t, to: db.users.find((u) => u.id === h.userId)! }] : [];
+    }),
+    left: db.trips.filter((t) => t.members?.some((m) => m.userId === user.id)),
+  };
+}
+
+/**
+ * Deletes the account and what's only its own (see accountDeletionPlan). `deleteTrip` removes a trip and everything
+ * in it (bookings, lists, its email inbox).
+ */
+export async function deleteAccount(req: Request, res: Response, user: UserRecord, deleteTrip: (id: string) => Promise<void>) {
+  const plan = accountDeletionPlan(user);
+  for (const t of plan.deleted) await deleteTrip(t.id);
+  for (const { trip, to } of plan.handedOver) {
+    trip.ownerId = to.id;
+    trip.members = trip.members?.filter((m) => m.userId !== to.id);
+  }
+  for (const t of plan.left) t.members = t.members?.filter((m) => m.userId !== user.id);
+  setCookie(req, res, "", 0);
+  db.sessions = db.sessions.filter((s) => s.userId !== user.id);
+  db.invites = db.invites.filter((i) => i.userId !== user.id);
+  db.pushSubs = db.pushSubs.filter((p) => p.userId !== user.id);
+  db.users = db.users.filter((u) => u.id !== user.id);
+  // People invited to trips that are now gone, who never joined: nothing left to join.
+  const onATrip = new Set(db.trips.flatMap((t) => [t.ownerId, ...(t.members ?? []).map((m) => m.userId)]));
+  const stranded = new Set(db.users.filter((u) => u.placeholder && !onATrip.has(u.id)).map((u) => u.id));
+  db.users = db.users.filter((u) => !stranded.has(u.id));
+  db.invites = db.invites.filter((i) => !stranded.has(i.userId));
+  save();
+  return plan;
+}
+
 // ---------- One-time links ----------
 
 /** A one-time link's secret (only its hash is kept). A new link of the same kind replaces the old one. */

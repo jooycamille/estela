@@ -33,3 +33,15 @@ export async function identityOf(accessToken: string): Promise<SupabaseIdentity 
   const name = typeof u.user_metadata?.name === "string" ? u.user_metadata.name.trim().slice(0, 40) : undefined;
   return { id: u.id, email: u.email.trim().toLowerCase(), confirmed: !!u.email_confirmed_at, name: name || undefined };
 }
+
+/** Deleting an account: its Supabase login goes too (with the secret key; only the server can). */
+export async function deleteIdentity(authId: string): Promise<boolean> {
+  if (!supabaseAuthOn()) return true;
+  const key = process.env.SUPABASE_SECRET_KEY!;
+  const res = await fetch(`${process.env.SUPABASE_URL!.replace(/\/$/, "")}/auth/v1/admin/users/${encodeURIComponent(authId)}`, {
+    method: "DELETE",
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => undefined);
+  return !!res && (res.ok || res.status === 404); // 404: already gone
+}
