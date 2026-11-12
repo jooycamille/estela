@@ -78,7 +78,7 @@ Add a short warning for anything ambiguous (for example a date you had to infer)
 export async function parseEmail(email: string, trip?: Trip): Promise<EmailParseResult> {
   const text = stripEmail(email);
   // Rides have a set layout, and shouldn't be mistaken for the flight they mention.
-  const ride = parseTransfer(text, trip ? +trip.startDate.slice(0, 4) : new Date().getFullYear());
+  const ride = attempt("a ride", () => parseTransfer(text, trip ? +trip.startDate.slice(0, 4) : new Date().getFullYear()));
   if (ride) return withLinks({ items: [{ kind: "activity", source: "email", ...ride }], parser: "heuristic", warnings: [] }, email);
   if (aiEnabled()) {
     try {
@@ -194,6 +194,19 @@ function stripEmail(raw: string) {
 
 // ---------- Heuristic fallback (no API key) ----------
 
+/**
+ * Runs one of the readers (flights, stays, activities…). If it stumbles on an unusual email, the others still get their
+ * turn, rather than the whole email failing.
+ */
+function attempt<T>(what: string, read: () => T): T | undefined {
+  try {
+    return read();
+  } catch (err) {
+    console.warn(`Reading ${what} from an email failed:`, (err as Error).message);
+    return undefined;
+  }
+}
+
 function heuristicParse(text: string, raw: string, trip?: Trip): EmailParseResult {
   const year = trip ? +trip.startDate.slice(0, 4) : new Date().getFullYear();
   const confirmation = findConfirmation(text);
@@ -202,15 +215,15 @@ function heuristicParse(text: string, raw: string, trip?: Trip): EmailParseResul
   const warnings = ["Parsed without AI — please double-check each field. Set ANTHROPIC_API_KEY for better results."];
 
   // Flights: one item per segment (flight number + departure + arrival).
-  const flights = parseFlights(text, year);
+  const flights = attempt("flights", () => parseFlights(text, year)) ?? [];
   // One allowance stated for the whole booking applies to each of its flights.
-  const baggage = flights.length ? findBaggage(text) : undefined;
+  const baggage = flights.length ? attempt("baggage", () => findBaggage(text)) : undefined;
   for (const f of flights) {
     items.push({ kind: "flight", source: "email", ...f, ...(baggage && { baggage }) });
   }
 
   // Stays
-  const stay = parseStay(text, raw, year);
+  const stay = attempt("a stay", () => parseStay(text, raw, year));
   if (stay) {
     items.push({
       kind: "stay",
@@ -228,7 +241,7 @@ function heuristicParse(text: string, raw: string, trip?: Trip): EmailParseResul
 
   // Tours and activities (only when the email isn't a flight or hotel booking)
   if (items.length === 0) {
-    const a = parseEventTicket(text, year) ?? parseActivity(text, year, trip);
+    const a = attempt("an event ticket", () => parseEventTicket(text, year)) ?? attempt("an activity", () => parseActivity(text, year, trip));
     if (a) {
       items.push({ kind: "activity", source: "email", ...a });
       if (a.dateEstimated) warnings.push(`"${a.title}": the email doesn't give the date, so it was estimated from the cancellation deadline — please confirm it.`);

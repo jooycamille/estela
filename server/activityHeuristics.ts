@@ -275,10 +275,15 @@ export function parseActivity(text: string, fallbackYear: number, range?: { star
   let dateEstimated = false;
   const header = lines.slice(Math.max(0, titleIdx), pIdx > 0 ? pIdx + 1 : titleIdx + 6);
   const newIdx = header.findIndex((l) => /^new$/i.test(l));
+  // Newer GetYourGuide emails put the date just above the name ("December 10, 2026 at 4:15 AM", then the name).
+  const aboveTitle = titleIdx > 0 ? lines.slice(Math.max(0, titleIdx - 3), titleIdx).reverse().find((l) => findDates(l, fallbackYear).length > 0) : undefined;
+  // Else a labelled line ("Date: …", "When: …"): the first that holds a date ("When: meet at the pier" doesn't).
   const dateLine = header.slice(newIdx >= 0 ? newIdx : 0).find((l) => findDates(l, fallbackYear).length > 0) ??
-    body.match(/^\s*(?:date|when|activity date|tour date|date and time)\s*:?\s*(.+)$/im)?.[1];
-  if (dateLine) {
-    const d = findDates(dateLine, fallbackYear)[0];
+    aboveTitle ??
+    [...body.matchAll(/^\s*(?:date|when|activity date|tour date|date and time)\s*:?\s*(.+)$/gim)].map((m) => m[1]).find((l) => findDates(l, fallbackYear).length > 0);
+  // (A "When:" line may not hold a date at all, e.g. "When: see your ticket".)
+  const d = dateLine ? findDates(dateLine, fallbackYear)[0] : undefined;
+  if (dateLine && d) {
     const yearStated = /\b\d{4}\b/.test(dateLine);
     const [, mm, dd] = d.date.split("-").map(Number);
     const date = yearStated ? d.date : `${yearFor(mm, dd, fallbackYear, range)}-${d.date.slice(5)}`;

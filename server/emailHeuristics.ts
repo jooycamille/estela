@@ -53,6 +53,10 @@ export function findConfirmation(text: string): string | undefined {
   const plausibleLabelled = (c: string) => plausible(c) || (/^[A-Z]{5,8}$/.test(c) && !NOT_CODES.has(c));
   const labeled = [...text.matchAll(CONFIRMATION_LABELED)].map((m) => m[1]).find(plausibleLabelled);
   if (labeled) return labeled;
+  // The label on one line and the code on the next, e.g. GetYourGuide's "Booking reference" then "GYGLMRLRMVHR"
+  // (all letters, so only trusted right under a label).
+  const below = text.match(/^\s*(?:booking|confirmation|reservation|order)\s+(?:reference|number|code|id)\s*:?\s*\n(?:\s*\n)*\s*([A-Z0-9][A-Z0-9-]{4,15})\s*$/im)?.[1];
+  if (below && (plausible(below) || (/^[A-Z]{5,16}$/.test(below) && !NOT_CODES.has(below)))) return below;
   // Looser: "Confirmation: X7KQ2P" style codes that mix letters and digits.
   return [...text.matchAll(/(?:confirmation|booking|reservation|reference)[^\n:#]{0,20}[:#]?\s*([A-Za-z0-9]{5,12})\b/gi)]
     .map((m) => m[1])

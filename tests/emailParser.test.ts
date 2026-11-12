@@ -290,3 +290,30 @@ test("what's included and not, from headed lists and from sentences", async () =
   assert.ok(a.guide?.whatToBring?.some((x) => /sunscreen/.test(x)));
   assert.match(a.guide?.cancellation ?? "", /full refund/);
 });
+
+test("an activity email whose \"When:\" line isn't a date still imports (it used to fail the whole email)", async () => {
+  const email = `Subject: Your booking is confirmed
+From: bookings@example.test
+
+Madeup Sunrise Kayak Tour
+1 Adult (Age 18 - 99) • English • 3 hours
+When: meet at the pier 15 minutes early
+Tour date: March 5, 2028 at 6:00 AM
+Booking reference: MADEUP123`;
+  const { items } = await parseEmail(email, trip);
+  const a = items.find((i) => i.kind === "activity");
+  assert.ok(a && a.kind === "activity", "the activity is found");
+  assert.match(a.title, /Kayak/);
+  assert.equal(a.start, "2028-03-05T06:00"); // from the "Tour date:" line, not the "When:" one
+});
+
+test("GetYourGuide's newer layout: the date above the activity name, the reference on the line under its label", async () => {
+  const { items } = await parseEmail(fixture("gyg-date-above-title.txt"), { name: "Madeup", destination: "Madeuptown", startDate: "2028-03-10", endDate: "2028-03-20" } as Parameters<typeof parseEmail>[1]);
+  const a = items.find((i) => i.kind === "activity");
+  assert.ok(a && a.kind === "activity");
+  assert.equal(a.title, "Madeuptown: Sunrise Canyon Kayak with Breakfast");
+  assert.equal(a.start, "2028-03-12T05:30");
+  assert.equal(a.end, "2028-03-12T09:30"); // 4 hours
+  assert.equal(a.confirmationCode, "GYGMADEUPABCD");
+  assert.deepEqual(a.price, { amount: 250, currency: "AUD" });
+});
